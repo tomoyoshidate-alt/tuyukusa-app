@@ -85,6 +85,28 @@ const fieldLabelStyle = {
   marginBottom: 10,
 };
 
+type ApiMessage = { role: "user" | "assistant"; content: string };
+
+function toApiMessages(msgs: Message[]): ApiMessage[] {
+  return msgs.map(m => ({
+    role: m.type === "user" ? "user" : "assistant",
+    content: m.text,
+  }));
+}
+
+async function fetchChatReply(messages: Message[]): Promise<string> {
+  const res = await fetch("/api/chat", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ messages: toApiMessages(messages) }),
+  });
+  if (!res.ok) {
+    throw new Error("Chat API request failed");
+  }
+  const data = (await res.json()) as { content: string };
+  return data.content;
+}
+
 function CountSelector({
   value,
   onChange,
@@ -185,41 +207,40 @@ export default function TuyukusaApp() {
   }, [chatMessages]);
 
   const handleChoice = async (choice: string) => {
-    setChatMessages(prev => [...prev, { type: "user", text: choice }]);
+    const updatedMessages: Message[] = [...chatMessages, { type: "user", text: choice }];
+    setChatMessages(updatedMessages);
     setIsLoading(true);
-    await new Promise(r => setTimeout(r, 1000));
-    setIsLoading(false);
-    
-    let reply = "";
-    let choices: string[] = [];
-    
-    if (choice.includes("だるく")) {
-      reply = "朝のだるさは「水滞」のサインかもしれません。\n\n気になる症状はありますか？";
-      choices = ["😮 頭が重い・頭痛", "🤧 鼻水・くしゃみ", "🦵 足のむくみ", "特になし"];
-    } else if (choice.includes("スッキリ")) {
-      reply = "良い状態ですね！\n\n今日の目標を教えてください。";
-      choices = ["🌙 睡眠の質を上げたい", "❄️ 冷え性を改善したい", "🌸 花粉症を楽にしたい", "💊 漢方の効果を高めたい"];
-    } else {
-      reply = "わかりました。\n\n今日特に気になる症状はありますか？";
-      choices = ["🌡️ 夕方にほてり", "🥶 足が冷える", "😴 疲れやすい", "特になし"];
+    try {
+      const reply = await fetchChatReply(updatedMessages);
+      setChatMessages(prev => [...prev, { type: "ai", text: reply }]);
+    } catch {
+      setChatMessages(prev => [
+        ...prev,
+        { type: "ai", text: "申し訳ございません。接続に問題が発生しました。しばらくしてからもう一度お試しください。" },
+      ]);
+    } finally {
+      setIsLoading(false);
     }
-    
-    setChatMessages(prev => [...prev, { type: "ai", text: reply, choices }]);
   };
 
   const handleSend = async () => {
     if (!chatInput.trim()) return;
     const text = chatInput.trim();
     setChatInput("");
-    setChatMessages(prev => [...prev, { type: "user", text }]);
+    const updatedMessages: Message[] = [...chatMessages, { type: "user", text }];
+    setChatMessages(updatedMessages);
     setIsLoading(true);
-    await new Promise(r => setTimeout(r, 1200));
-    setIsLoading(false);
-    setChatMessages(prev => [...prev, {
-      type: "ai",
-      text: "ご入力ありがとうございます。つゆくさ医院の伊達先生のナレッジをもとに分析中です。水滞のサインが見られます。就寝前に自然塩3gをお湯に溶かして飲むことをおすすめします。",
-      choices: ["もっと詳しく", "スケジュールを作る"]
-    }]);
+    try {
+      const reply = await fetchChatReply(updatedMessages);
+      setChatMessages(prev => [...prev, { type: "ai", text: reply }]);
+    } catch {
+      setChatMessages(prev => [
+        ...prev,
+        { type: "ai", text: "申し訳ございません。接続に問題が発生しました。しばらくしてからもう一度お試しください。" },
+      ]);
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   const toggleSymptom = (symptom: string) => {
