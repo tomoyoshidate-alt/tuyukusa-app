@@ -1,0 +1,25 @@
+@import "tailwindcss";
+
+:root {
+  --washi: #f7f3eb;
+  --washi-deep: #ede6d6;
+  --moss: #4a6741;
+  --moss-light: #6b8f62;
+  --earth: #8b7355;
+  --earth-light: #c4a77d;
+  --ink: #3d3429;
+  --ink-muted: #6b5f52;
+}
+
+@theme inline {
+  --font-sans: var(--font-noto-sans);
+  --font-serif: var(--font-noto-serif);
+}
+
+body {
+  margin: 0;
+  min-height: 100dvh;
+  background: linear-gradient(165deg, #ebe4d4 0%, var(--washi) 45%, #f5f0e8 100%);
+  color: var(--ink);
+  font-family: var(--font-noto-sans), "Hiragino Sans", "Yu Gothic", sans-serif;
+}
