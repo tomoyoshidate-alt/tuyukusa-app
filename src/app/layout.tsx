@@ -1,6 +1,10 @@
 import type { Metadata } from "next";
 import { Noto_Sans_JP, Noto_Serif_JP } from "next/font/google";
+import UnregisterServiceWorker from "@/src/components/UnregisterServiceWorker";
 import "./globals.css";
+
+export const dynamic = "force-dynamic";
+export const revalidate = 0;
 
 const notoSans = Noto_Sans_JP({
   variable: "--font-noto-sans",
@@ -29,7 +33,10 @@ export default function RootLayout({
       lang="ja"
       className={`${notoSans.variable} ${notoSerif.variable} h-full antialiased`}
     >
-      <body className="min-h-full">{children}</body>
+      <body className="min-h-full">
+        <UnregisterServiceWorker />
+        {children}
+      </body>
     </html>
   );
 }
