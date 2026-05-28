@@ -29,6 +29,12 @@ const SYSTEM_PROMPT = `あなたはつゆくさ医院・伊達伯欣院長の医
 - 高湿度・雨の日は湿邪が強まり水滞に注意
 - 気温の急変時は腎・気のケアを意識する
 
+【スケジュール更新】
+ユーザーが「ランニングを追加して」「〇〇時に△△を入れて」などスケジュールへの追加・変更を依頼した場合、
+通常の回答の最後に必ず次の形式で1行追加してください（変更がない場合は追加しない）:
+SCHEDULE_UPDATE:{"time":"06:15","label":"朝のランニング","sub":"30分・軽めのペースで"}
+timeはHH:MM形式。labelは項目名。subは短い補足。
+
 【参考資料（伊達院長ナレッジ）】
 - https://drive.google.com/file/d/1s-C7zfUzQwAcDnKeLb2-nfLMhTagfQHy/view?usp=drive_link
 - https://drive.google.com/file/d/1PDi_X-qx2nLGB4s4NNyF4PCdAJtsrO0r/view?usp=sharing
@@ -39,13 +45,28 @@ const SYSTEM_PROMPT = `あなたはつゆくさ医院・伊達伯欣院長の医
 
 短く・わかりやすく・親切に答えてください。`;
 
+type ScheduleUpdate = { time: string; label: string; sub: string };
+
+function parseScheduleUpdate(text: string): { content: string; scheduleUpdate?: ScheduleUpdate } {
+  const match = text.match(/SCHEDULE_UPDATE:(\{[^}]+\})/);
+  if (!match) return { content: text.trim() };
+  try {
+    const scheduleUpdate = JSON.parse(match[1]) as ScheduleUpdate;
+    const content = text.replace(/\n?SCHEDULE_UPDATE:\{[^}]+\}/, '').trim();
+    if (scheduleUpdate.time && scheduleUpdate.label) {
+      return { content, scheduleUpdate };
+    }
+  } catch { /* ignore */ }
+  return { content: text.replace(/\n?SCHEDULE_UPDATE:\{[^}]+\}/, '').trim() };
+}
+
 export async function POST(request: NextRequest) {
   const { messages, environmentContext } = await request.json();
 
   const system = environmentContext
     ? `${SYSTEM_PROMPT}\n\n【本日の環境情報（診断・目標提案に活用）】\n${environmentContext}`
     : SYSTEM_PROMPT;
-  
+
   const response = await client.messages.create({
     model: 'claude-haiku-4-5-20251001',
     max_tokens: 500,
@@ -53,7 +74,8 @@ export async function POST(request: NextRequest) {
     messages,
   });
 
-  return NextResponse.json({ 
-    content: response.content[0].type === 'text' ? response.content[0].text : '' 
-  });
+  const raw = response.content[0].type === 'text' ? response.content[0].text : '';
+  const { content, scheduleUpdate } = parseScheduleUpdate(raw);
+
+  return NextResponse.json({ content, scheduleUpdate: scheduleUpdate ?? null });
 }

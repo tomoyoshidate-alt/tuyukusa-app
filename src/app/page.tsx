@@ -41,9 +41,17 @@ function useLocalStorage<T>(
 }
 
 type GoalCategory = "睡眠" | "食事" | "運動" | "塩清療法" | "その他";
+type GoalItem = { id: string; text: string; category: GoalCategory; achieved: boolean };
+type GoalList = { items: GoalItem[]; periodKey: string };
 type PeriodGoal = { text: string; category: GoalCategory; achieved: boolean; periodKey: string };
 type DeadlineGoal = { id: string; text: string; category: GoalCategory; deadline: string; achieved: boolean };
-type GoalsData = { daily: PeriodGoal; weekly: PeriodGoal; monthly: PeriodGoal; deadlineGoals: DeadlineGoal[] };
+type GoalsData = { daily: GoalList; weekly: GoalList; monthly: GoalList; deadlineGoals: DeadlineGoal[] };
+type GoalPeriod = "daily" | "weekly" | "monthly";
+type ScheduleItem = { id: string; time: string; label: string; sub: string };
+type ScheduleUpdate = { time: string; label: string; sub: string };
+type ScheduleAlert = { time: string; message: string; type: string };
+type ScheduleState = { dayKey: string; customItems: ScheduleItem[]; alerts: ScheduleAlert[] };
+type ChatReply = { content: string; scheduleUpdate?: ScheduleUpdate | null };
 const GOAL_CATEGORIES: GoalCategory[] = ["睡眠", "食事", "運動", "塩清療法", "その他"];
 function getDayKey(d = new Date()) { return d.toISOString().slice(0, 10); }
 function getWeekKey(d = new Date()) {
@@ -54,34 +62,67 @@ function getWeekKey(d = new Date()) {
 function getMonthKey(d = new Date()) {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
 }
-function emptyPeriodGoal(k: string): PeriodGoal {
-  return { text: "", category: "その他", achieved: false, periodKey: k };
+function emptyGoalList(k: string): GoalList {
+  return { items: [], periodKey: k };
+}
+function newGoalItem(text: string, category: GoalCategory): GoalItem {
+  return { id: `${Date.now()}-${Math.random().toString(36).slice(2, 9)}`, text, category, achieved: false };
+}
+function migrateGoalList(data: unknown, key: string): GoalList {
+  if (data && typeof data === "object" && "items" in data && Array.isArray((data as GoalList).items)) {
+    const gl = data as GoalList;
+    return gl.periodKey === key ? gl : emptyGoalList(key);
+  }
+  if (data && typeof data === "object" && "text" in data) {
+    const pg = data as PeriodGoal;
+    if (pg.periodKey !== key) return emptyGoalList(key);
+    const items = pg.text.trim()
+      ? [newGoalItem(pg.text, pg.category)].map(i => ({ ...i, achieved: pg.achieved }))
+      : [];
+    return { items, periodKey: key };
+  }
+  return emptyGoalList(key);
 }
 const INITIAL_GOALS: GoalsData = {
-  daily: emptyPeriodGoal(getDayKey()),
-  weekly: emptyPeriodGoal(getWeekKey()),
-  monthly: emptyPeriodGoal(getMonthKey()),
+  daily: emptyGoalList(getDayKey()),
+  weekly: emptyGoalList(getWeekKey()),
+  monthly: emptyGoalList(getMonthKey()),
   deadlineGoals: [],
 };
 function normalizeGoals(data: GoalsData): GoalsData {
   return {
-    daily: data.daily.periodKey === getDayKey() ? data.daily : emptyPeriodGoal(getDayKey()),
-    weekly: data.weekly.periodKey === getWeekKey() ? data.weekly : emptyPeriodGoal(getWeekKey()),
-    monthly: data.monthly.periodKey === getMonthKey() ? data.monthly : emptyPeriodGoal(getMonthKey()),
+    daily: migrateGoalList(data.daily, getDayKey()),
+    weekly: migrateGoalList(data.weekly, getWeekKey()),
+    monthly: migrateGoalList(data.monthly, getMonthKey()),
     deadlineGoals: data.deadlineGoals ?? [],
   };
 }
-function calcPeriodRate(g: PeriodGoal) { return g.text.trim() ? (g.achieved ? 100 : 0) : 0; }
+function calcListRate(list: GoalList) {
+  if (!list.items.length) return 0;
+  return Math.round((list.items.filter(i => i.achieved).length / list.items.length) * 100);
+}
 function calcDeadlineRate(gs: DeadlineGoal[]) {
   return gs.length ? Math.round((gs.filter(g => g.achieved).length / gs.length) * 100) : 0;
 }
 function calcOverallRate(data: GoalsData) {
-  const e = [data.daily, data.weekly, data.monthly, ...data.deadlineGoals].filter(g => g.text.trim());
-  return e.length ? Math.round((e.filter(g => g.achieved).length / e.length) * 100) : 0;
+  const all = [...data.daily.items, ...data.weekly.items, ...data.monthly.items, ...data.deadlineGoals];
+  if (!all.length) return 0;
+  return Math.round((all.filter(g => g.achieved).length / all.length) * 100);
 }
 function newDeadlineGoal(): DeadlineGoal {
   const d = new Date(); d.setDate(d.getDate() + 7);
   return { id: `${Date.now()}-${Math.random().toString(36).slice(2, 9)}`, text: "", category: "その他", deadline: d.toISOString().slice(0, 10), achieved: false };
+}
+function sortByTime(items: ScheduleItem[]) {
+  return [...items].sort((a, b) => a.time.localeCompare(b.time));
+}
+function parseAiGoalReply(reply: string): { text: string; category: GoalCategory } {
+  const catMatch = reply.match(/【(.+?)】/);
+  const category = GOAL_CATEGORIES.includes(catMatch?.[1] as GoalCategory)
+    ? (catMatch![1] as GoalCategory)
+    : "その他";
+  const text = reply.replace(/【.+?】/, "").trim().split("\n")[0].slice(0, 60);
+  return { text, category };
 }
 
 type Message = {
@@ -289,9 +330,34 @@ const HOME_DISPLAY_OPTIONS: { key: keyof HomeDisplaySettings; label: string }[] 
   { key: "schedule", label: "スケジュールタイムライン" },
 ];
 
-type AiDailyGoal = { text: string; category: GoalCategory; periodKey: string };
+type AiSuggestedGoal = { text: string; category: GoalCategory; periodKey: string };
 
 const DEFAULT_COORDS = { lat: 35.6812, lon: 139.7671 };
+
+const BASE_SCHEDULE_ITEMS: ScheduleItem[] = [
+  { id: "wake", time: "06:00", label: "起床", sub: "朝：自然塩3gをお湯に溶かして" },
+  { id: "meal1", time: "09:00", label: "朝食", sub: "糖質・お米中心で気を補う" },
+  { id: "meal2", time: "16:00", label: "夕食", sub: "塩・タンパク質・海産物中心" },
+  { id: "bath", time: "20:45", label: "入浴", sub: "38〜39度・30分以内" },
+  { id: "sleep", time: "22:30", label: "就寝", sub: "就寝前：自然塩3gを白湯で" },
+];
+
+const INITIAL_SCHEDULE: ScheduleState = {
+  dayKey: getDayKey(),
+  customItems: [],
+  alerts: [
+    { time: "06:00", message: "起床の時間です。朝の塩湯3gをどうぞ", type: "wake" },
+    { time: "09:00", message: "朝食の時間です。糖質・お米中心で", type: "meal" },
+    { time: "16:00", message: "夕食の時間です。塩・タンパク質・海産物中心で", type: "meal" },
+    { time: "20:45", message: "入浴の時間です。38〜39度・30分以内で", type: "bath" },
+    { time: "22:00", message: "就寝前の塩湯3gを飲んで22:30までに就寝を", type: "sleep" },
+  ],
+};
+
+function normalizeSchedule(data: ScheduleState): ScheduleState {
+  if (data.dayKey === getDayKey()) return data;
+  return { ...INITIAL_SCHEDULE, dayKey: getDayKey() };
+}
 
 function weatherLabel(code: number): string {
   if (code === 0) return "晴れ";
@@ -342,7 +408,7 @@ function buildHealthSummary(form: HealthForm): string {
 async function fetchChatReply(
   messages: Message[],
   environmentContext?: string
-): Promise<string> {
+): Promise<ChatReply> {
   const res = await fetch("/api/chat", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -352,8 +418,7 @@ async function fetchChatReply(
     }),
   });
   if (!res.ok) throw new Error("Chat API request failed");
-  const data = (await res.json()) as { content: string };
-  return data.content;
+  return (await res.json()) as ChatReply;
 }
 
 function CountSelector({
@@ -493,24 +558,41 @@ function CategorySelect({
 function PeriodGoalCard({
   title,
   resetHint,
-  goal,
+  goalList,
   rate,
-  onUpdate,
+  onAddItem,
+  onUpdateItem,
+  onRemoveItem,
   optional = false,
   showAiButton = false,
   isSuggesting = false,
   onAiSuggest,
+  aiSuggestion,
+  onAdoptAi,
 }: {
   title: string;
   resetHint: string;
-  goal: PeriodGoal;
+  goalList: GoalList;
   rate: number;
-  onUpdate: (patch: Partial<PeriodGoal>) => void;
+  onAddItem: (text: string, category: GoalCategory) => void;
+  onUpdateItem: (id: string, patch: Partial<GoalItem>) => void;
+  onRemoveItem: (id: string) => void;
   optional?: boolean;
   showAiButton?: boolean;
   isSuggesting?: boolean;
   onAiSuggest?: () => void;
+  aiSuggestion?: AiSuggestedGoal | null;
+  onAdoptAi?: () => void;
 }) {
+  const [inputText, setInputText] = useState("");
+  const [inputCategory, setInputCategory] = useState<GoalCategory>("その他");
+
+  const handleAdd = () => {
+    if (!inputText.trim()) return;
+    onAddItem(inputText.trim(), inputCategory);
+    setInputText("");
+  };
+
   return (
     <div style={cardStyle}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
@@ -521,21 +603,78 @@ function PeriodGoalCard({
           </div>
           <div style={{ fontSize: 10, color: "#3d3228", opacity: 0.5, marginTop: 2 }}>{resetHint}</div>
         </div>
-        {goal.text.trim() ? <RateBadge rate={rate} /> : null}
+        {goalList.items.length > 0 && <RateBadge rate={rate} />}
       </div>
-      {optional && !goal.text.trim() && (
+      {optional && (
         <div style={{ fontSize: 11, color: "#8b7355", marginBottom: 8, lineHeight: 1.5 }}>
-          未入力でもOK。AIが体調・季節・天気から提案できます。
+          未入力でもOK。自由に追加するか、AIに提案してもらえます。
         </div>
       )}
-      <CategorySelect value={goal.category} onChange={category => onUpdate({ category })} />
-      <input
-        type="text"
-        placeholder={optional ? "任意：目標を入力..." : "目標を入力..."}
-        value={goal.text}
-        onChange={e => onUpdate({ text: e.target.value })}
-        style={{ ...inputStyle, marginBottom: showAiButton ? 8 : 10 }}
-      />
+      <CategorySelect value={inputCategory} onChange={setInputCategory} />
+      <div style={{ display: "flex", gap: 8, marginBottom: 10 }}>
+        <input
+          type="text"
+          placeholder="自分で目標を入力..."
+          value={inputText}
+          onChange={e => setInputText(e.target.value)}
+          onKeyDown={e => e.key === "Enter" && handleAdd()}
+          style={{ ...inputStyle, flex: 1, marginBottom: 0 }}
+        />
+        <button
+          type="button"
+          onClick={handleAdd}
+          style={{
+            padding: "0 14px",
+            borderRadius: 10,
+            border: "none",
+            background: "#1a1410",
+            color: "#f5f0e8",
+            fontSize: 12,
+            fontWeight: "bold",
+            cursor: "pointer",
+            flexShrink: 0,
+          }}
+        >
+          追加
+        </button>
+      </div>
+      {goalList.items.map(item => (
+        <div
+          key={item.id}
+          style={{
+            display: "flex",
+            alignItems: "center",
+            gap: 8,
+            padding: "8px 10px",
+            marginBottom: 6,
+            background: item.achieved ? "#ede5d4" : "#f5f0e8",
+            borderRadius: 8,
+            opacity: item.achieved ? 0.75 : 1,
+          }}
+        >
+          <input
+            type="checkbox"
+            checked={item.achieved}
+            onChange={e => onUpdateItem(item.id, { achieved: e.target.checked })}
+            style={{ width: 16, height: 16, accentColor: "#c17f4a", flexShrink: 0 }}
+          />
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <span style={{ fontSize: 9, color: "#c17f4a", background: "#fdf0e4", borderRadius: 8, padding: "1px 6px", marginRight: 4 }}>
+              {item.category}
+            </span>
+            <span style={{ fontSize: 13, color: "#3d3228", textDecoration: item.achieved ? "line-through" : "none" }}>
+              {item.text}
+            </span>
+          </div>
+          <button
+            type="button"
+            onClick={() => onRemoveItem(item.id)}
+            style={{ background: "none", border: "none", color: "#9a8b7a", fontSize: 16, cursor: "pointer", padding: "0 4px", lineHeight: 1 }}
+          >
+            ×
+          </button>
+        </div>
+      ))}
       {showAiButton && onAiSuggest && (
         <button
           type="button"
@@ -544,7 +683,7 @@ function PeriodGoalCard({
           style={{
             width: "100%",
             padding: "10px",
-            marginBottom: 10,
+            marginTop: 4,
             borderRadius: 10,
             border: "1.5px solid #c17f4a",
             background: "#fdf0e4",
@@ -558,15 +697,173 @@ function PeriodGoalCard({
           {isSuggesting ? "AIが提案中..." : "✨ AIに提案してもらう"}
         </button>
       )}
-      <label style={{ display: "flex", alignItems: "center", gap: 8, cursor: "pointer", fontSize: 13, color: goal.achieved ? "#4a6741" : "#3d3228" }}>
-        <input
-          type="checkbox"
-          checked={goal.achieved}
-          onChange={e => onUpdate({ achieved: e.target.checked })}
-          style={{ width: 18, height: 18, accentColor: "#c17f4a" }}
-        />
-        達成した
-      </label>
+      {aiSuggestion?.text && onAdoptAi && (
+        <div style={{ marginTop: 10, padding: 10, background: "#e8f0e4", borderRadius: 8, fontSize: 12 }}>
+          <div style={{ fontSize: 10, color: "#4a6741", marginBottom: 4 }}>AI提案</div>
+          <span style={{ fontSize: 9, color: "#c17f4a", background: "#fdf0e4", borderRadius: 8, padding: "1px 6px", marginRight: 4 }}>
+            {aiSuggestion.category}
+          </span>
+          {aiSuggestion.text}
+          <div style={{ display: "flex", gap: 6, marginTop: 8 }}>
+            <button type="button" onClick={onAdoptAi} style={{ flex: 1, padding: "6px", borderRadius: 6, border: "none", background: "#1a1410", color: "#f5f0e8", fontSize: 11, cursor: "pointer" }}>
+              リストに追加
+            </button>
+            {onAiSuggest && (
+              <button type="button" onClick={onAiSuggest} style={{ padding: "6px 10px", borderRadius: 6, border: "1px solid rgba(60,40,20,0.15)", background: "white", fontSize: 11, cursor: "pointer" }}>
+                再提案
+              </button>
+            )}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function HomeGoalSection({
+  title,
+  goalList,
+  collapsed,
+  onToggleCollapse,
+  collapsible,
+  inputText,
+  inputCategory,
+  onInputTextChange,
+  onInputCategoryChange,
+  onAdd,
+  onUpdateItem,
+  onRemoveItem,
+  onAiSuggest,
+  isSuggesting,
+  aiSuggestion,
+  onAdoptAi,
+}: {
+  title: string;
+  goalList: GoalList;
+  collapsed: boolean;
+  onToggleCollapse?: () => void;
+  collapsible?: boolean;
+  inputText: string;
+  inputCategory: GoalCategory;
+  onInputTextChange: (v: string) => void;
+  onInputCategoryChange: (c: GoalCategory) => void;
+  onAdd: () => void;
+  onUpdateItem: (id: string, patch: Partial<GoalItem>) => void;
+  onRemoveItem: (id: string) => void;
+  onAiSuggest: () => void;
+  isSuggesting: boolean;
+  aiSuggestion: AiSuggestedGoal | null;
+  onAdoptAi: () => void;
+}) {
+  const rate = calcListRate(goalList);
+  return (
+    <div style={{ margin: "12px 16px 0", background: "white", borderRadius: 12, padding: "14px 16px", border: "1px solid rgba(60,40,20,0.1)" }}>
+      <button
+        type="button"
+        onClick={onToggleCollapse}
+        disabled={!collapsible}
+        style={{
+          width: "100%",
+          display: "flex",
+          justifyContent: "space-between",
+          alignItems: "center",
+          background: "none",
+          border: "none",
+          padding: 0,
+          marginBottom: collapsed ? 0 : 10,
+          cursor: collapsible ? "pointer" : "default",
+        }}
+      >
+        <div style={{ fontSize: 13, fontWeight: "bold", color: "#4a6741" }}>{title}</div>
+        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+          {goalList.items.length > 0 && <RateBadge rate={rate} />}
+          {collapsible && <span style={{ fontSize: 11, color: "#9a8b7a" }}>{collapsed ? "▼" : "▲"}</span>}
+        </div>
+      </button>
+      {!collapsed && (
+        <>
+          <CategorySelect value={inputCategory} onChange={onInputCategoryChange} />
+          <div style={{ display: "flex", gap: 8, marginBottom: 10 }}>
+            <input
+              type="text"
+              placeholder="自分で目標を入力..."
+              value={inputText}
+              onChange={e => onInputTextChange(e.target.value)}
+              onKeyDown={e => e.key === "Enter" && onAdd()}
+              style={{ ...inputStyle, flex: 1, marginBottom: 0 }}
+            />
+            <button
+              type="button"
+              onClick={onAdd}
+              style={{ padding: "0 14px", borderRadius: 10, border: "none", background: "#1a1410", color: "#f5f0e8", fontSize: 12, fontWeight: "bold", cursor: "pointer", flexShrink: 0 }}
+            >
+              追加
+            </button>
+          </div>
+          {goalList.items.map(item => (
+            <div
+              key={item.id}
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: 8,
+                padding: "8px 10px",
+                marginBottom: 6,
+                background: item.achieved ? "#ede5d4" : "#f5f0e8",
+                borderRadius: 8,
+                opacity: item.achieved ? 0.75 : 1,
+              }}
+            >
+              <input
+                type="checkbox"
+                checked={item.achieved}
+                onChange={e => onUpdateItem(item.id, { achieved: e.target.checked })}
+                style={{ width: 16, height: 16, accentColor: "#c17f4a", flexShrink: 0 }}
+              />
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <span style={{ fontSize: 9, color: "#c17f4a", background: "#fdf0e4", borderRadius: 8, padding: "1px 6px", marginRight: 4 }}>{item.category}</span>
+                <span style={{ fontSize: 13, color: "#3d3228", textDecoration: item.achieved ? "line-through" : "none" }}>{item.text}</span>
+              </div>
+              <button type="button" onClick={() => onRemoveItem(item.id)} style={{ background: "none", border: "none", color: "#9a8b7a", fontSize: 16, cursor: "pointer", padding: "0 4px" }}>×</button>
+            </div>
+          ))}
+          <button
+            type="button"
+            onClick={onAiSuggest}
+            disabled={isSuggesting}
+            style={{
+              width: "100%",
+              padding: "10px",
+              marginTop: 4,
+              borderRadius: 8,
+              border: "1.5px solid #c17f4a",
+              background: "#fdf0e4",
+              fontSize: 12,
+              fontWeight: "bold",
+              color: "#8b5a2b",
+              cursor: isSuggesting ? "wait" : "pointer",
+              opacity: isSuggesting ? 0.7 : 1,
+            }}
+          >
+            {isSuggesting ? "AIが提案中..." : "✨ AIに提案してもらう"}
+          </button>
+          {aiSuggestion?.text && (
+            <div style={{ marginTop: 10, padding: 10, background: "#e8f0e4", borderRadius: 8, fontSize: 12 }}>
+              <div style={{ fontSize: 10, color: "#4a6741", marginBottom: 4 }}>AI提案</div>
+              <span style={{ fontSize: 9, color: "#c17f4a", background: "#fdf0e4", borderRadius: 8, padding: "1px 6px", marginRight: 4 }}>{aiSuggestion.category}</span>
+              {aiSuggestion.text}
+              <div style={{ display: "flex", gap: 6, marginTop: 8 }}>
+                <button type="button" onClick={onAdoptAi} style={{ flex: 1, padding: "6px", borderRadius: 6, border: "none", background: "#1a1410", color: "#f5f0e8", fontSize: 11, cursor: "pointer" }}>
+                  リストに追加
+                </button>
+                <button type="button" onClick={onAiSuggest} style={{ padding: "6px 10px", borderRadius: 6, border: "1px solid rgba(60,40,20,0.15)", background: "white", fontSize: 11, cursor: "pointer" }}>
+                  再提案
+                </button>
+              </div>
+            </div>
+          )}
+        </>
+      )}
     </div>
   );
 }
@@ -661,29 +958,64 @@ export default function TuyukusaApp() {
   const [tab, setTab] = useState<Tab>("home");
   const [chatMessages, setChatMessages] = useState<Message[]>([]);
   const [chatInput, setChatInput] = useState("");
+  const [isComposing, setIsComposing] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [healthForm, setHealthForm] = useState<HealthForm>(INITIAL_HEALTH);
   const [enabledFields, setEnabledFields] = useState<HealthFieldId[]>([]);
   const [goals, setGoals, goalsHydrated] = useLocalStorage<GoalsData>("tuyukusa-goals", INITIAL_GOALS);
-  const [aiDailyGoal, setAiDailyGoal, aiGoalHydrated] = useLocalStorage<AiDailyGoal | null>("tuyukusa-ai-daily-goal", null);
+  const [aiSuggestions, setAiSuggestions] = useLocalStorage<Record<GoalPeriod, AiSuggestedGoal | null>>("tuyukusa-ai-goals", {
+    daily: null, weekly: null, monthly: null,
+  });
+  const [schedule, setSchedule, scheduleHydrated] = useLocalStorage<ScheduleState>("tuyukusa-schedule", INITIAL_SCHEDULE);
   const [homeDisplay, setHomeDisplay] = useLocalStorage<HomeDisplaySettings>("tuyukusa-home-display", DEFAULT_HOME_DISPLAY);
   const [weather, setWeather] = useState<WeatherData | null>(null);
   const [weatherLoading, setWeatherLoading] = useState(true);
-  const [isSuggestingGoal, setIsSuggestingGoal] = useState(false);
+  const [suggestingPeriod, setSuggestingPeriod] = useState<GoalPeriod | null>(null);
+  const [weeklyCollapsed, setWeeklyCollapsed] = useState(true);
+  const [monthlyCollapsed, setMonthlyCollapsed] = useState(true);
+  const [dailyInput, setDailyInput] = useState("");
+  const [dailyCategory, setDailyCategory] = useState<GoalCategory>("その他");
+  const [weeklyInput, setWeeklyInput] = useState("");
+  const [weeklyCategory, setWeeklyCategory] = useState<GoalCategory>("その他");
+  const [monthlyInput, setMonthlyInput] = useState("");
+  const [monthlyCategory, setMonthlyCategory] = useState<GoalCategory>("その他");
   const [saveMessage, setSaveMessage] = useState("");
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const autoSuggestRef = useRef(false);
   const envContext = buildEnvironmentContext(weather);
+
+  const timelineItems = sortByTime([...BASE_SCHEDULE_ITEMS, ...schedule.customItems]);
 
   useEffect(() => {
     if (goalsHydrated) setGoals(prev => normalizeGoals(prev));
   }, [goalsHydrated, setGoals]);
 
   useEffect(() => {
-    if (aiGoalHydrated && aiDailyGoal && aiDailyGoal.periodKey !== getDayKey()) {
-      setAiDailyGoal(null);
-    }
-  }, [aiGoalHydrated, aiDailyGoal, setAiDailyGoal]);
+    if (scheduleHydrated) setSchedule(prev => normalizeSchedule(prev));
+  }, [scheduleHydrated, setSchedule]);
+
+  useEffect(() => {
+    const day = getDayKey();
+    const week = getWeekKey();
+    const month = getMonthKey();
+    setAiSuggestions(prev => {
+      let changed = false;
+      const next = { ...prev };
+      if (prev.daily?.periodKey && prev.daily.periodKey !== day) {
+        next.daily = null;
+        changed = true;
+      }
+      if (prev.weekly?.periodKey && prev.weekly.periodKey !== week) {
+        next.weekly = null;
+        changed = true;
+      }
+      if (prev.monthly?.periodKey && prev.monthly.periodKey !== month) {
+        next.monthly = null;
+        changed = true;
+      }
+      return changed ? next : prev;
+    });
+  }, [setAiSuggestions]);
 
   const fetchWeather = (lat: number, lon: number) => {
     setWeatherLoading(true);
@@ -706,41 +1038,104 @@ export default function TuyukusaApp() {
     );
   }, []);
 
-  const suggestDailyGoal = async () => {
-    setIsSuggestingGoal(true);
+  const periodKey = (p: GoalPeriod) =>
+    p === "daily" ? getDayKey() : p === "weekly" ? getWeekKey() : getMonthKey();
+
+  const addGoalItem = (period: GoalPeriod, text: string, category: GoalCategory) => {
+    setGoals(prev => ({
+      ...prev,
+      [period]: {
+        periodKey: periodKey(period),
+        items: [...prev[period].items, newGoalItem(text, category)],
+      },
+    }));
+  };
+
+  const updateGoalItem = (period: GoalPeriod, id: string, patch: Partial<GoalItem>) => {
+    setGoals(prev => ({
+      ...prev,
+      [period]: {
+        ...prev[period],
+        periodKey: periodKey(period),
+        items: prev[period].items.map(i => (i.id === id ? { ...i, ...patch } : i)),
+      },
+    }));
+  };
+
+  const removeGoalItem = (period: GoalPeriod, id: string) => {
+    setGoals(prev => ({
+      ...prev,
+      [period]: {
+        ...prev[period],
+        periodKey: periodKey(period),
+        items: prev[period].items.filter(i => i.id !== id),
+      },
+    }));
+  };
+
+  const adoptAiGoal = (period: GoalPeriod) => {
+    const s = aiSuggestions[period];
+    if (!s?.text) return;
+    addGoalItem(period, s.text, s.category);
+    setAiSuggestions(prev => ({ ...prev, [period]: null }));
+  };
+
+  const applyScheduleUpdate = (update: ScheduleUpdate) => {
+    setSchedule(prev => {
+      const dayKey = getDayKey();
+      const base = prev.dayKey === dayKey ? prev : { ...INITIAL_SCHEDULE, dayKey };
+      const newItem: ScheduleItem = {
+        id: `custom-${Date.now()}`,
+        time: update.time,
+        label: update.label,
+        sub: update.sub || "",
+      };
+      return {
+        dayKey,
+        customItems: [...base.customItems.filter(i => i.time !== update.time || i.label !== update.label), newItem],
+        alerts: [
+          ...base.alerts.filter(a => a.time !== update.time),
+          { time: update.time, message: `${update.label}の時間です。${update.sub || ""}`, type: "custom" },
+        ],
+      };
+    });
+  };
+
+  const suggestGoal = async (period: GoalPeriod) => {
+    const labels = { daily: "今日", weekly: "今週", monthly: "今月" };
+    setSuggestingPeriod(period);
     try {
-      const prompt = `今日の目標を1つだけ提案してください。以下を踏まえ、20字以内の具体的な行動目標にしてください。カテゴリ（睡眠/食事/運動/塩清療法/その他）も一行目に【カテゴリ】の形式で付けてください。
+      const prompt = `${labels[period]}の目標を1つだけ提案してください。以下を踏まえ、20字以内の具体的な行動目標にしてください。カテゴリ（睡眠/食事/運動/塩清療法/その他）も一行目に【カテゴリ】の形式で付けてください。
 
 ${buildHealthSummary(healthForm)}`;
-      const reply = await fetchChatReply(
-        [{ type: "user", text: prompt }],
-        envContext
-      );
-      const catMatch = reply.match(/【(.+?)】/);
-      const category = GOAL_CATEGORIES.includes(catMatch?.[1] as GoalCategory)
-        ? (catMatch![1] as GoalCategory)
-        : "その他";
-      const text = reply.replace(/【.+?】/, "").trim().split("\n")[0].slice(0, 60);
-      setAiDailyGoal({ text, category, periodKey: getDayKey() });
+      const { content } = await fetchChatReply([{ type: "user", text: prompt }], envContext);
+      const parsed = parseAiGoalReply(content);
+      setAiSuggestions(prev => ({
+        ...prev,
+        [period]: { ...parsed, periodKey: periodKey(period) },
+      }));
     } catch {
-      setAiDailyGoal({
-        text: "就寝前に塩湯3gを飲む",
-        category: "塩清療法",
-        periodKey: getDayKey(),
-      });
+      setAiSuggestions(prev => ({
+        ...prev,
+        [period]: {
+          text: period === "daily" ? "就寝前に塩湯3gを飲む" : "早寝早起きを心がける",
+          category: period === "daily" ? "塩清療法" : "睡眠",
+          periodKey: periodKey(period),
+        },
+      }));
     } finally {
-      setIsSuggestingGoal(false);
+      setSuggestingPeriod(null);
     }
   };
 
   useEffect(() => {
-    if (!weather || !goalsHydrated || !aiGoalHydrated) return;
-    if (goals.daily.text.trim()) return;
-    if (aiDailyGoal?.periodKey === getDayKey()) return;
+    if (!weather || !goalsHydrated) return;
+    if (goals.daily.items.length > 0) return;
+    if (aiSuggestions.daily?.periodKey === getDayKey()) return;
     if (autoSuggestRef.current) return;
     autoSuggestRef.current = true;
-    suggestDailyGoal();
-  }, [weather, goalsHydrated, aiGoalHydrated, goals.daily.text]);
+    suggestGoal("daily");
+  }, [weather, goalsHydrated, goals.daily.items.length]);
 
   const isFieldEnabled = (id: HealthFieldId) => enabledFields.includes(id);
 
@@ -756,14 +1151,6 @@ ${buildHealthSummary(healthForm)}`;
       kampoTaken: prev.kampoTaken.includes(item)
         ? prev.kampoTaken.filter(k => k !== item)
         : [...prev.kampoTaken, item],
-    }));
-  };
-
-  const updatePeriodGoal = (key: "daily" | "weekly" | "monthly", patch: Partial<PeriodGoal>) => {
-    const periodKeys = { daily: getDayKey(), weekly: getWeekKey(), monthly: getMonthKey() };
-    setGoals(prev => ({
-      ...prev,
-      [key]: { ...prev[key], ...patch, periodKey: periodKeys[key] },
     }));
   };
 
@@ -803,8 +1190,9 @@ ${buildHealthSummary(healthForm)}`;
     setChatMessages(updatedMessages);
     setIsLoading(true);
     try {
-      const reply = await fetchChatReply(updatedMessages, envContext);
-      setChatMessages(prev => [...prev, { type: "ai", text: reply }]);
+      const { content, scheduleUpdate } = await fetchChatReply(updatedMessages, envContext);
+      if (scheduleUpdate) applyScheduleUpdate(scheduleUpdate);
+      setChatMessages(prev => [...prev, { type: "ai", text: content }]);
     } catch {
       setChatMessages(prev => [
         ...prev,
@@ -818,13 +1206,13 @@ ${buildHealthSummary(healthForm)}`;
   const handleSend = async () => {
     if (!chatInput.trim()) return;
     const text = chatInput.trim();
-    setChatInput("");
     const updatedMessages: Message[] = [...chatMessages, { type: "user", text }];
     setChatMessages(updatedMessages);
     setIsLoading(true);
     try {
-      const reply = await fetchChatReply(updatedMessages, envContext);
-      setChatMessages(prev => [...prev, { type: "ai", text: reply }]);
+      const { content, scheduleUpdate } = await fetchChatReply(updatedMessages, envContext);
+      if (scheduleUpdate) applyScheduleUpdate(scheduleUpdate);
+      setChatMessages(prev => [...prev, { type: "ai", text: content }]);
     } catch {
       setChatMessages(prev => [
         ...prev,
@@ -832,6 +1220,7 @@ ${buildHealthSummary(healthForm)}`;
       ]);
     } finally {
       setIsLoading(false);
+      setChatInput("");
     }
   };
 
@@ -900,127 +1289,73 @@ ${buildHealthSummary(healthForm)}`;
             )}
 
             {homeDisplay.dailyGoal && (
-            <div style={{ margin: "16px 16px 0", background: "white", borderRadius: 12, padding: "14px 16px", border: "1px solid rgba(60,40,20,0.1)" }}>
-              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
-                <div style={{ fontSize: 13, fontWeight: "bold", color: "#4a6741" }}>🎯 今日の目標</div>
-                {goals.daily.text.trim() && <RateBadge rate={calcPeriodRate(goals.daily)} />}
-              </div>
-              {goals.daily.text.trim() ? (
-                <div style={{
-                  fontSize: 14,
-                  lineHeight: 1.6,
-                  color: goals.daily.achieved ? "#9a8b7a" : "#1a1410",
-                  opacity: goals.daily.achieved ? 0.65 : 1,
-                  textDecoration: goals.daily.achieved ? "line-through" : "none",
-                  background: goals.daily.achieved ? "#ede5d4" : "transparent",
-                  borderRadius: 8,
-                  padding: goals.daily.achieved ? "8px 10px" : 0,
-                }}>
-                  <span style={{
-                    display: "inline-block",
-                    fontSize: 10,
-                    color: "#c17f4a",
-                    background: "#fdf0e4",
-                    borderRadius: 10,
-                    padding: "2px 8px",
-                    marginBottom: 6,
-                    textDecoration: "none",
-                  }}>
-                    {goals.daily.category}
-                  </span>
-                  <div>{goals.daily.text}</div>
-                  {goals.daily.achieved && (
-                    <div style={{ fontSize: 11, color: "#4a6741", marginTop: 6 }}>✓ 達成済み</div>
-                  )}
-                </div>
-              ) : isSuggestingGoal ? (
-                <div style={{ fontSize: 12, color: "#8b7355", padding: "8px 0" }}>AIが今日の目標を提案中...</div>
-              ) : aiDailyGoal?.periodKey === getDayKey() && aiDailyGoal.text ? (
-                <div style={{ fontSize: 14, lineHeight: 1.6, color: "#1a1410" }}>
-                  <span style={{
-                    display: "inline-block",
-                    fontSize: 10,
-                    color: "#4a6741",
-                    background: "#e8f0e4",
-                    borderRadius: 10,
-                    padding: "2px 8px",
-                    marginBottom: 6,
-                    marginRight: 6,
-                  }}>
-                    AI提案
-                  </span>
-                  <span style={{
-                    display: "inline-block",
-                    fontSize: 10,
-                    color: "#c17f4a",
-                    background: "#fdf0e4",
-                    borderRadius: 10,
-                    padding: "2px 8px",
-                    marginBottom: 6,
-                  }}>
-                    {aiDailyGoal.category}
-                  </span>
-                  <div>{aiDailyGoal.text}</div>
-                  <div style={{ display: "flex", gap: 8, marginTop: 10 }}>
-                    <button
-                      type="button"
-                      onClick={() => updatePeriodGoal("daily", { text: aiDailyGoal.text, category: aiDailyGoal.category })}
-                      style={{
-                        flex: 1,
-                        padding: "8px",
-                        borderRadius: 8,
-                        border: "none",
-                        background: "#1a1410",
-                        color: "#f5f0e8",
-                        fontSize: 11,
-                        cursor: "pointer",
-                      }}
-                    >
-                      この目標を採用
-                    </button>
-                    <button
-                      type="button"
-                      onClick={suggestDailyGoal}
-                      style={{
-                        padding: "8px 12px",
-                        borderRadius: 8,
-                        border: "1px solid rgba(60,40,20,0.15)",
-                        background: "#f5f0e8",
-                        fontSize: 11,
-                        cursor: "pointer",
-                        color: "#3d3228",
-                      }}
-                    >
-                      再提案
-                    </button>
-                  </div>
-                </div>
-              ) : (
-                <div>
-                  <div style={{ fontSize: 12, color: "#8b7355", marginBottom: 8, lineHeight: 1.5 }}>
-                    目標未設定です。AIが天気・季節・体調から提案します。
-                  </div>
-                  <button
-                    type="button"
-                    onClick={suggestDailyGoal}
-                    disabled={isSuggestingGoal}
-                    style={{
-                      width: "100%",
-                      padding: "10px",
-                      borderRadius: 8,
-                      border: "1.5px solid #c17f4a",
-                      background: "#fdf0e4",
-                      fontSize: 12,
-                      fontWeight: "bold",
-                      color: "#8b5a2b",
-                      cursor: "pointer",
-                    }}
-                  >
-                    ✨ AIに提案してもらう
-                  </button>
-                </div>
-              )}
-            </div>
+              <>
+                <HomeGoalSection
+                  title="🎯 今日の目標"
+                  goalList={goals.daily}
+                  collapsed={false}
+                  collapsible={false}
+                  inputText={dailyInput}
+                  inputCategory={dailyCategory}
+                  onInputTextChange={setDailyInput}
+                  onInputCategoryChange={setDailyCategory}
+                  onAdd={() => {
+                    if (!dailyInput.trim()) return;
+                    addGoalItem("daily", dailyInput.trim(), dailyCategory);
+                    setDailyInput("");
+                  }}
+                  onUpdateItem={(id, patch) => updateGoalItem("daily", id, patch)}
+                  onRemoveItem={id => removeGoalItem("daily", id)}
+                  onAiSuggest={() => suggestGoal("daily")}
+                  isSuggesting={suggestingPeriod === "daily"}
+                  aiSuggestion={aiSuggestions.daily?.periodKey === getDayKey() ? aiSuggestions.daily : null}
+                  onAdoptAi={() => adoptAiGoal("daily")}
+                />
+                <HomeGoalSection
+                  title="📅 今週の目標"
+                  goalList={goals.weekly}
+                  collapsed={weeklyCollapsed}
+                  collapsible
+                  onToggleCollapse={() => setWeeklyCollapsed(v => !v)}
+                  inputText={weeklyInput}
+                  inputCategory={weeklyCategory}
+                  onInputTextChange={setWeeklyInput}
+                  onInputCategoryChange={setWeeklyCategory}
+                  onAdd={() => {
+                    if (!weeklyInput.trim()) return;
+                    addGoalItem("weekly", weeklyInput.trim(), weeklyCategory);
+                    setWeeklyInput("");
+                  }}
+                  onUpdateItem={(id, patch) => updateGoalItem("weekly", id, patch)}
+                  onRemoveItem={id => removeGoalItem("weekly", id)}
+                  onAiSuggest={() => suggestGoal("weekly")}
+                  isSuggesting={suggestingPeriod === "weekly"}
+                  aiSuggestion={aiSuggestions.weekly?.periodKey === getWeekKey() ? aiSuggestions.weekly : null}
+                  onAdoptAi={() => adoptAiGoal("weekly")}
+                />
+                <HomeGoalSection
+                  title="🗓️ 今月の目標"
+                  goalList={goals.monthly}
+                  collapsed={monthlyCollapsed}
+                  collapsible
+                  onToggleCollapse={() => setMonthlyCollapsed(v => !v)}
+                  inputText={monthlyInput}
+                  inputCategory={monthlyCategory}
+                  onInputTextChange={setMonthlyInput}
+                  onInputCategoryChange={setMonthlyCategory}
+                  onAdd={() => {
+                    if (!monthlyInput.trim()) return;
+                    addGoalItem("monthly", monthlyInput.trim(), monthlyCategory);
+                    setMonthlyInput("");
+                  }}
+                  onUpdateItem={(id, patch) => updateGoalItem("monthly", id, patch)}
+                  onRemoveItem={id => removeGoalItem("monthly", id)}
+                  onAiSuggest={() => suggestGoal("monthly")}
+                  isSuggesting={suggestingPeriod === "monthly"}
+                  aiSuggestion={aiSuggestions.monthly?.periodKey === getMonthKey() ? aiSuggestions.monthly : null}
+                  onAdoptAi={() => adoptAiGoal("monthly")}
+                />
+              </>
             )}
 
             {homeDisplay.diagnosis && (
@@ -1040,15 +1375,14 @@ ${buildHealthSummary(healthForm)}`;
             <>
             <div style={{ padding: "20px 20px 8px", fontSize: 15, fontWeight: "bold", color: "#3d3228" }}>📅 今日のスケジュール</div>
             
-            {[
-              { time: MOCK_SCHEDULE.wakeTime, label: "起床", sub: MOCK_SCHEDULE.saltMorning },
-              { time: MOCK_SCHEDULE.mealTime1, label: "朝食", sub: "糖質・お米中心で気を補う" },
-              { time: MOCK_SCHEDULE.mealTime2, label: "夕食", sub: "塩・タンパク質・海産物中心" },
-              { time: MOCK_SCHEDULE.bathTime, label: "入浴", sub: "38〜39度・30分以内" },
-              { time: MOCK_SCHEDULE.sleepTime, label: "就寝", sub: MOCK_SCHEDULE.saltEvening },
-            ].map((item, i) => (
-              <div key={i} style={{ margin: "0 20px 8px", background: "white", borderRadius: 12, padding: "12px 14px", border: "1px solid rgba(60,40,20,0.1)" }}>
-                <div style={{ fontSize: 11, color: "#4a6741", fontWeight: "bold", marginBottom: 2 }}>{item.label}</div>
+            {timelineItems.map((item) => (
+              <div key={item.id} style={{ margin: "0 20px 8px", background: "white", borderRadius: 12, padding: "12px 14px", border: item.id.startsWith("custom") ? "1.5px solid #c17f4a" : "1px solid rgba(60,40,20,0.1)" }}>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                  <div style={{ fontSize: 11, color: "#4a6741", fontWeight: "bold", marginBottom: 2 }}>{item.label}</div>
+                  {item.id.startsWith("custom") && (
+                    <span style={{ fontSize: 9, color: "#c17f4a", background: "#fdf0e4", borderRadius: 8, padding: "2px 6px" }}>AI追加</span>
+                  )}
+                </div>
                 <div style={{ fontSize: 18, fontWeight: "bold", color: "#1a1410" }}>{item.time}</div>
                 <div style={{ fontSize: 11, color: "#3d3228", opacity: 0.7 }}>{item.sub}</div>
               </div>
@@ -1110,15 +1444,23 @@ ${buildHealthSummary(healthForm)}`;
               )}
               <div ref={messagesEndRef} />
             </div>
-            <div style={{ padding: "10px 16px", background: "#f5f0e8", borderTop: "1px solid rgba(60,40,20,0.1)", display: "flex", gap: 8 }}>
-              <input
-                style={{ flex: 1, background: "white", border: "1.5px solid rgba(60,40,20,0.12)", borderRadius: 22, padding: "10px 16px", fontSize: 13, outline: "none" }}
+            <div style={{ padding: "10px 16px", background: "#f5f0e8", borderTop: "1px solid rgba(60,40,20,0.1)", display: "flex", gap: 8, alignItems: "flex-end" }}>
+              <textarea
+                style={{ flex: 1, background: "white", border: "1.5px solid rgba(60,40,20,0.12)", borderRadius: 22, padding: "10px 16px", fontSize: 13, outline: "none", resize: "none", minHeight: 42, maxHeight: 100, fontFamily: "sans-serif", lineHeight: 1.5 }}
                 placeholder="自由に入力できます..."
                 value={chatInput}
-                onChange={e => setChatInput(e.target.value)}
-                onKeyDown={e => e.key === 'Enter' && handleSend()}
+                onChange={(e) => setChatInput(e.target.value)}
+                onCompositionStart={() => setIsComposing(true)}
+                onCompositionEnd={() => setIsComposing(false)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" && !e.shiftKey && !isComposing) {
+                    e.preventDefault();
+                    handleSend();
+                  }
+                }}
+                rows={1}
               />
-              <button onClick={handleSend} style={{ width: 42, height: 42, borderRadius: "50%", background: "#1a1410", border: "none", cursor: "pointer", color: "white", fontSize: 18 }}>↑</button>
+              <button onClick={handleSend} style={{ width: 42, height: 42, borderRadius: "50%", background: "#1a1410", border: "none", cursor: "pointer", color: "white", fontSize: 18, flexShrink: 0 }}>↑</button>
             </div>
           </div>
         )}
@@ -1151,29 +1493,47 @@ ${buildHealthSummary(healthForm)}`;
             <PeriodGoalCard
               title="今日の目標"
               resetHint="毎日リセット・未入力OK"
-              goal={goals.daily}
-              rate={calcPeriodRate(goals.daily)}
-              onUpdate={patch => updatePeriodGoal("daily", patch)}
+              goalList={goals.daily}
+              rate={calcListRate(goals.daily)}
+              onAddItem={(text, cat) => addGoalItem("daily", text, cat)}
+              onUpdateItem={(id, patch) => updateGoalItem("daily", id, patch)}
+              onRemoveItem={id => removeGoalItem("daily", id)}
               optional
               showAiButton
-              isSuggesting={isSuggestingGoal}
-              onAiSuggest={suggestDailyGoal}
+              isSuggesting={suggestingPeriod === "daily"}
+              onAiSuggest={() => suggestGoal("daily")}
+              aiSuggestion={aiSuggestions.daily?.periodKey === getDayKey() ? aiSuggestions.daily : null}
+              onAdoptAi={() => adoptAiGoal("daily")}
             />
             <PeriodGoalCard
               title="今週の目標"
               resetHint="毎週月曜にリセット・未入力OK"
-              goal={goals.weekly}
-              rate={calcPeriodRate(goals.weekly)}
-              onUpdate={patch => updatePeriodGoal("weekly", patch)}
+              goalList={goals.weekly}
+              rate={calcListRate(goals.weekly)}
+              onAddItem={(text, cat) => addGoalItem("weekly", text, cat)}
+              onUpdateItem={(id, patch) => updateGoalItem("weekly", id, patch)}
+              onRemoveItem={id => removeGoalItem("weekly", id)}
               optional
+              showAiButton
+              isSuggesting={suggestingPeriod === "weekly"}
+              onAiSuggest={() => suggestGoal("weekly")}
+              aiSuggestion={aiSuggestions.weekly?.periodKey === getWeekKey() ? aiSuggestions.weekly : null}
+              onAdoptAi={() => adoptAiGoal("weekly")}
             />
             <PeriodGoalCard
               title="今月の目標"
               resetHint="毎月初めにリセット・未入力OK"
-              goal={goals.monthly}
-              rate={calcPeriodRate(goals.monthly)}
-              onUpdate={patch => updatePeriodGoal("monthly", patch)}
+              goalList={goals.monthly}
+              rate={calcListRate(goals.monthly)}
+              onAddItem={(text, cat) => addGoalItem("monthly", text, cat)}
+              onUpdateItem={(id, patch) => updateGoalItem("monthly", id, patch)}
+              onRemoveItem={id => removeGoalItem("monthly", id)}
               optional
+              showAiButton
+              isSuggesting={suggestingPeriod === "monthly"}
+              onAiSuggest={() => suggestGoal("monthly")}
+              aiSuggestion={aiSuggestions.monthly?.periodKey === getMonthKey() ? aiSuggestions.monthly : null}
+              onAdoptAi={() => adoptAiGoal("monthly")}
             />
 
             <div style={cardStyle}>
