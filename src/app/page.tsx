@@ -10,6 +10,7 @@ import {
   type SetStateAction,
 } from "react";
 import dynamic from "next/dynamic";
+import { runTuyukusaStorageMigration } from "@/src/lib/tuyukusaStorage";
 
 const DailyWeatherChart = dynamic(() => import("@/src/components/DailyWeatherChart"), {
   ssr: false,
@@ -22,15 +23,22 @@ const DailyWeatherChart = dynamic(() => import("@/src/components/DailyWeatherCha
 
 function useLocalStorage<T>(
   key: string,
-  initialValue: T
+  initialValue: T,
+  parse?: (raw: unknown) => T
 ): [T, Dispatch<SetStateAction<T>>, boolean] {
   const [value, setValue] = useState<T>(initialValue);
   const [hydrated, setHydrated] = useState(false);
   useEffect(() => {
+    runTuyukusaStorageMigration();
     try {
       const raw = localStorage.getItem(key);
-      if (raw !== null) setValue(JSON.parse(raw) as T);
-    } catch { /* ignore */ }
+      if (raw !== null) {
+        const parsed: unknown = JSON.parse(raw);
+        setValue(parse ? parse(parsed) : (parsed as T));
+      }
+    } catch {
+      setValue(initialValue);
+    }
     setHydrated(true);
   }, [key]);
   useEffect(() => {
@@ -69,15 +77,23 @@ function newGoalItem(text: string, category: GoalCategory): GoalItem {
   return { id: `${Date.now()}-${Math.random().toString(36).slice(2, 9)}`, text, category, achieved: false };
 }
 function migrateGoalList(data: unknown, key: string): GoalList {
-  if (data && typeof data === "object" && "items" in data && Array.isArray((data as GoalList).items)) {
+  if (!data || typeof data !== "object") return emptyGoalList(key);
+  if ("items" in data && Array.isArray((data as GoalList).items)) {
     const gl = data as GoalList;
-    return gl.periodKey === key ? gl : emptyGoalList(key);
+    const items = gl.items.filter(
+      (item): item is GoalItem =>
+        !!item &&
+        typeof item === "object" &&
+        typeof item.id === "string" &&
+        typeof item.text === "string"
+    );
+    return gl.periodKey === key ? { items, periodKey: gl.periodKey ?? key } : emptyGoalList(key);
   }
-  if (data && typeof data === "object" && "text" in data) {
+  if ("text" in data) {
     const pg = data as PeriodGoal;
     if (pg.periodKey !== key) return emptyGoalList(key);
-    const items = pg.text.trim()
-      ? [newGoalItem(pg.text, pg.category)].map(i => ({ ...i, achieved: pg.achieved }))
+    const items = pg.text?.trim()
+      ? [newGoalItem(pg.text, pg.category ?? "その他")].map(i => ({ ...i, achieved: !!pg.achieved }))
       : [];
     return { items, periodKey: key };
   }
@@ -89,23 +105,44 @@ const INITIAL_GOALS: GoalsData = {
   monthly: emptyGoalList(getMonthKey()),
   deadlineGoals: [],
 };
-function normalizeGoals(data: GoalsData): GoalsData {
+function normalizeGoals(data: unknown): GoalsData {
+  if (!data || typeof data !== "object") {
+    return {
+      daily: emptyGoalList(getDayKey()),
+      weekly: emptyGoalList(getWeekKey()),
+      monthly: emptyGoalList(getMonthKey()),
+      deadlineGoals: [],
+    };
+  }
+  const d = data as Partial<GoalsData>;
   return {
-    daily: migrateGoalList(data.daily, getDayKey()),
-    weekly: migrateGoalList(data.weekly, getWeekKey()),
-    monthly: migrateGoalList(data.monthly, getMonthKey()),
-    deadlineGoals: data.deadlineGoals ?? [],
+    daily: migrateGoalList(d.daily, getDayKey()),
+    weekly: migrateGoalList(d.weekly, getWeekKey()),
+    monthly: migrateGoalList(d.monthly, getMonthKey()),
+    deadlineGoals: Array.isArray(d.deadlineGoals)
+      ? d.deadlineGoals.map(g => ({
+          ...g,
+          deadline: g?.deadline ? sanitizeDeadlineValue(String(g.deadline)) : defaultDeadlineDate(),
+        }))
+      : [],
   };
 }
-function calcListRate(list: GoalList) {
-  if (!list.items.length) return 0;
-  return Math.round((list.items.filter(i => i.achieved).length / list.items.length) * 100);
+function calcListRate(list: GoalList | null | undefined) {
+  const items = list?.items ?? [];
+  if (!items.length) return 0;
+  return Math.round((items.filter(i => i.achieved).length / items.length) * 100);
 }
-function calcDeadlineRate(gs: DeadlineGoal[]) {
-  return gs.length ? Math.round((gs.filter(g => g.achieved).length / gs.length) * 100) : 0;
+function calcDeadlineRate(gs: DeadlineGoal[] | null | undefined) {
+  const goals = gs ?? [];
+  return goals.length ? Math.round((goals.filter(g => g.achieved).length / goals.length) * 100) : 0;
 }
 function calcOverallRate(data: GoalsData) {
-  const all = [...data.daily.items, ...data.weekly.items, ...data.monthly.items, ...data.deadlineGoals];
+  const all = [
+    ...(data.daily?.items ?? []),
+    ...(data.weekly?.items ?? []),
+    ...(data.monthly?.items ?? []),
+    ...(data.deadlineGoals ?? []),
+  ];
   if (!all.length) return 0;
   return Math.round((all.filter(g => g.achieved).length / all.length) * 100);
 }
@@ -123,6 +160,147 @@ function parseAiGoalReply(reply: string): { text: string; category: GoalCategory
     : "その他";
   const text = reply.replace(/【.+?】/, "").trim().split("\n")[0].slice(0, 60);
   return { text, category };
+}
+
+function daysUntilDeadline(deadline: string): number {
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const d = new Date(`${deadline}T00:00:00`);
+  return Math.ceil((d.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
+}
+
+function isDeadlineActive(deadline: string): boolean {
+  return daysUntilDeadline(deadline) >= 0;
+}
+
+function formatDeadlineJa(deadline: string): string {
+  const d = new Date(`${deadline}T00:00:00`);
+  return `${d.getMonth() + 1}月${d.getDate()}日まで`;
+}
+
+function daysRemainingColor(days: number): string {
+  if (days <= 3) return "#c44a4a";
+  if (days <= 7) return "#c17f4a";
+  return "#4a6741";
+}
+
+function filterActiveDeadlineGoals(goals: DeadlineGoal[] | null | undefined): DeadlineGoal[] {
+  return (goals ?? [])
+    .filter(g => g?.deadline && isDeadlineActive(g.deadline))
+    .sort((a, b) => a.deadline.localeCompare(b.deadline));
+}
+
+function defaultDeadlineDate(daysFromNow = 7): string {
+  const d = new Date();
+  d.setDate(d.getDate() + daysFromNow);
+  return d.toISOString().slice(0, 10);
+}
+
+function stripDeadlineSuffix(text: string): string {
+  return text.replace(/までに$/u, "").trim();
+}
+
+function formatDeadlineShort(iso: string): string {
+  if (!iso || !/^\d{4}-\d{2}-\d{2}$/.test(iso)) return "";
+  const d = new Date(`${iso}T00:00:00`);
+  return `${d.getMonth() + 1}/${d.getDate()}`;
+}
+
+function parseDeadlineText(text: string): string | null {
+  const cleaned = stripDeadlineSuffix(text);
+  if (!cleaned) return null;
+  if (/^\d{4}-\d{2}-\d{2}$/.test(cleaned)) return cleaned;
+
+  const slashMatch = cleaned.match(/^(\d{1,2})\/(\d{1,2})$/);
+  if (slashMatch) {
+    const month = Number(slashMatch[1]);
+    const day = Number(slashMatch[2]);
+    const year = new Date().getFullYear();
+    const d = new Date(year, month - 1, day);
+    if (d.getMonth() !== month - 1 || d.getDate() !== day) return null;
+    return d.toISOString().slice(0, 10);
+  }
+
+  const jaMatch = cleaned.match(/^(\d{1,2})月(\d{1,2})日$/);
+  if (jaMatch) {
+    const month = Number(jaMatch[1]);
+    const day = Number(jaMatch[2]);
+    const year = new Date().getFullYear();
+    const d = new Date(year, month - 1, day);
+    if (d.getMonth() !== month - 1 || d.getDate() !== day) return null;
+    return d.toISOString().slice(0, 10);
+  }
+
+  return null;
+}
+
+function sanitizeDeadlineValue(value: string): string {
+  const parsed = parseDeadlineText(value);
+  if (parsed) return parsed;
+  if (/^\d{4}-\d{2}-\d{2}$/.test(value)) return value;
+  return defaultDeadlineDate();
+}
+
+function DeadlineTextInput({
+  value,
+  onChange,
+  style,
+  autoFocus,
+  onBlur,
+}: {
+  value: string;
+  onChange: (isoDate: string) => void;
+  style?: CSSProperties;
+  autoFocus?: boolean;
+  onBlur?: () => void;
+}) {
+  const [text, setText] = useState(() => formatDeadlineShort(value));
+
+  useEffect(() => {
+    setText(formatDeadlineShort(value));
+  }, [value]);
+
+  const commitText = (raw: string) => {
+    const cleaned = stripDeadlineSuffix(raw);
+    const parsed = parseDeadlineText(cleaned);
+    if (parsed) {
+      onChange(parsed);
+      setText(formatDeadlineShort(parsed));
+      return;
+    }
+    setText(cleaned);
+  };
+
+  return (
+    <input
+      type="text"
+      placeholder="例：6/30"
+      value={text}
+      autoFocus={autoFocus}
+      onChange={e => setText(stripDeadlineSuffix(e.target.value))}
+      onCompositionEnd={e => commitText(e.currentTarget.value)}
+      onBlur={() => {
+        const parsed = parseDeadlineText(text);
+        if (parsed) {
+          onChange(parsed);
+          setText(formatDeadlineShort(parsed));
+        } else {
+          setText(formatDeadlineShort(value));
+        }
+        onBlur?.();
+      }}
+      style={style}
+    />
+  );
+}
+
+function parseAiDeadlineReply(reply: string): { text: string; category: GoalCategory; deadline: string } {
+  const parsed = parseAiGoalReply(reply);
+  const dateMatch = reply.match(/(\d{4}-\d{2}-\d{2})/);
+  const deadline = dateMatch?.[1] ?? defaultDeadlineDate();
+  const lines = reply.replace(/【.+?】/, "").trim().split("\n").filter(Boolean);
+  const text = (lines.find(l => !/^\d{4}-\d{2}-\d{2}$/.test(l.trim())) ?? parsed.text).slice(0, 60);
+  return { text, category: parsed.category, deadline };
 }
 
 type Message = {
@@ -332,6 +510,12 @@ const HOME_DISPLAY_OPTIONS: { key: keyof HomeDisplaySettings; label: string }[] 
 
 type AiSuggestedGoal = { text: string; category: GoalCategory; periodKey: string };
 
+const INITIAL_AI_SUGGESTIONS: Record<GoalPeriod, AiSuggestedGoal | null> = {
+  daily: null,
+  weekly: null,
+  monthly: null,
+};
+
 const DEFAULT_COORDS = { lat: 35.6812, lon: 139.7671 };
 
 const BASE_SCHEDULE_ITEMS: ScheduleItem[] = [
@@ -354,9 +538,51 @@ const INITIAL_SCHEDULE: ScheduleState = {
   ],
 };
 
-function normalizeSchedule(data: ScheduleState): ScheduleState {
-  if (data.dayKey === getDayKey()) return data;
-  return { ...INITIAL_SCHEDULE, dayKey: getDayKey() };
+function normalizeSchedule(data: unknown): ScheduleState {
+  const fallback = { ...INITIAL_SCHEDULE, dayKey: getDayKey() };
+  if (!data || typeof data !== "object") return fallback;
+  const d = data as Partial<ScheduleState>;
+  if (d.dayKey !== getDayKey()) return fallback;
+  return {
+    dayKey: d.dayKey,
+    customItems: Array.isArray(d.customItems) ? d.customItems : [],
+    alerts: Array.isArray(d.alerts) ? d.alerts : fallback.alerts,
+  };
+}
+
+function normalizeHomeDisplay(data: unknown): HomeDisplaySettings {
+  if (!data || typeof data !== "object") return DEFAULT_HOME_DISPLAY;
+  return { ...DEFAULT_HOME_DISPLAY, ...(data as Partial<HomeDisplaySettings>) };
+}
+
+function normalizeAiSuggestions(data: unknown): Record<GoalPeriod, AiSuggestedGoal | null> {
+  const defaults = { daily: null, weekly: null, monthly: null } as Record<GoalPeriod, AiSuggestedGoal | null>;
+  if (!data || typeof data !== "object") return defaults;
+  const d = data as Partial<Record<GoalPeriod, AiSuggestedGoal | null>>;
+  return {
+    daily: d.daily ?? null,
+    weekly: d.weekly ?? null,
+    monthly: d.monthly ?? null,
+  };
+}
+
+function ClientFormattedDate() {
+  const [dateStr, setDateStr] = useState("");
+  useEffect(() => {
+    setDateStr(
+      new Date().toLocaleDateString("ja-JP", {
+        year: "numeric",
+        month: "long",
+        day: "numeric",
+        weekday: "short",
+      })
+    );
+  }, []);
+  return (
+    <div style={{ fontSize: 11, opacity: 0.6 }} suppressHydrationWarning>
+      {dateStr || "\u00a0"}
+    </div>
+  );
 }
 
 function weatherLabel(code: number): string {
@@ -398,7 +624,7 @@ function buildEnvironmentContext(weather: WeatherData | null): string {
 function buildHealthSummary(form: HealthForm): string {
   const parts: string[] = [];
   if (form.morningCondition) parts.push(`朝の体調: ${form.morningCondition}/10`);
-  if (form.symptoms.length) parts.push(`症状: ${form.symptoms.join("、")}`);
+  if (form.symptoms?.length) parts.push(`症状: ${form.symptoms.join("、")}`);
   if (form.bowelType) parts.push(`便通: ${form.bowelType}（${form.bowelCount}回）`);
   const moodHigh = MOOD_ITEMS.filter(i => form.mood[i.key] >= 7).map(i => i.label);
   if (moodHigh.length) parts.push(`気分が強い項目: ${moodHigh.join("、")}`);
@@ -603,7 +829,7 @@ function PeriodGoalCard({
           </div>
           <div style={{ fontSize: 10, color: "#3d3228", opacity: 0.5, marginTop: 2 }}>{resetHint}</div>
         </div>
-        {goalList.items.length > 0 && <RateBadge rate={rate} />}
+        {goalList?.items?.length ? <RateBadge rate={rate} /> : null}
       </div>
       {optional && (
         <div style={{ fontSize: 11, color: "#8b7355", marginBottom: 8, lineHeight: 1.5 }}>
@@ -638,7 +864,7 @@ function PeriodGoalCard({
           追加
         </button>
       </div>
-      {goalList.items.map(item => (
+      {(goalList?.items ?? []).map(item => (
         <div
           key={item.id}
           style={{
@@ -776,7 +1002,7 @@ function HomeGoalSection({
       >
         <div style={{ fontSize: 13, fontWeight: "bold", color: "#4a6741" }}>{title}</div>
         <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-          {goalList.items.length > 0 && <RateBadge rate={rate} />}
+          {goalList?.items?.length ? <RateBadge rate={rate} /> : null}
           {collapsible && <span style={{ fontSize: 11, color: "#9a8b7a" }}>{collapsed ? "▼" : "▲"}</span>}
         </div>
       </button>
@@ -800,7 +1026,7 @@ function HomeGoalSection({
               追加
             </button>
           </div>
-          {goalList.items.map(item => (
+          {(goalList?.items ?? []).map(item => (
             <div
               key={item.id}
               style={{
@@ -863,6 +1089,225 @@ function HomeGoalSection({
             </div>
           )}
         </>
+      )}
+    </div>
+  );
+}
+
+function HomeDeadlineGoalsSection({
+  goals,
+  inputText,
+  inputCategory,
+  inputDeadline,
+  onInputTextChange,
+  onInputCategoryChange,
+  onInputDeadlineChange,
+  onAdd,
+  onUpdateGoal,
+  onRemoveGoal,
+  onAiSuggest,
+  isSuggesting,
+  aiSuggestion,
+  onAdoptAi,
+}: {
+  goals: DeadlineGoal[];
+  inputText: string;
+  inputCategory: GoalCategory;
+  inputDeadline: string;
+  onInputTextChange: (v: string) => void;
+  onInputCategoryChange: (c: GoalCategory) => void;
+  onInputDeadlineChange: (d: string) => void;
+  onAdd: () => void;
+  onUpdateGoal: (id: string, patch: Partial<DeadlineGoal>) => void;
+  onRemoveGoal: (id: string) => void;
+  onAiSuggest: () => void;
+  isSuggesting: boolean;
+  aiSuggestion: { text: string; category: GoalCategory; deadline: string } | null;
+  onAdoptAi: () => void;
+}) {
+  const [showAll, setShowAll] = useState(false);
+  const [editingDeadlineId, setEditingDeadlineId] = useState<string | null>(null);
+  const activeGoals = filterActiveDeadlineGoals(goals);
+  const visibleGoals = showAll || activeGoals.length <= 3 ? activeGoals : activeGoals.slice(0, 3);
+  const hiddenCount = activeGoals.length - 3;
+  const rate = calcDeadlineRate(activeGoals);
+
+  const renderGoalCard = (g: DeadlineGoal) => {
+    const days = daysUntilDeadline(g.deadline);
+    const remainColor = daysRemainingColor(days);
+    return (
+      <div
+        key={g.id}
+        style={{
+          display: "flex",
+          alignItems: "flex-start",
+          gap: 8,
+          padding: "10px 12px",
+          marginBottom: 6,
+          background: g.achieved ? "#ede5d4" : "#f5f0e8",
+          borderRadius: 8,
+          opacity: g.achieved ? 0.7 : 1,
+          border: "1px solid rgba(60,40,20,0.06)",
+        }}
+      >
+        <input
+          type="checkbox"
+          checked={g.achieved}
+          onChange={e => onUpdateGoal(g.id, { achieved: e.target.checked })}
+          style={{ width: 16, height: 16, accentColor: "#c17f4a", flexShrink: 0, marginTop: 2 }}
+        />
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div style={{ marginBottom: 4 }}>
+            <span style={{ fontSize: 9, color: "#c17f4a", background: "#fdf0e4", borderRadius: 8, padding: "1px 6px", marginRight: 4 }}>
+              {g.category}
+            </span>
+            <span style={{ fontSize: 13, color: g.achieved ? "#9a8b7a" : "#3d3228", textDecoration: g.achieved ? "line-through" : "none" }}>
+              {g.text}
+            </span>
+          </div>
+          <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+            {editingDeadlineId === g.id ? (
+              <DeadlineTextInput
+                value={g.deadline}
+                autoFocus
+                onChange={deadline => onUpdateGoal(g.id, { deadline })}
+                onBlur={() => setEditingDeadlineId(null)}
+                style={{ ...inputStyle, width: "auto", fontSize: 11, padding: "4px 8px" }}
+              />
+            ) : (
+              <button
+                type="button"
+                onClick={() => setEditingDeadlineId(g.id)}
+                style={{ background: "none", border: "none", padding: 0, fontSize: 11, color: "#3d3228", cursor: "pointer", textDecoration: "underline", textDecorationStyle: "dotted" }}
+              >
+                {formatDeadlineJa(g.deadline)}
+              </button>
+            )}
+            <span style={{ fontSize: 10, fontWeight: "bold", color: remainColor }}>
+              あと{days}日
+            </span>
+          </div>
+        </div>
+        <button
+          type="button"
+          onClick={() => onRemoveGoal(g.id)}
+          style={{ background: "none", border: "none", color: "#9a8b7a", fontSize: 16, cursor: "pointer", padding: "0 4px", lineHeight: 1 }}
+        >
+          ×
+        </button>
+      </div>
+    );
+  };
+
+  return (
+    <div style={{ margin: "12px 16px 0", background: "white", borderRadius: 12, padding: "14px 16px", border: "1px solid rgba(60,40,20,0.1)" }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
+        <div style={{ fontSize: 13, fontWeight: "bold", color: "#4a6741" }}>📅 今週の目標</div>
+        {activeGoals.length > 0 && <RateBadge rate={rate} />}
+      </div>
+
+      <CategorySelect value={inputCategory} onChange={onInputCategoryChange} />
+      <input
+        type="text"
+        placeholder="自分で目標を入力..."
+        value={inputText}
+        onChange={e => onInputTextChange(e.target.value)}
+        onKeyDown={e => e.key === "Enter" && onAdd()}
+        style={{ ...inputStyle, marginBottom: 8 }}
+      />
+      <div style={{ fontSize: 11, color: "#3d3228", opacity: 0.6, marginBottom: 6 }}>期限</div>
+      <DeadlineTextInput
+        value={inputDeadline}
+        onChange={onInputDeadlineChange}
+        style={{ ...inputStyle, marginBottom: 10 }}
+      />
+      <button
+        type="button"
+        onClick={onAdd}
+        style={{
+          width: "100%",
+          padding: "10px",
+          marginBottom: 10,
+          borderRadius: 10,
+          border: "none",
+          background: "#1a1410",
+          color: "#f5f0e8",
+          fontSize: 12,
+          fontWeight: "bold",
+          cursor: "pointer",
+        }}
+      >
+        追加
+      </button>
+
+      {visibleGoals.map(renderGoalCard)}
+
+      {activeGoals.length > 3 && (
+        <button
+          type="button"
+          onClick={() => setShowAll(v => !v)}
+          style={{
+            width: "100%",
+            padding: "8px",
+            marginBottom: 6,
+            borderRadius: 8,
+            border: "1px solid rgba(60,40,20,0.12)",
+            background: "#f5f0e8",
+            fontSize: 11,
+            color: "#8b7355",
+            cursor: "pointer",
+          }}
+        >
+          {showAll ? "▲ 折りたたむ" : `他${hiddenCount}件 ▼`}
+        </button>
+      )}
+
+      {activeGoals.length === 0 && (
+        <div style={{ fontSize: 11, color: "#9a8b7a", textAlign: "center", padding: "8px 0", marginBottom: 6 }}>
+          期限のある目標がありません
+        </div>
+      )}
+
+      <button
+        type="button"
+        onClick={onAiSuggest}
+        disabled={isSuggesting}
+        style={{
+          width: "100%",
+          padding: "10px",
+          marginTop: 4,
+          borderRadius: 8,
+          border: "1.5px solid #c17f4a",
+          background: "#fdf0e4",
+          fontSize: 12,
+          fontWeight: "bold",
+          color: "#8b5a2b",
+          cursor: isSuggesting ? "wait" : "pointer",
+          opacity: isSuggesting ? 0.7 : 1,
+        }}
+      >
+        {isSuggesting ? "AIが提案中..." : "✨ AIに提案してもらう"}
+      </button>
+
+      {aiSuggestion?.text && (
+        <div style={{ marginTop: 10, padding: 10, background: "#e8f0e4", borderRadius: 8, fontSize: 12 }}>
+          <div style={{ fontSize: 10, color: "#4a6741", marginBottom: 4 }}>AI提案</div>
+          <span style={{ fontSize: 9, color: "#c17f4a", background: "#fdf0e4", borderRadius: 8, padding: "1px 6px", marginRight: 4 }}>
+            {aiSuggestion.category}
+          </span>
+          {aiSuggestion.text}
+          <div style={{ fontSize: 10, color: "#3d3228", marginTop: 4 }}>
+            期限: {formatDeadlineJa(aiSuggestion.deadline)}
+          </div>
+          <div style={{ display: "flex", gap: 6, marginTop: 8 }}>
+            <button type="button" onClick={onAdoptAi} style={{ flex: 1, padding: "6px", borderRadius: 6, border: "none", background: "#1a1410", color: "#f5f0e8", fontSize: 11, cursor: "pointer" }}>
+              リストに追加
+            </button>
+            <button type="button" onClick={onAiSuggest} style={{ padding: "6px 10px", borderRadius: 6, border: "1px solid rgba(60,40,20,0.15)", background: "white", fontSize: 11, cursor: "pointer" }}>
+              再提案
+            </button>
+          </div>
+        </div>
       )}
     </div>
   );
@@ -962,19 +1407,31 @@ export default function TuyukusaApp() {
   const [isLoading, setIsLoading] = useState(false);
   const [healthForm, setHealthForm] = useState<HealthForm>(INITIAL_HEALTH);
   const [enabledFields, setEnabledFields] = useState<HealthFieldId[]>([]);
-  const [goals, setGoals, goalsHydrated] = useLocalStorage<GoalsData>("tuyukusa-goals", INITIAL_GOALS);
-  const [aiSuggestions, setAiSuggestions] = useLocalStorage<Record<GoalPeriod, AiSuggestedGoal | null>>("tuyukusa-ai-goals", {
-    daily: null, weekly: null, monthly: null,
-  });
-  const [schedule, setSchedule, scheduleHydrated] = useLocalStorage<ScheduleState>("tuyukusa-schedule", INITIAL_SCHEDULE);
-  const [homeDisplay, setHomeDisplay] = useLocalStorage<HomeDisplaySettings>("tuyukusa-home-display", DEFAULT_HOME_DISPLAY);
+  const [goals, setGoals, goalsHydrated] = useLocalStorage<GoalsData>("tuyukusa-goals", INITIAL_GOALS, normalizeGoals);
+  const [aiSuggestions, setAiSuggestions, aiSuggestionsHydrated] = useLocalStorage<Record<GoalPeriod, AiSuggestedGoal | null>>(
+    "tuyukusa-ai-goals",
+    INITIAL_AI_SUGGESTIONS,
+    normalizeAiSuggestions
+  );
+  const [schedule, setSchedule, scheduleHydrated] = useLocalStorage<ScheduleState>(
+    "tuyukusa-schedule",
+    INITIAL_SCHEDULE,
+    normalizeSchedule
+  );
+  const [homeDisplay, setHomeDisplay, homeDisplayHydrated] = useLocalStorage<HomeDisplaySettings>(
+    "tuyukusa-home-display",
+    DEFAULT_HOME_DISPLAY,
+    normalizeHomeDisplay
+  );
   const [weather, setWeather] = useState<WeatherData | null>(null);
   const [weatherLoading, setWeatherLoading] = useState(true);
-  const [suggestingPeriod, setSuggestingPeriod] = useState<GoalPeriod | null>(null);
-  const [weeklyCollapsed, setWeeklyCollapsed] = useState(true);
-  const [monthlyCollapsed, setMonthlyCollapsed] = useState(true);
+  const [suggestingPeriod, setSuggestingPeriod] = useState<GoalPeriod | "deadline" | null>(null);
   const [dailyInput, setDailyInput] = useState("");
   const [dailyCategory, setDailyCategory] = useState<GoalCategory>("その他");
+  const [deadlineInput, setDeadlineInput] = useState("");
+  const [deadlineCategory, setDeadlineCategory] = useState<GoalCategory>("その他");
+  const [deadlineDate, setDeadlineDate] = useState(defaultDeadlineDate());
+  const [aiDeadlineSuggestion, setAiDeadlineSuggestion] = useState<{ text: string; category: GoalCategory; deadline: string } | null>(null);
   const [weeklyInput, setWeeklyInput] = useState("");
   const [weeklyCategory, setWeeklyCategory] = useState<GoalCategory>("その他");
   const [monthlyInput, setMonthlyInput] = useState("");
@@ -984,7 +1441,9 @@ export default function TuyukusaApp() {
   const autoSuggestRef = useRef(false);
   const envContext = buildEnvironmentContext(weather);
 
-  const timelineItems = sortByTime([...BASE_SCHEDULE_ITEMS, ...schedule.customItems]);
+  const timelineItems = sortByTime([...BASE_SCHEDULE_ITEMS, ...(schedule.customItems ?? [])]);
+  const storageReady =
+    goalsHydrated && scheduleHydrated && homeDisplayHydrated && aiSuggestionsHydrated;
 
   useEffect(() => {
     if (goalsHydrated) setGoals(prev => normalizeGoals(prev));
@@ -1043,34 +1502,75 @@ export default function TuyukusaApp() {
 
   const addGoalItem = (period: GoalPeriod, text: string, category: GoalCategory) => {
     setGoals(prev => ({
-      ...prev,
+      ...normalizeGoals(prev),
       [period]: {
         periodKey: periodKey(period),
-        items: [...prev[period].items, newGoalItem(text, category)],
+        items: [...(prev[period]?.items ?? []), newGoalItem(text, category)],
       },
     }));
   };
 
   const updateGoalItem = (period: GoalPeriod, id: string, patch: Partial<GoalItem>) => {
     setGoals(prev => ({
-      ...prev,
+      ...normalizeGoals(prev),
       [period]: {
-        ...prev[period],
+        ...(prev[period] ?? emptyGoalList(periodKey(period))),
         periodKey: periodKey(period),
-        items: prev[period].items.map(i => (i.id === id ? { ...i, ...patch } : i)),
+        items: (prev[period]?.items ?? []).map(i => (i.id === id ? { ...i, ...patch } : i)),
       },
     }));
   };
 
   const removeGoalItem = (period: GoalPeriod, id: string) => {
     setGoals(prev => ({
-      ...prev,
+      ...normalizeGoals(prev),
       [period]: {
-        ...prev[period],
+        ...(prev[period] ?? emptyGoalList(periodKey(period))),
         periodKey: periodKey(period),
-        items: prev[period].items.filter(i => i.id !== id),
+        items: (prev[period]?.items ?? []).filter(i => i.id !== id),
       },
     }));
+  };
+
+  const addDeadlineGoalEntry = (text: string, category: GoalCategory, deadline: string) => {
+    setGoals(prev => ({
+      ...normalizeGoals(prev),
+      deadlineGoals: [...(prev.deadlineGoals ?? []), {
+        id: `${Date.now()}-${Math.random().toString(36).slice(2, 9)}`,
+        text,
+        category,
+        deadline,
+        achieved: false,
+      }],
+    }));
+  };
+
+  const suggestDeadlineGoal = async () => {
+    setSuggestingPeriod("deadline");
+    try {
+      const prompt = `期限付き目標を1つ提案してください。以下を踏まえ、20字以内の具体的な行動目標にしてください。
+一行目：【カテゴリ】（睡眠/食事/運動/塩清療法/その他）
+二行目：目標テキスト
+三行目：期限日（YYYY-MM-DD形式、今日から7〜30日後）
+
+${buildHealthSummary(healthForm)}`;
+      const { content } = await fetchChatReply([{ type: "user", text: prompt }], envContext);
+      setAiDeadlineSuggestion(parseAiDeadlineReply(content));
+    } catch {
+      setAiDeadlineSuggestion({
+        text: "毎日22時30分までに就寝する",
+        category: "睡眠",
+        deadline: defaultDeadlineDate(14),
+      });
+    } finally {
+      setSuggestingPeriod(null);
+    }
+  };
+
+  const adoptAiDeadlineGoal = () => {
+    if (!aiDeadlineSuggestion?.text) return;
+    addDeadlineGoalEntry(aiDeadlineSuggestion.text, aiDeadlineSuggestion.category, aiDeadlineSuggestion.deadline);
+    setAiDeadlineSuggestion(null);
   };
 
   const adoptAiGoal = (period: GoalPeriod) => {
@@ -1079,6 +1579,8 @@ export default function TuyukusaApp() {
     addGoalItem(period, s.text, s.category);
     setAiSuggestions(prev => ({ ...prev, [period]: null }));
   };
+
+  const isSuggestingDeadline = suggestingPeriod === "deadline";
 
   const applyScheduleUpdate = (update: ScheduleUpdate) => {
     setSchedule(prev => {
@@ -1092,9 +1594,9 @@ export default function TuyukusaApp() {
       };
       return {
         dayKey,
-        customItems: [...base.customItems.filter(i => i.time !== update.time || i.label !== update.label), newItem],
+        customItems: [...(base.customItems ?? []).filter(i => i.time !== update.time || i.label !== update.label), newItem],
         alerts: [
-          ...base.alerts.filter(a => a.time !== update.time),
+          ...(base.alerts ?? []).filter(a => a.time !== update.time),
           { time: update.time, message: `${update.label}の時間です。${update.sub || ""}`, type: "custom" },
         ],
       };
@@ -1130,12 +1632,12 @@ ${buildHealthSummary(healthForm)}`;
 
   useEffect(() => {
     if (!weather || !goalsHydrated) return;
-    if (goals.daily.items.length > 0) return;
+    if ((goals.daily?.items ?? []).length > 0) return;
     if (aiSuggestions.daily?.periodKey === getDayKey()) return;
     if (autoSuggestRef.current) return;
     autoSuggestRef.current = true;
     suggestGoal("daily");
-  }, [weather, goalsHydrated, goals.daily.items.length]);
+  }, [weather, goalsHydrated, goals.daily?.items?.length]);
 
   const isFieldEnabled = (id: HealthFieldId) => enabledFields.includes(id);
 
@@ -1156,17 +1658,23 @@ ${buildHealthSummary(healthForm)}`;
 
   const updateDeadlineGoal = (id: string, patch: Partial<DeadlineGoal>) => {
     setGoals(prev => ({
-      ...prev,
-      deadlineGoals: prev.deadlineGoals.map(g => (g.id === id ? { ...g, ...patch } : g)),
+      ...normalizeGoals(prev),
+      deadlineGoals: (prev.deadlineGoals ?? []).map(g => (g.id === id ? { ...g, ...patch } : g)),
     }));
   };
 
   const addDeadlineGoal = () => {
-    setGoals(prev => ({ ...prev, deadlineGoals: [...prev.deadlineGoals, newDeadlineGoal()] }));
+    setGoals(prev => ({
+      ...normalizeGoals(prev),
+      deadlineGoals: [...(prev.deadlineGoals ?? []), newDeadlineGoal()],
+    }));
   };
 
   const removeDeadlineGoal = (id: string) => {
-    setGoals(prev => ({ ...prev, deadlineGoals: prev.deadlineGoals.filter(g => g.id !== id) }));
+    setGoals(prev => ({
+      ...normalizeGoals(prev),
+      deadlineGoals: (prev.deadlineGoals ?? []).filter(g => g.id !== id),
+    }));
   };
 
   useEffect(() => {
@@ -1238,6 +1746,19 @@ ${buildHealthSummary(healthForm)}`;
     setTimeout(() => setSaveMessage(""), 3000);
   };
 
+  if (!storageReady) {
+    return (
+      <div style={{ maxWidth: 430, margin: "0 auto", minHeight: "100vh", background: "#f5f0e8", display: "flex", flexDirection: "column", fontFamily: "sans-serif" }}>
+        <div style={{ background: "#1a1410", color: "#f5f0e8", padding: "14px 20px 12px" }}>
+          <div style={{ fontSize: 18, fontWeight: "bold" }}>🌿 つゆくさ</div>
+        </div>
+        <div style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 13, color: "#9a8b7a" }}>
+          読み込み中...
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div style={{ maxWidth: 430, margin: "0 auto", minHeight: "100vh", background: "#f5f0e8", display: "flex", flexDirection: "column", fontFamily: "sans-serif" }}>
       
@@ -1245,9 +1766,7 @@ ${buildHealthSummary(healthForm)}`;
       <div style={{ background: "#1a1410", color: "#f5f0e8", padding: "14px 20px 12px" }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: weather || weatherLoading ? 10 : 0 }}>
           <div style={{ fontSize: 18, fontWeight: "bold" }}>🌿 つゆくさ</div>
-          <div style={{ fontSize: 11, opacity: 0.6 }}>
-            {new Date().toLocaleDateString("ja-JP", { year: "numeric", month: "long", day: "numeric", weekday: "short" })}
-          </div>
+          <ClientFormattedDate />
         </div>
         {weatherLoading && (
           <div style={{ fontSize: 11, opacity: 0.5 }}>天気・月を取得中...</div>
@@ -1311,49 +1830,25 @@ ${buildHealthSummary(healthForm)}`;
                   aiSuggestion={aiSuggestions.daily?.periodKey === getDayKey() ? aiSuggestions.daily : null}
                   onAdoptAi={() => adoptAiGoal("daily")}
                 />
-                <HomeGoalSection
-                  title="📅 今週の目標"
-                  goalList={goals.weekly}
-                  collapsed={weeklyCollapsed}
-                  collapsible
-                  onToggleCollapse={() => setWeeklyCollapsed(v => !v)}
-                  inputText={weeklyInput}
-                  inputCategory={weeklyCategory}
-                  onInputTextChange={setWeeklyInput}
-                  onInputCategoryChange={setWeeklyCategory}
+                <HomeDeadlineGoalsSection
+                  goals={goals.deadlineGoals ?? []}
+                  inputText={deadlineInput}
+                  inputCategory={deadlineCategory}
+                  inputDeadline={deadlineDate}
+                  onInputTextChange={setDeadlineInput}
+                  onInputCategoryChange={setDeadlineCategory}
+                  onInputDeadlineChange={setDeadlineDate}
                   onAdd={() => {
-                    if (!weeklyInput.trim()) return;
-                    addGoalItem("weekly", weeklyInput.trim(), weeklyCategory);
-                    setWeeklyInput("");
+                    if (!deadlineInput.trim()) return;
+                    addDeadlineGoalEntry(deadlineInput.trim(), deadlineCategory, deadlineDate);
+                    setDeadlineInput("");
                   }}
-                  onUpdateItem={(id, patch) => updateGoalItem("weekly", id, patch)}
-                  onRemoveItem={id => removeGoalItem("weekly", id)}
-                  onAiSuggest={() => suggestGoal("weekly")}
-                  isSuggesting={suggestingPeriod === "weekly"}
-                  aiSuggestion={aiSuggestions.weekly?.periodKey === getWeekKey() ? aiSuggestions.weekly : null}
-                  onAdoptAi={() => adoptAiGoal("weekly")}
-                />
-                <HomeGoalSection
-                  title="🗓️ 今月の目標"
-                  goalList={goals.monthly}
-                  collapsed={monthlyCollapsed}
-                  collapsible
-                  onToggleCollapse={() => setMonthlyCollapsed(v => !v)}
-                  inputText={monthlyInput}
-                  inputCategory={monthlyCategory}
-                  onInputTextChange={setMonthlyInput}
-                  onInputCategoryChange={setMonthlyCategory}
-                  onAdd={() => {
-                    if (!monthlyInput.trim()) return;
-                    addGoalItem("monthly", monthlyInput.trim(), monthlyCategory);
-                    setMonthlyInput("");
-                  }}
-                  onUpdateItem={(id, patch) => updateGoalItem("monthly", id, patch)}
-                  onRemoveItem={id => removeGoalItem("monthly", id)}
-                  onAiSuggest={() => suggestGoal("monthly")}
-                  isSuggesting={suggestingPeriod === "monthly"}
-                  aiSuggestion={aiSuggestions.monthly?.periodKey === getMonthKey() ? aiSuggestions.monthly : null}
-                  onAdoptAi={() => adoptAiGoal("monthly")}
+                  onUpdateGoal={updateDeadlineGoal}
+                  onRemoveGoal={removeDeadlineGoal}
+                  onAiSuggest={suggestDeadlineGoal}
+                  isSuggesting={isSuggestingDeadline}
+                  aiSuggestion={aiDeadlineSuggestion}
+                  onAdoptAi={adoptAiDeadlineGoal}
                 />
               </>
             )}
@@ -1542,10 +2037,10 @@ ${buildHealthSummary(healthForm)}`;
                   <div style={{ fontSize: 14, fontWeight: "bold", color: "#3d3228" }}>期限付き目標</div>
                   <div style={{ fontSize: 10, color: "#3d3228", opacity: 0.5, marginTop: 2 }}>期限までに達成</div>
                 </div>
-                <RateBadge rate={calcDeadlineRate(goals.deadlineGoals)} />
+                <RateBadge rate={calcDeadlineRate(goals.deadlineGoals ?? [])} />
               </div>
 
-              {goals.deadlineGoals.map(g => (
+              {(goals.deadlineGoals ?? []).map(g => (
                 <div key={g.id} style={{ background: "#f5f0e8", borderRadius: 10, padding: 12, marginBottom: 8, border: "1px solid rgba(60,40,20,0.08)" }}>
                   <CategorySelect value={g.category} onChange={category => updateDeadlineGoal(g.id, { category })} />
                   <input
@@ -1556,10 +2051,9 @@ ${buildHealthSummary(healthForm)}`;
                     style={{ ...inputStyle, marginBottom: 8 }}
                   />
                   <div style={{ fontSize: 11, color: "#3d3228", opacity: 0.6, marginBottom: 6 }}>期限</div>
-                  <input
-                    type="date"
+                  <DeadlineTextInput
                     value={g.deadline}
-                    onChange={e => updateDeadlineGoal(g.id, { deadline: e.target.value })}
+                    onChange={deadline => updateDeadlineGoal(g.id, { deadline })}
                     style={{ ...inputStyle, marginBottom: 8 }}
                   />
                   <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
