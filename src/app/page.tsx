@@ -11,6 +11,23 @@ type Message = {
   multi?: boolean;
 };
 
+type Tab = "home" | "chat" | "history" | "settings";
+type MoodKey = "anger" | "anxiety" | "sadness" | "fog" | "manic";
+type CountOption = number | "5回以上";
+
+type HealthForm = {
+  sleepBed: string;
+  sleepWake: string;
+  awakenings: CountOption;
+  nightToilet: CountOption;
+  morningCondition: number;
+  bowel: string;
+  mood: Record<MoodKey, number>;
+  symptoms: string[];
+  otherSymptom: string;
+  diary: string;
+};
+
 const MOCK_SCHEDULE = {
   diagnosis: "水滞",
   wakeTime: "06:00",
@@ -32,16 +49,16 @@ const MOCK_SCHEDULE = {
 
 const BOWEL_OPTIONS = ["固い", "普通", "柔らかい", "水様", "兎糞"];
 const SYMPTOM_OPTIONS = ["頭痛", "疲労", "むくみ", "鼻水", "咳", "その他"];
-const MOOD_ITEMS = [
+const MOOD_ITEMS: { key: MoodKey; label: string }[] = [
   { key: "anger", label: "怒り" },
   { key: "anxiety", label: "不安" },
   { key: "sadness", label: "悲しみ" },
   { key: "fog", label: "頭のモヤモヤ" },
   { key: "manic", label: "躁状態" },
 ];
-const COUNT_OPTIONS = [0, 1, 2, 3, 4, 5, "5回以上"];
+const COUNT_OPTIONS: CountOption[] = [0, 1, 2, 3, 4, 5, "5回以上"];
 
-const INITIAL_HEALTH = {
+const INITIAL_HEALTH: HealthForm = {
   sleepBed: "22:30",
   sleepWake: "06:00",
   awakenings: 0,
@@ -68,14 +85,88 @@ const fieldLabelStyle = {
   marginBottom: 10,
 };
 
+function CountSelector({
+  value,
+  onChange,
+  label,
+}: {
+  value: CountOption;
+  onChange: (v: CountOption) => void;
+  label: string;
+}) {
+  return (
+    <div style={cardStyle}>
+      <div style={fieldLabelStyle}>{label}</div>
+      <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+        {COUNT_OPTIONS.map(opt => {
+          const selected = value === opt;
+          return (
+            <button
+              key={String(opt)}
+              type="button"
+              onClick={() => onChange(opt)}
+              style={{
+                minWidth: 40,
+                padding: "8px 10px",
+                borderRadius: 20,
+                border: selected ? "1.5px solid #c17f4a" : "1.5px solid rgba(60,40,20,0.12)",
+                background: selected ? "#fdf0e4" : "#ede5d4",
+                color: selected ? "#c17f4a" : "#3d3228",
+                fontSize: 12,
+                fontWeight: selected ? "bold" : "normal",
+                cursor: "pointer",
+              }}
+            >
+              {opt === "5回以上" ? opt : `${opt}回`}
+            </button>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+function MoodSlider({
+  moodKey,
+  label,
+  value,
+  onChange,
+}: {
+  moodKey: MoodKey;
+  label: string;
+  value: number;
+  onChange: (key: MoodKey, value: number) => void;
+}) {
+  return (
+    <div style={{ marginBottom: 14 }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
+        <span style={{ fontSize: 13, color: "#3d3228" }}>{label}</span>
+        <span style={{ fontSize: 13, fontWeight: "bold", color: "#c17f4a" }}>{value}</span>
+      </div>
+      <input
+        type="range"
+        min={1}
+        max={10}
+        value={value}
+        onChange={e => onChange(moodKey, Number(e.target.value))}
+        style={{ width: "100%", accentColor: "#c17f4a" }}
+      />
+      <div style={{ display: "flex", justifyContent: "space-between", fontSize: 10, color: "#3d3228", opacity: 0.5, marginTop: 2 }}>
+        <span>弱い</span>
+        <span>強い</span>
+      </div>
+    </div>
+  );
+}
+
 export default function TuyukusaApp() {
-  const [tab, setTab] = useState("home");
+  const [tab, setTab] = useState<Tab>("home");
   const [chatMessages, setChatMessages] = useState<Message[]>([]);
   const [chatInput, setChatInput] = useState("");
   const [isLoading, setIsLoading] = useState(false);
-  const [healthForm, setHealthForm] = useState(INITIAL_HEALTH);
+  const [healthForm, setHealthForm] = useState<HealthForm>(INITIAL_HEALTH);
   const [saveMessage, setSaveMessage] = useState("");
-  const messagesEndRef = useRef(null);
+  const messagesEndRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     if (tab === "chat" && chatMessages.length === 0) {
@@ -93,14 +184,14 @@ export default function TuyukusaApp() {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [chatMessages]);
 
-  const handleChoice = async (choice) => {
+  const handleChoice = async (choice: string) => {
     setChatMessages(prev => [...prev, { type: "user", text: choice }]);
     setIsLoading(true);
     await new Promise(r => setTimeout(r, 1000));
     setIsLoading(false);
     
     let reply = "";
-    let choices = [];
+    let choices: string[] = [];
     
     if (choice.includes("だるく")) {
       reply = "朝のだるさは「水滞」のサインかもしれません。\n\n気になる症状はありますか？";
@@ -131,7 +222,7 @@ export default function TuyukusaApp() {
     }]);
   };
 
-  const toggleSymptom = (symptom) => {
+  const toggleSymptom = (symptom: string) => {
     setHealthForm(prev => ({
       ...prev,
       symptoms: prev.symptoms.includes(symptom)
@@ -144,61 +235,6 @@ export default function TuyukusaApp() {
     setSaveMessage("体調チェックを保存しました");
     setTimeout(() => setSaveMessage(""), 3000);
   };
-
-  const CountSelector = ({ value, onChange, label }) => (
-    <div style={cardStyle}>
-      <div style={fieldLabelStyle}>{label}</div>
-      <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
-        {COUNT_OPTIONS.map(opt => {
-          const selected = value === opt;
-          return (
-            <button
-              key={String(opt)}
-              type="button"
-              onClick={() => onChange(opt)}
-              style={{
-                minWidth: 40,
-                padding: "8px 10px",
-                borderRadius: 20,
-                border: selected ? "1.5px solid #c17f4a" : "1.5px solid rgba(60,40,20,0.12)",
-                background: selected ? "#fdf0e4" : "#ede5d4",
-                color: selected ? "#c17f4a" : "#3d3228",
-                fontSize: 12,
-                fontWeight: selected ? "bold" : "normal",
-                cursor: "pointer",
-              }}
-            >
-              {opt === "5回以上" ? opt : `${opt}回`}
-            </button>
-          );
-        })}
-      </div>
-    </div>
-  );
-
-  const MoodSlider = ({ moodKey, label }) => (
-    <div style={{ marginBottom: 14 }}>
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
-        <span style={{ fontSize: 13, color: "#3d3228" }}>{label}</span>
-        <span style={{ fontSize: 13, fontWeight: "bold", color: "#c17f4a" }}>{healthForm.mood[moodKey]}</span>
-      </div>
-      <input
-        type="range"
-        min={1}
-        max={10}
-        value={healthForm.mood[moodKey]}
-        onChange={e => setHealthForm(prev => ({
-          ...prev,
-          mood: { ...prev.mood, [moodKey]: Number(e.target.value) },
-        }))}
-        style={{ width: "100%", accentColor: "#c17f4a" }}
-      />
-      <div style={{ display: "flex", justifyContent: "space-between", fontSize: 10, color: "#3d3228", opacity: 0.5, marginTop: 2 }}>
-        <span>弱い</span>
-        <span>強い</span>
-      </div>
-    </div>
-  );
 
   return (
     <div style={{ maxWidth: 430, margin: "0 auto", minHeight: "100vh", background: "#f5f0e8", display: "flex", flexDirection: "column", fontFamily: "sans-serif" }}>
@@ -421,7 +457,16 @@ export default function TuyukusaApp() {
             <div style={cardStyle}>
               <div style={fieldLabelStyle}>気分（各10段階）</div>
               {MOOD_ITEMS.map(item => (
-                <MoodSlider key={item.key} moodKey={item.key} label={item.label} />
+                <MoodSlider
+                  key={item.key}
+                  moodKey={item.key}
+                  label={item.label}
+                  value={healthForm.mood[item.key]}
+                  onChange={(key, val) => setHealthForm(prev => ({
+                    ...prev,
+                    mood: { ...prev.mood, [key]: val },
+                  }))}
+                />
               ))}
             </div>
 
@@ -521,7 +566,7 @@ export default function TuyukusaApp() {
           { key: "history", icon: "📊", label: "履歴" },
           { key: "settings", icon: "⚙️", label: "設定" },
         ].map(item => (
-          <button key={item.key} onClick={() => setTab(item.key)} style={{
+          <button key={item.key} onClick={() => setTab(item.key as Tab)} style={{
             flex: 1, display: "flex", flexDirection: "column", alignItems: "center", padding: "10px 0 12px", gap: 4, cursor: "pointer", border: "none", background: "none",
             color: tab === item.key ? "#e8a86a" : "rgba(245,240,232,0.45)", fontSize: 10, fontFamily: "sans-serif"
           }}>
