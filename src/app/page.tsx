@@ -1,6 +1,88 @@
 'use client'
 
-import { useState, useEffect, useRef } from "react";
+import {
+  useState,
+  useEffect,
+  useRef,
+  type CSSProperties,
+  type ReactNode,
+  type Dispatch,
+  type SetStateAction,
+} from "react";
+import dynamic from "next/dynamic";
+
+const DailyWeatherChart = dynamic(() => import("@/src/components/DailyWeatherChart"), {
+  ssr: false,
+  loading: () => (
+    <div style={{ background: "white", borderRadius: 14, padding: 16, height: 140, border: "1px solid rgba(60,40,20,0.1)", fontSize: 11, color: "#9a8b7a", display: "flex", alignItems: "center", justifyContent: "center" }}>
+      グラフを読み込み中...
+    </div>
+  ),
+});
+
+function useLocalStorage<T>(
+  key: string,
+  initialValue: T
+): [T, Dispatch<SetStateAction<T>>, boolean] {
+  const [value, setValue] = useState<T>(initialValue);
+  const [hydrated, setHydrated] = useState(false);
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem(key);
+      if (raw !== null) setValue(JSON.parse(raw) as T);
+    } catch { /* ignore */ }
+    setHydrated(true);
+  }, [key]);
+  useEffect(() => {
+    if (!hydrated) return;
+    try { localStorage.setItem(key, JSON.stringify(value)); } catch { /* ignore */ }
+  }, [key, value, hydrated]);
+  return [value, setValue, hydrated];
+}
+
+type GoalCategory = "睡眠" | "食事" | "運動" | "塩清療法" | "その他";
+type PeriodGoal = { text: string; category: GoalCategory; achieved: boolean; periodKey: string };
+type DeadlineGoal = { id: string; text: string; category: GoalCategory; deadline: string; achieved: boolean };
+type GoalsData = { daily: PeriodGoal; weekly: PeriodGoal; monthly: PeriodGoal; deadlineGoals: DeadlineGoal[] };
+const GOAL_CATEGORIES: GoalCategory[] = ["睡眠", "食事", "運動", "塩清療法", "その他"];
+function getDayKey(d = new Date()) { return d.toISOString().slice(0, 10); }
+function getWeekKey(d = new Date()) {
+  const x = new Date(d); const day = x.getDay();
+  x.setDate(x.getDate() + (day === 0 ? -6 : 1 - day));
+  return x.toISOString().slice(0, 10);
+}
+function getMonthKey(d = new Date()) {
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+}
+function emptyPeriodGoal(k: string): PeriodGoal {
+  return { text: "", category: "その他", achieved: false, periodKey: k };
+}
+const INITIAL_GOALS: GoalsData = {
+  daily: emptyPeriodGoal(getDayKey()),
+  weekly: emptyPeriodGoal(getWeekKey()),
+  monthly: emptyPeriodGoal(getMonthKey()),
+  deadlineGoals: [],
+};
+function normalizeGoals(data: GoalsData): GoalsData {
+  return {
+    daily: data.daily.periodKey === getDayKey() ? data.daily : emptyPeriodGoal(getDayKey()),
+    weekly: data.weekly.periodKey === getWeekKey() ? data.weekly : emptyPeriodGoal(getWeekKey()),
+    monthly: data.monthly.periodKey === getMonthKey() ? data.monthly : emptyPeriodGoal(getMonthKey()),
+    deadlineGoals: data.deadlineGoals ?? [],
+  };
+}
+function calcPeriodRate(g: PeriodGoal) { return g.text.trim() ? (g.achieved ? 100 : 0) : 0; }
+function calcDeadlineRate(gs: DeadlineGoal[]) {
+  return gs.length ? Math.round((gs.filter(g => g.achieved).length / gs.length) * 100) : 0;
+}
+function calcOverallRate(data: GoalsData) {
+  const e = [data.daily, data.weekly, data.monthly, ...data.deadlineGoals].filter(g => g.text.trim());
+  return e.length ? Math.round((e.filter(g => g.achieved).length / e.length) * 100) : 0;
+}
+function newDeadlineGoal(): DeadlineGoal {
+  const d = new Date(); d.setDate(d.getDate() + 7);
+  return { id: `${Date.now()}-${Math.random().toString(36).slice(2, 9)}`, text: "", category: "その他", deadline: d.toISOString().slice(0, 10), achieved: false };
+}
 
 type Message = {
   type: string;
@@ -14,18 +96,38 @@ type Message = {
 type Tab = "home" | "chat" | "history" | "settings";
 type MoodKey = "anger" | "anxiety" | "sadness" | "fog" | "manic";
 type CountOption = number | "5回以上";
+type HealthFieldId =
+  | "bloodPressure"
+  | "menstrual"
+  | "allergy"
+  | "alcohol"
+  | "kampo"
+  | "phoneTime"
+  | "weightTemp";
+type MenstrualKey = "pain" | "clot" | "pms" | "binge" | "irritability" | "anxiety";
+type AllergyKey = "runnyNose" | "stuffyNose" | "itchyEyes";
 
 type HealthForm = {
   sleepBed: string;
   sleepWake: string;
+  dinnerTime: string;
   awakenings: CountOption;
   nightToilet: CountOption;
   morningCondition: number;
-  bowel: string;
+  bowelType: string;
+  bowelCount: CountOption;
   mood: Record<MoodKey, number>;
   symptoms: string[];
   otherSymptom: string;
   diary: string;
+  bloodPressure: { systolic: string; diastolic: string };
+  menstrual: Record<MenstrualKey, number>;
+  allergy: Record<AllergyKey, number>;
+  alcohol: { type: string; amount: string };
+  kampoTaken: string[];
+  phoneTimeMinutes: string;
+  weight: string;
+  temperature: string;
 };
 
 const MOCK_SCHEDULE = {
@@ -58,17 +160,54 @@ const MOOD_ITEMS: { key: MoodKey; label: string }[] = [
 ];
 const COUNT_OPTIONS: CountOption[] = [0, 1, 2, 3, 4, 5, "5回以上"];
 
+const HEALTH_FIELD_OPTIONS: { id: HealthFieldId; icon: string; label: string; description: string }[] = [
+  { id: "bloodPressure", icon: "🩺", label: "血圧", description: "収縮期・拡張期" },
+  { id: "menstrual", icon: "🌸", label: "生理関連", description: "生理痛・塊・PMS・過食・イライラ・不安" },
+  { id: "allergy", icon: "🤧", label: "アレルギー", description: "鼻水・鼻づまり・目のかゆみ（各5段階）" },
+  { id: "alcohol", icon: "🍶", label: "飲酒", description: "種類・量" },
+  { id: "kampo", icon: "💊", label: "漢方・薬の内服", description: "内服チェック" },
+  { id: "phoneTime", icon: "📱", label: "携帯使用時間", description: "1日の使用時間（分）" },
+  { id: "weightTemp", icon: "⚖️", label: "体重・体温", description: "kg・℃" },
+];
+
+const MENSTRUAL_ITEMS: { key: MenstrualKey; label: string }[] = [
+  { key: "pain", label: "生理痛" },
+  { key: "clot", label: "塊" },
+  { key: "pms", label: "PMS" },
+  { key: "binge", label: "過食" },
+  { key: "irritability", label: "イライラ" },
+  { key: "anxiety", label: "不安" },
+];
+
+const ALLERGY_ITEMS: { key: AllergyKey; label: string }[] = [
+  { key: "runnyNose", label: "鼻水" },
+  { key: "stuffyNose", label: "鼻づまり" },
+  { key: "itchyEyes", label: "目のかゆみ" },
+];
+
+const KAMPO_OPTIONS = ["漢方（朝）", "漢方（昼）", "漢方（夕）", "市販薬", "処方薬"];
+
 const INITIAL_HEALTH: HealthForm = {
   sleepBed: "22:30",
   sleepWake: "06:00",
+  dinnerTime: "16:00",
   awakenings: 0,
   nightToilet: 0,
   morningCondition: 5,
-  bowel: "",
+  bowelType: "",
+  bowelCount: 0,
   mood: { anger: 1, anxiety: 1, sadness: 1, fog: 1, manic: 1 },
   symptoms: [],
   otherSymptom: "",
   diary: "",
+  bloodPressure: { systolic: "", diastolic: "" },
+  menstrual: { pain: 1, clot: 1, pms: 1, binge: 1, irritability: 1, anxiety: 1 },
+  allergy: { runnyNose: 1, stuffyNose: 1, itchyEyes: 1 },
+  alcohol: { type: "", amount: "" },
+  kampoTaken: [],
+  phoneTimeMinutes: "",
+  weight: "",
+  temperature: "",
 };
 
 const cardStyle = {
@@ -85,6 +224,18 @@ const fieldLabelStyle = {
   marginBottom: 10,
 };
 
+const inputStyle: CSSProperties = {
+  width: "100%",
+  background: "#f5f0e8",
+  border: "1.5px solid rgba(60,40,20,0.12)",
+  borderRadius: 10,
+  padding: "10px 12px",
+  fontSize: 14,
+  color: "#1a1410",
+  outline: "none",
+  boxSizing: "border-box",
+};
+
 type ApiMessage = { role: "user" | "assistant"; content: string };
 
 function toApiMessages(msgs: Message[]): ApiMessage[] {
@@ -94,15 +245,113 @@ function toApiMessages(msgs: Message[]): ApiMessage[] {
   }));
 }
 
-async function fetchChatReply(messages: Message[]): Promise<string> {
+type HourlyWeather = {
+  hour: number;
+  temperature: number;
+  humidity: number;
+  weatherCode: number;
+};
+
+type WeatherData = {
+  temperature: number;
+  humidity: number;
+  weatherCode: number;
+  precipitation: number;
+  moonAge: number;
+  moonPhase: string;
+  hourly: HourlyWeather[];
+};
+
+type HomeDisplaySettings = {
+  weatherChart: boolean;
+  humidityChart: boolean;
+  moonPhase: boolean;
+  diagnosis: boolean;
+  dailyGoal: boolean;
+  schedule: boolean;
+};
+
+const DEFAULT_HOME_DISPLAY: HomeDisplaySettings = {
+  weatherChart: true,
+  humidityChart: true,
+  moonPhase: true,
+  diagnosis: true,
+  dailyGoal: true,
+  schedule: true,
+};
+
+const HOME_DISPLAY_OPTIONS: { key: keyof HomeDisplaySettings; label: string }[] = [
+  { key: "weatherChart", label: "天気・気温グラフ" },
+  { key: "humidityChart", label: "湿度グラフ" },
+  { key: "moonPhase", label: "月の満ち欠け" },
+  { key: "diagnosis", label: "今日の診断" },
+  { key: "dailyGoal", label: "今日の目標" },
+  { key: "schedule", label: "スケジュールタイムライン" },
+];
+
+type AiDailyGoal = { text: string; category: GoalCategory; periodKey: string };
+
+const DEFAULT_COORDS = { lat: 35.6812, lon: 139.7671 };
+
+function weatherLabel(code: number): string {
+  if (code === 0) return "晴れ";
+  if (code <= 3) return "くもり";
+  if (code <= 48) return "霧";
+  if (code <= 67) return "雨";
+  if (code <= 77) return "雪";
+  if (code <= 82) return "にわか雨";
+  if (code <= 86) return "にわか雪";
+  if (code >= 95) return "雷雨";
+  return "くもり";
+}
+
+function getSeasonLabel(d = new Date()): string {
+  const m = d.getMonth() + 1;
+  const day = d.getDate();
+  if (m === 12 && day >= 15 && day <= 25) return "冬至前後（腎が疲弊しやすい）";
+  if (m >= 3 && m <= 5) return "春（肝が活発・イライラ注意）";
+  if (m === 6 || (m === 7 && day <= 20)) return "梅雨（湿邪・水滞注意）";
+  if (m >= 9 && m <= 11) return "秋（燥邪・乾燥注意）";
+  if (m === 12 || m <= 2) return "冬（腎・寒さのケア）";
+  return "夏（暑熱・血熱注意）";
+}
+
+function buildEnvironmentContext(weather: WeatherData | null): string {
+  if (!weather) return `季節: ${getSeasonLabel()}`;
+  return [
+    `季節: ${getSeasonLabel()}`,
+    `気温: ${weather.temperature}℃`,
+    `湿度: ${weather.humidity}%`,
+    `天気: ${weatherLabel(weather.weatherCode)}`,
+    `降水量: ${weather.precipitation}mm`,
+    `月齢: ${weather.moonAge.toFixed(1)}日`,
+    `月の満ち欠け: ${weather.moonPhase}`,
+  ].join("\n");
+}
+
+function buildHealthSummary(form: HealthForm): string {
+  const parts: string[] = [];
+  if (form.morningCondition) parts.push(`朝の体調: ${form.morningCondition}/10`);
+  if (form.symptoms.length) parts.push(`症状: ${form.symptoms.join("、")}`);
+  if (form.bowelType) parts.push(`便通: ${form.bowelType}（${form.bowelCount}回）`);
+  const moodHigh = MOOD_ITEMS.filter(i => form.mood[i.key] >= 7).map(i => i.label);
+  if (moodHigh.length) parts.push(`気分が強い項目: ${moodHigh.join("、")}`);
+  return parts.length ? parts.join("\n") : "体調記録なし";
+}
+
+async function fetchChatReply(
+  messages: Message[],
+  environmentContext?: string
+): Promise<string> {
   const res = await fetch("/api/chat", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ messages: toApiMessages(messages) }),
+    body: JSON.stringify({
+      messages: toApiMessages(messages),
+      environmentContext,
+    }),
   });
-  if (!res.ok) {
-    throw new Error("Chat API request failed");
-  }
+  if (!res.ok) throw new Error("Chat API request failed");
   const data = (await res.json()) as { content: string };
   return data.content;
 }
@@ -148,6 +397,45 @@ function CountSelector({
   );
 }
 
+function LevelSlider({
+  label,
+  value,
+  onChange,
+  min,
+  max,
+  minLabel,
+  maxLabel,
+}: {
+  label: string;
+  value: number;
+  onChange: (value: number) => void;
+  min: number;
+  max: number;
+  minLabel: string;
+  maxLabel: string;
+}) {
+  return (
+    <div style={{ marginBottom: 14 }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
+        <span style={{ fontSize: 13, color: "#3d3228" }}>{label}</span>
+        <span style={{ fontSize: 13, fontWeight: "bold", color: "#c17f4a" }}>{value}</span>
+      </div>
+      <input
+        type="range"
+        min={min}
+        max={max}
+        value={value}
+        onChange={e => onChange(Number(e.target.value))}
+        style={{ width: "100%", accentColor: "#c17f4a" }}
+      />
+      <div style={{ display: "flex", justifyContent: "space-between", fontSize: 10, color: "#3d3228", opacity: 0.5, marginTop: 2 }}>
+        <span>{minLabel}</span>
+        <span>{maxLabel}</span>
+      </div>
+    </div>
+  );
+}
+
 function MoodSlider({
   moodKey,
   label,
@@ -160,24 +448,212 @@ function MoodSlider({
   onChange: (key: MoodKey, value: number) => void;
 }) {
   return (
-    <div style={{ marginBottom: 14 }}>
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
-        <span style={{ fontSize: 13, color: "#3d3228" }}>{label}</span>
-        <span style={{ fontSize: 13, fontWeight: "bold", color: "#c17f4a" }}>{value}</span>
-      </div>
-      <input
-        type="range"
-        min={1}
-        max={10}
-        value={value}
-        onChange={e => onChange(moodKey, Number(e.target.value))}
-        style={{ width: "100%", accentColor: "#c17f4a" }}
-      />
-      <div style={{ display: "flex", justifyContent: "space-between", fontSize: 10, color: "#3d3228", opacity: 0.5, marginTop: 2 }}>
-        <span>弱い</span>
-        <span>強い</span>
-      </div>
+    <LevelSlider
+      label={label}
+      value={value}
+      onChange={val => onChange(moodKey, val)}
+      min={1}
+      max={10}
+      minLabel="弱い"
+      maxLabel="強い"
+    />
+  );
+}
+
+function RateBadge({ rate }: { rate: number }) {
+  return (
+    <span style={{
+      fontSize: 11, fontWeight: "bold", color: rate === 100 ? "#4a6741" : "#c17f4a",
+      background: rate === 100 ? "#e8f0e4" : "#fdf0e4",
+      borderRadius: 12, padding: "3px 10px",
+    }}>
+      達成率 {rate}%
+    </span>
+  );
+}
+
+function CategorySelect({
+  value,
+  onChange,
+}: {
+  value: GoalCategory;
+  onChange: (c: GoalCategory) => void;
+}) {
+  return (
+    <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginBottom: 10 }}>
+      {GOAL_CATEGORIES.map(cat => (
+        <ChipButton key={cat} selected={value === cat} onClick={() => onChange(cat)}>
+          {cat}
+        </ChipButton>
+      ))}
     </div>
+  );
+}
+
+function PeriodGoalCard({
+  title,
+  resetHint,
+  goal,
+  rate,
+  onUpdate,
+  optional = false,
+  showAiButton = false,
+  isSuggesting = false,
+  onAiSuggest,
+}: {
+  title: string;
+  resetHint: string;
+  goal: PeriodGoal;
+  rate: number;
+  onUpdate: (patch: Partial<PeriodGoal>) => void;
+  optional?: boolean;
+  showAiButton?: boolean;
+  isSuggesting?: boolean;
+  onAiSuggest?: () => void;
+}) {
+  return (
+    <div style={cardStyle}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
+        <div>
+          <div style={{ fontSize: 14, fontWeight: "bold", color: "#3d3228" }}>
+            {title}
+            {optional && <span style={{ fontSize: 10, fontWeight: "normal", color: "#9a8b7a", marginLeft: 6 }}>任意</span>}
+          </div>
+          <div style={{ fontSize: 10, color: "#3d3228", opacity: 0.5, marginTop: 2 }}>{resetHint}</div>
+        </div>
+        {goal.text.trim() ? <RateBadge rate={rate} /> : null}
+      </div>
+      {optional && !goal.text.trim() && (
+        <div style={{ fontSize: 11, color: "#8b7355", marginBottom: 8, lineHeight: 1.5 }}>
+          未入力でもOK。AIが体調・季節・天気から提案できます。
+        </div>
+      )}
+      <CategorySelect value={goal.category} onChange={category => onUpdate({ category })} />
+      <input
+        type="text"
+        placeholder={optional ? "任意：目標を入力..." : "目標を入力..."}
+        value={goal.text}
+        onChange={e => onUpdate({ text: e.target.value })}
+        style={{ ...inputStyle, marginBottom: showAiButton ? 8 : 10 }}
+      />
+      {showAiButton && onAiSuggest && (
+        <button
+          type="button"
+          onClick={onAiSuggest}
+          disabled={isSuggesting}
+          style={{
+            width: "100%",
+            padding: "10px",
+            marginBottom: 10,
+            borderRadius: 10,
+            border: "1.5px solid #c17f4a",
+            background: "#fdf0e4",
+            color: "#8b5a2b",
+            fontSize: 12,
+            fontWeight: "bold",
+            cursor: isSuggesting ? "wait" : "pointer",
+            opacity: isSuggesting ? 0.7 : 1,
+          }}
+        >
+          {isSuggesting ? "AIが提案中..." : "✨ AIに提案してもらう"}
+        </button>
+      )}
+      <label style={{ display: "flex", alignItems: "center", gap: 8, cursor: "pointer", fontSize: 13, color: goal.achieved ? "#4a6741" : "#3d3228" }}>
+        <input
+          type="checkbox"
+          checked={goal.achieved}
+          onChange={e => onUpdate({ achieved: e.target.checked })}
+          style={{ width: 18, height: 18, accentColor: "#c17f4a" }}
+        />
+        達成した
+      </label>
+    </div>
+  );
+}
+
+function DisplayToggle({
+  label,
+  checked,
+  onChange,
+}: {
+  label: string;
+  checked: boolean;
+  onChange: (v: boolean) => void;
+}) {
+  return (
+    <div style={{ ...cardStyle, display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12 }}>
+      <div style={{ fontSize: 14, color: "#3d3228" }}>{label}</div>
+      <button
+        type="button"
+        role="switch"
+        aria-checked={checked}
+        onClick={() => onChange(!checked)}
+        style={{
+          width: 44,
+          height: 26,
+          borderRadius: 13,
+          border: "none",
+          background: checked ? "#6b8f62" : "#ddd0bc",
+          cursor: "pointer",
+          position: "relative",
+          flexShrink: 0,
+        }}
+      >
+        <span
+          style={{
+            position: "absolute",
+            top: 3,
+            left: checked ? 21 : 3,
+            width: 20,
+            height: 20,
+            borderRadius: "50%",
+            background: "white",
+            transition: "left 0.2s",
+            boxShadow: "0 1px 3px rgba(0,0,0,0.15)",
+          }}
+        />
+      </button>
+    </div>
+  );
+}
+
+function ChipButton({
+  selected,
+  onClick,
+  children,
+  variant = "warm",
+}: {
+  selected: boolean;
+  onClick: () => void;
+  children: ReactNode;
+  variant?: "warm" | "dark";
+}) {
+  const warm = {
+    border: selected ? "1.5px solid #c17f4a" : "1.5px solid rgba(60,40,20,0.12)",
+    background: selected ? "#fdf0e4" : "#ede5d4",
+    color: selected ? "#c17f4a" : "#3d3228",
+  };
+  const dark = {
+    border: selected ? "1.5px solid #1a1410" : "1.5px solid rgba(60,40,20,0.12)",
+    background: selected ? "#1a1410" : "#ede5d4",
+    color: selected ? "#f5f0e8" : "#3d3228",
+  };
+  const style = variant === "dark" ? dark : warm;
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      style={{
+        padding: "8px 14px",
+        borderRadius: 20,
+        fontSize: 12,
+        fontWeight: selected ? "bold" : "normal",
+        cursor: "pointer",
+        ...style,
+      }}
+    >
+      {children}
+    </button>
   );
 }
 
@@ -187,8 +663,124 @@ export default function TuyukusaApp() {
   const [chatInput, setChatInput] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [healthForm, setHealthForm] = useState<HealthForm>(INITIAL_HEALTH);
+  const [enabledFields, setEnabledFields] = useState<HealthFieldId[]>([]);
+  const [goals, setGoals, goalsHydrated] = useLocalStorage<GoalsData>("tuyukusa-goals", INITIAL_GOALS);
+  const [aiDailyGoal, setAiDailyGoal, aiGoalHydrated] = useLocalStorage<AiDailyGoal | null>("tuyukusa-ai-daily-goal", null);
+  const [homeDisplay, setHomeDisplay] = useLocalStorage<HomeDisplaySettings>("tuyukusa-home-display", DEFAULT_HOME_DISPLAY);
+  const [weather, setWeather] = useState<WeatherData | null>(null);
+  const [weatherLoading, setWeatherLoading] = useState(true);
+  const [isSuggestingGoal, setIsSuggestingGoal] = useState(false);
   const [saveMessage, setSaveMessage] = useState("");
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const autoSuggestRef = useRef(false);
+  const envContext = buildEnvironmentContext(weather);
+
+  useEffect(() => {
+    if (goalsHydrated) setGoals(prev => normalizeGoals(prev));
+  }, [goalsHydrated, setGoals]);
+
+  useEffect(() => {
+    if (aiGoalHydrated && aiDailyGoal && aiDailyGoal.periodKey !== getDayKey()) {
+      setAiDailyGoal(null);
+    }
+  }, [aiGoalHydrated, aiDailyGoal, setAiDailyGoal]);
+
+  const fetchWeather = (lat: number, lon: number) => {
+    setWeatherLoading(true);
+    fetch(`/api/weather?lat=${lat}&lon=${lon}`)
+      .then(res => res.json())
+      .then((data: WeatherData) => setWeather({ ...data, hourly: data.hourly ?? [] }))
+      .catch(() => setWeather(null))
+      .finally(() => setWeatherLoading(false));
+  };
+
+  useEffect(() => {
+    if (!navigator.geolocation) {
+      fetchWeather(DEFAULT_COORDS.lat, DEFAULT_COORDS.lon);
+      return;
+    }
+    navigator.geolocation.getCurrentPosition(
+      pos => fetchWeather(pos.coords.latitude, pos.coords.longitude),
+      () => fetchWeather(DEFAULT_COORDS.lat, DEFAULT_COORDS.lon),
+      { timeout: 10000 }
+    );
+  }, []);
+
+  const suggestDailyGoal = async () => {
+    setIsSuggestingGoal(true);
+    try {
+      const prompt = `今日の目標を1つだけ提案してください。以下を踏まえ、20字以内の具体的な行動目標にしてください。カテゴリ（睡眠/食事/運動/塩清療法/その他）も一行目に【カテゴリ】の形式で付けてください。
+
+${buildHealthSummary(healthForm)}`;
+      const reply = await fetchChatReply(
+        [{ type: "user", text: prompt }],
+        envContext
+      );
+      const catMatch = reply.match(/【(.+?)】/);
+      const category = GOAL_CATEGORIES.includes(catMatch?.[1] as GoalCategory)
+        ? (catMatch![1] as GoalCategory)
+        : "その他";
+      const text = reply.replace(/【.+?】/, "").trim().split("\n")[0].slice(0, 60);
+      setAiDailyGoal({ text, category, periodKey: getDayKey() });
+    } catch {
+      setAiDailyGoal({
+        text: "就寝前に塩湯3gを飲む",
+        category: "塩清療法",
+        periodKey: getDayKey(),
+      });
+    } finally {
+      setIsSuggestingGoal(false);
+    }
+  };
+
+  useEffect(() => {
+    if (!weather || !goalsHydrated || !aiGoalHydrated) return;
+    if (goals.daily.text.trim()) return;
+    if (aiDailyGoal?.periodKey === getDayKey()) return;
+    if (autoSuggestRef.current) return;
+    autoSuggestRef.current = true;
+    suggestDailyGoal();
+  }, [weather, goalsHydrated, aiGoalHydrated, goals.daily.text]);
+
+  const isFieldEnabled = (id: HealthFieldId) => enabledFields.includes(id);
+
+  const toggleEnabledField = (id: HealthFieldId) => {
+    setEnabledFields(prev =>
+      prev.includes(id) ? prev.filter(f => f !== id) : [...prev, id]
+    );
+  };
+
+  const toggleKampo = (item: string) => {
+    setHealthForm(prev => ({
+      ...prev,
+      kampoTaken: prev.kampoTaken.includes(item)
+        ? prev.kampoTaken.filter(k => k !== item)
+        : [...prev.kampoTaken, item],
+    }));
+  };
+
+  const updatePeriodGoal = (key: "daily" | "weekly" | "monthly", patch: Partial<PeriodGoal>) => {
+    const periodKeys = { daily: getDayKey(), weekly: getWeekKey(), monthly: getMonthKey() };
+    setGoals(prev => ({
+      ...prev,
+      [key]: { ...prev[key], ...patch, periodKey: periodKeys[key] },
+    }));
+  };
+
+  const updateDeadlineGoal = (id: string, patch: Partial<DeadlineGoal>) => {
+    setGoals(prev => ({
+      ...prev,
+      deadlineGoals: prev.deadlineGoals.map(g => (g.id === id ? { ...g, ...patch } : g)),
+    }));
+  };
+
+  const addDeadlineGoal = () => {
+    setGoals(prev => ({ ...prev, deadlineGoals: [...prev.deadlineGoals, newDeadlineGoal()] }));
+  };
+
+  const removeDeadlineGoal = (id: string) => {
+    setGoals(prev => ({ ...prev, deadlineGoals: prev.deadlineGoals.filter(g => g.id !== id) }));
+  };
 
   useEffect(() => {
     if (tab === "chat" && chatMessages.length === 0) {
@@ -211,7 +803,7 @@ export default function TuyukusaApp() {
     setChatMessages(updatedMessages);
     setIsLoading(true);
     try {
-      const reply = await fetchChatReply(updatedMessages);
+      const reply = await fetchChatReply(updatedMessages, envContext);
       setChatMessages(prev => [...prev, { type: "ai", text: reply }]);
     } catch {
       setChatMessages(prev => [
@@ -231,7 +823,7 @@ export default function TuyukusaApp() {
     setChatMessages(updatedMessages);
     setIsLoading(true);
     try {
-      const reply = await fetchChatReply(updatedMessages);
+      const reply = await fetchChatReply(updatedMessages, envContext);
       setChatMessages(prev => [...prev, { type: "ai", text: reply }]);
     } catch {
       setChatMessages(prev => [
@@ -261,9 +853,24 @@ export default function TuyukusaApp() {
     <div style={{ maxWidth: 430, margin: "0 auto", minHeight: "100vh", background: "#f5f0e8", display: "flex", flexDirection: "column", fontFamily: "sans-serif" }}>
       
       {/* ヘッダー */}
-      <div style={{ background: "#1a1410", color: "#f5f0e8", padding: "16px 20px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-        <div style={{ fontSize: 18, fontWeight: "bold" }}>🌿 つゆくさ</div>
-        <div style={{ fontSize: 11, opacity: 0.6 }}>2025年5月29日</div>
+      <div style={{ background: "#1a1410", color: "#f5f0e8", padding: "14px 20px 12px" }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: weather || weatherLoading ? 10 : 0 }}>
+          <div style={{ fontSize: 18, fontWeight: "bold" }}>🌿 つゆくさ</div>
+          <div style={{ fontSize: 11, opacity: 0.6 }}>
+            {new Date().toLocaleDateString("ja-JP", { year: "numeric", month: "long", day: "numeric", weekday: "short" })}
+          </div>
+        </div>
+        {weatherLoading && (
+          <div style={{ fontSize: 11, opacity: 0.5 }}>天気・月を取得中...</div>
+        )}
+        {weather && !weatherLoading && (
+          <div style={{ display: "flex", flexWrap: "wrap", gap: "8px 14px", fontSize: 11, opacity: 0.85 }}>
+            <span>🌡️ {weather.temperature}℃</span>
+            <span>💧 {weather.humidity}%</span>
+            <span>☁️ {weatherLabel(weather.weatherCode)}</span>
+            <span>🌙 {weather.moonPhase}</span>
+          </div>
+        )}
       </div>
 
       {/* コンテンツ */}
@@ -272,7 +879,152 @@ export default function TuyukusaApp() {
         {/* ホーム */}
         {tab === "home" && (
           <div>
-            <div style={{ background: "linear-gradient(160deg, #1a1410, #2d2218)", color: "#f5f0e8", padding: "28px 20px" }}>
+            {(homeDisplay.weatherChart || homeDisplay.humidityChart || homeDisplay.moonPhase) && (
+              <div style={{ margin: "16px 16px 0" }}>
+                {weatherLoading && (
+                  <div style={{ background: "white", borderRadius: 14, padding: 16, height: 140, border: "1px solid rgba(60,40,20,0.1)", fontSize: 11, color: "#9a8b7a", textAlign: "center", lineHeight: "108px" }}>
+                    天気を取得中...
+                  </div>
+                )}
+                {weather && !weatherLoading && weather.hourly?.length > 0 && (
+                  <DailyWeatherChart
+                    hourly={weather.hourly}
+                    showTemperature={homeDisplay.weatherChart}
+                    showHumidity={homeDisplay.humidityChart}
+                    showMoon={homeDisplay.moonPhase}
+                    moonAge={weather.moonAge}
+                    moonPhase={weather.moonPhase}
+                  />
+                )}
+              </div>
+            )}
+
+            {homeDisplay.dailyGoal && (
+            <div style={{ margin: "16px 16px 0", background: "white", borderRadius: 12, padding: "14px 16px", border: "1px solid rgba(60,40,20,0.1)" }}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
+                <div style={{ fontSize: 13, fontWeight: "bold", color: "#4a6741" }}>🎯 今日の目標</div>
+                {goals.daily.text.trim() && <RateBadge rate={calcPeriodRate(goals.daily)} />}
+              </div>
+              {goals.daily.text.trim() ? (
+                <div style={{
+                  fontSize: 14,
+                  lineHeight: 1.6,
+                  color: goals.daily.achieved ? "#9a8b7a" : "#1a1410",
+                  opacity: goals.daily.achieved ? 0.65 : 1,
+                  textDecoration: goals.daily.achieved ? "line-through" : "none",
+                  background: goals.daily.achieved ? "#ede5d4" : "transparent",
+                  borderRadius: 8,
+                  padding: goals.daily.achieved ? "8px 10px" : 0,
+                }}>
+                  <span style={{
+                    display: "inline-block",
+                    fontSize: 10,
+                    color: "#c17f4a",
+                    background: "#fdf0e4",
+                    borderRadius: 10,
+                    padding: "2px 8px",
+                    marginBottom: 6,
+                    textDecoration: "none",
+                  }}>
+                    {goals.daily.category}
+                  </span>
+                  <div>{goals.daily.text}</div>
+                  {goals.daily.achieved && (
+                    <div style={{ fontSize: 11, color: "#4a6741", marginTop: 6 }}>✓ 達成済み</div>
+                  )}
+                </div>
+              ) : isSuggestingGoal ? (
+                <div style={{ fontSize: 12, color: "#8b7355", padding: "8px 0" }}>AIが今日の目標を提案中...</div>
+              ) : aiDailyGoal?.periodKey === getDayKey() && aiDailyGoal.text ? (
+                <div style={{ fontSize: 14, lineHeight: 1.6, color: "#1a1410" }}>
+                  <span style={{
+                    display: "inline-block",
+                    fontSize: 10,
+                    color: "#4a6741",
+                    background: "#e8f0e4",
+                    borderRadius: 10,
+                    padding: "2px 8px",
+                    marginBottom: 6,
+                    marginRight: 6,
+                  }}>
+                    AI提案
+                  </span>
+                  <span style={{
+                    display: "inline-block",
+                    fontSize: 10,
+                    color: "#c17f4a",
+                    background: "#fdf0e4",
+                    borderRadius: 10,
+                    padding: "2px 8px",
+                    marginBottom: 6,
+                  }}>
+                    {aiDailyGoal.category}
+                  </span>
+                  <div>{aiDailyGoal.text}</div>
+                  <div style={{ display: "flex", gap: 8, marginTop: 10 }}>
+                    <button
+                      type="button"
+                      onClick={() => updatePeriodGoal("daily", { text: aiDailyGoal.text, category: aiDailyGoal.category })}
+                      style={{
+                        flex: 1,
+                        padding: "8px",
+                        borderRadius: 8,
+                        border: "none",
+                        background: "#1a1410",
+                        color: "#f5f0e8",
+                        fontSize: 11,
+                        cursor: "pointer",
+                      }}
+                    >
+                      この目標を採用
+                    </button>
+                    <button
+                      type="button"
+                      onClick={suggestDailyGoal}
+                      style={{
+                        padding: "8px 12px",
+                        borderRadius: 8,
+                        border: "1px solid rgba(60,40,20,0.15)",
+                        background: "#f5f0e8",
+                        fontSize: 11,
+                        cursor: "pointer",
+                        color: "#3d3228",
+                      }}
+                    >
+                      再提案
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <div>
+                  <div style={{ fontSize: 12, color: "#8b7355", marginBottom: 8, lineHeight: 1.5 }}>
+                    目標未設定です。AIが天気・季節・体調から提案します。
+                  </div>
+                  <button
+                    type="button"
+                    onClick={suggestDailyGoal}
+                    disabled={isSuggestingGoal}
+                    style={{
+                      width: "100%",
+                      padding: "10px",
+                      borderRadius: 8,
+                      border: "1.5px solid #c17f4a",
+                      background: "#fdf0e4",
+                      fontSize: 12,
+                      fontWeight: "bold",
+                      color: "#8b5a2b",
+                      cursor: "pointer",
+                    }}
+                  >
+                    ✨ AIに提案してもらう
+                  </button>
+                </div>
+              )}
+            </div>
+            )}
+
+            {homeDisplay.diagnosis && (
+            <div style={{ background: "linear-gradient(160deg, #1a1410, #2d2218)", color: "#f5f0e8", padding: "28px 20px", marginTop: 16 }}>
               <div style={{ fontSize: 12, opacity: 0.6, marginBottom: 4 }}>おはようございます</div>
               <div style={{ fontSize: 22, fontWeight: "bold", marginBottom: 16 }}>田中 様</div>
               <div style={{ display: "inline-block", background: "rgba(193,127,74,0.2)", border: "1px solid rgba(193,127,74,0.3)", borderRadius: 20, padding: "6px 14px", fontSize: 13, color: "#e8a86a", marginBottom: 16 }}>
@@ -282,7 +1034,10 @@ export default function TuyukusaApp() {
                 {MOCK_SCHEDULE.advice}
               </div>
             </div>
+            )}
 
+            {homeDisplay.schedule && (
+            <>
             <div style={{ padding: "20px 20px 8px", fontSize: 15, fontWeight: "bold", color: "#3d3228" }}>📅 今日のスケジュール</div>
             
             {[
@@ -298,12 +1053,26 @@ export default function TuyukusaApp() {
                 <div style={{ fontSize: 11, color: "#3d3228", opacity: 0.7 }}>{item.sub}</div>
               </div>
             ))}
+            </>
+            )}
           </div>
         )}
 
         {/* AI相談 */}
         {tab === "chat" && (
           <div style={{ display: "flex", flexDirection: "column", height: "calc(100vh - 120px)" }}>
+            {weather && (
+              <div style={{ margin: "12px 16px 0", background: "white", borderRadius: 10, padding: "10px 12px", border: "1px solid rgba(60,40,20,0.1)", fontSize: 11, color: "#3d3228", lineHeight: 1.6 }}>
+                <div style={{ fontWeight: "bold", color: "#4a6741", marginBottom: 4 }}>🌿 本日の環境（診断に反映）</div>
+                <span>🌡️ {weather.temperature}℃ </span>
+                <span>💧 {weather.humidity}% </span>
+                <span>{weatherLabel(weather.weatherCode)} </span>
+                <span>🌙 {weather.moonPhase}</span>
+                {weather.moonPhase === "満月" && (
+                  <div style={{ color: "#c17f4a", marginTop: 4 }}>満月は水滞が悪化しやすい時期です</div>
+                )}
+              </div>
+            )}
             <div style={{ flex: 1, overflowY: "auto", padding: 16, display: "flex", flexDirection: "column", gap: 12 }}>
               {chatMessages.map((msg, i) => (
                 <div key={i}>
@@ -357,7 +1126,178 @@ export default function TuyukusaApp() {
         {/* 設定 */}
         {tab === "settings" && (
           <div style={{ padding: 16 }}>
-            <div style={{ fontSize: 15, fontWeight: "bold", color: "#3d3228", marginBottom: 12 }}>⚙️ 設定</div>
+            <div style={{ fontSize: 15, fontWeight: "bold", color: "#3d3228", marginBottom: 4 }}>🏠 ホーム表示設定</div>
+            <div style={{ fontSize: 11, color: "#3d3228", opacity: 0.6, marginBottom: 12 }}>
+              ホーム画面に表示する項目を選べます
+            </div>
+            {HOME_DISPLAY_OPTIONS.map(opt => (
+              <DisplayToggle
+                key={opt.key}
+                label={opt.label}
+                checked={homeDisplay[opt.key]}
+                onChange={v => setHomeDisplay(prev => ({ ...prev, [opt.key]: v }))}
+              />
+            ))}
+
+            <div style={{ fontSize: 15, fontWeight: "bold", color: "#3d3228", marginBottom: 4, paddingTop: 12, borderTop: "1px solid rgba(60,40,20,0.12)", marginTop: 8 }}>🎯 目標設定</div>
+            <div style={{ fontSize: 11, color: "#3d3228", opacity: 0.6, marginBottom: 8, lineHeight: 1.5 }}>
+              すべて任意入力です。未設定の場合、AIが体調・季節・天気から今日の目標を提案します。
+            </div>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
+              <div style={{ fontSize: 11, color: "#3d3228", opacity: 0.6 }}>全体の達成率（入力済みのみ）</div>
+              <RateBadge rate={calcOverallRate(goals)} />
+            </div>
+
+            <PeriodGoalCard
+              title="今日の目標"
+              resetHint="毎日リセット・未入力OK"
+              goal={goals.daily}
+              rate={calcPeriodRate(goals.daily)}
+              onUpdate={patch => updatePeriodGoal("daily", patch)}
+              optional
+              showAiButton
+              isSuggesting={isSuggestingGoal}
+              onAiSuggest={suggestDailyGoal}
+            />
+            <PeriodGoalCard
+              title="今週の目標"
+              resetHint="毎週月曜にリセット・未入力OK"
+              goal={goals.weekly}
+              rate={calcPeriodRate(goals.weekly)}
+              onUpdate={patch => updatePeriodGoal("weekly", patch)}
+              optional
+            />
+            <PeriodGoalCard
+              title="今月の目標"
+              resetHint="毎月初めにリセット・未入力OK"
+              goal={goals.monthly}
+              rate={calcPeriodRate(goals.monthly)}
+              onUpdate={patch => updatePeriodGoal("monthly", patch)}
+              optional
+            />
+
+            <div style={cardStyle}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
+                <div>
+                  <div style={{ fontSize: 14, fontWeight: "bold", color: "#3d3228" }}>期限付き目標</div>
+                  <div style={{ fontSize: 10, color: "#3d3228", opacity: 0.5, marginTop: 2 }}>期限までに達成</div>
+                </div>
+                <RateBadge rate={calcDeadlineRate(goals.deadlineGoals)} />
+              </div>
+
+              {goals.deadlineGoals.map(g => (
+                <div key={g.id} style={{ background: "#f5f0e8", borderRadius: 10, padding: 12, marginBottom: 8, border: "1px solid rgba(60,40,20,0.08)" }}>
+                  <CategorySelect value={g.category} onChange={category => updateDeadlineGoal(g.id, { category })} />
+                  <input
+                    type="text"
+                    placeholder="目標を入力..."
+                    value={g.text}
+                    onChange={e => updateDeadlineGoal(g.id, { text: e.target.value })}
+                    style={{ ...inputStyle, marginBottom: 8 }}
+                  />
+                  <div style={{ fontSize: 11, color: "#3d3228", opacity: 0.6, marginBottom: 6 }}>期限</div>
+                  <input
+                    type="date"
+                    value={g.deadline}
+                    onChange={e => updateDeadlineGoal(g.id, { deadline: e.target.value })}
+                    style={{ ...inputStyle, marginBottom: 8 }}
+                  />
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                    <label style={{ display: "flex", alignItems: "center", gap: 8, cursor: "pointer", fontSize: 13, color: g.achieved ? "#4a6741" : "#3d3228" }}>
+                      <input
+                        type="checkbox"
+                        checked={g.achieved}
+                        onChange={e => updateDeadlineGoal(g.id, { achieved: e.target.checked })}
+                        style={{ width: 18, height: 18, accentColor: "#c17f4a" }}
+                      />
+                      達成した
+                    </label>
+                    <button
+                      type="button"
+                      onClick={() => removeDeadlineGoal(g.id)}
+                      style={{ background: "none", border: "none", color: "#9a8b7a", fontSize: 12, cursor: "pointer" }}
+                    >
+                      削除
+                    </button>
+                  </div>
+                </div>
+              ))}
+
+              <button
+                type="button"
+                onClick={addDeadlineGoal}
+                style={{
+                  width: "100%",
+                  padding: "10px",
+                  borderRadius: 10,
+                  border: "1.5px dashed #c17f4a",
+                  background: "#fdf0e4",
+                  color: "#8b5a2b",
+                  fontSize: 13,
+                  cursor: "pointer",
+                }}
+              >
+                ＋ 期限付き目標を追加
+              </button>
+            </div>
+
+            <div style={{ fontSize: 15, fontWeight: "bold", color: "#3d3228", marginBottom: 4, paddingTop: 8, borderTop: "1px solid rgba(60,40,20,0.12)" }}>📋 体調チェックの表示項目</div>
+            <div style={{ fontSize: 11, color: "#3d3228", opacity: 0.6, marginBottom: 12 }}>
+              選んだ項目だけが履歴タブの体調チェックに表示されます
+            </div>
+
+            {HEALTH_FIELD_OPTIONS.map(field => {
+              const enabled = isFieldEnabled(field.id);
+              return (
+                <button
+                  key={field.id}
+                  type="button"
+                  onClick={() => toggleEnabledField(field.id)}
+                  style={{
+                    width: "100%",
+                    background: enabled ? "#fdf0e4" : "white",
+                    borderRadius: 12,
+                    padding: "14px 16px",
+                    marginBottom: 8,
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 12,
+                    border: enabled ? "1.5px solid #c17f4a" : "1px solid rgba(60,40,20,0.1)",
+                    cursor: "pointer",
+                    textAlign: "left",
+                  }}
+                >
+                  <div style={{ fontSize: 22 }}>{field.icon}</div>
+                  <div style={{ flex: 1 }}>
+                    <div style={{ fontSize: 14, fontWeight: "bold", color: "#3d3228" }}>{field.label}</div>
+                    <div style={{ fontSize: 11, color: "#3d3228", opacity: 0.6, marginTop: 2 }}>{field.description}</div>
+                  </div>
+                  <div style={{
+                    width: 22,
+                    height: 22,
+                    borderRadius: 6,
+                    border: enabled ? "none" : "1.5px solid rgba(60,40,20,0.2)",
+                    background: enabled ? "#c17f4a" : "transparent",
+                    color: "#f5f0e8",
+                    fontSize: 13,
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    flexShrink: 0,
+                  }}>
+                    {enabled && "✓"}
+                  </div>
+                </button>
+              );
+            })}
+
+            <div style={{ fontSize: 12, color: "#4a6741", background: "#e8f0e4", borderRadius: 10, padding: "10px 12px", marginBottom: 20, lineHeight: 1.6 }}>
+              {enabledFields.length === 0
+                ? "追加項目は未選択です。基本項目（睡眠・便通・気分など）は常に表示されます。"
+                : `${enabledFields.length}項目を体調チェックに表示中`}
+            </div>
+
+            <div style={{ fontSize: 15, fontWeight: "bold", color: "#3d3228", marginBottom: 12, paddingTop: 8, borderTop: "1px solid rgba(60,40,20,0.12)" }}>⚙️ 通知・連携</div>
             {[
               { icon: "⏰", label: "起床アラート", val: MOCK_SCHEDULE.wakeTime },
               { icon: "🍚", label: "食事アラート", val: `${MOCK_SCHEDULE.mealTime1} / ${MOCK_SCHEDULE.mealTime2}` },
@@ -366,7 +1306,7 @@ export default function TuyukusaApp() {
               { icon: "📅", label: "Googleカレンダー連携", val: "未連携" },
               { icon: "💬", label: "LINE通知", val: "未設定" },
             ].map((item, i) => (
-              <div key={i} style={{ background: "white", borderRadius: 12, padding: "14px 16px", marginBottom: 8, display: "flex", alignItems: "center", gap: 12, border: "1px solid rgba(60,40,20,0.1)" }}>
+              <div key={i} style={{ ...cardStyle, display: "flex", alignItems: "center", gap: 12 }}>
                 <div style={{ fontSize: 20 }}>{item.icon}</div>
                 <div style={{ flex: 1, fontSize: 14 }}>{item.label}</div>
                 <div style={{ fontSize: 12, opacity: 0.6 }}>{item.val}</div>
@@ -380,6 +1320,27 @@ export default function TuyukusaApp() {
           <div style={{ padding: 16 }}>
             <div style={{ fontSize: 15, fontWeight: "bold", color: "#3d3228", marginBottom: 4 }}>🌿 今日の体調チェック</div>
             <div style={{ fontSize: 11, color: "#3d3228", opacity: 0.6, marginBottom: 16 }}>毎朝の記録が、あなたに合った生活リズムの土台になります</div>
+
+            {enabledFields.length === 0 && (
+              <button
+                type="button"
+                onClick={() => setTab("settings")}
+                style={{
+                  width: "100%",
+                  background: "#fdf0e4",
+                  border: "1px dashed #c17f4a",
+                  borderRadius: 12,
+                  padding: "12px 14px",
+                  marginBottom: 12,
+                  fontSize: 12,
+                  color: "#8b5a2b",
+                  cursor: "pointer",
+                  lineHeight: 1.6,
+                }}
+              >
+                💡 設定タブで血圧・アレルギーなどの追加項目を選べます
+              </button>
+            )}
 
             {saveMessage && (
               <div style={{ background: "#e8f0e4", border: "1px solid #c5d8be", borderRadius: 12, padding: "10px 14px", marginBottom: 12, fontSize: 13, color: "#4a6741", textAlign: "center" }}>
@@ -397,7 +1358,7 @@ export default function TuyukusaApp() {
                     type="time"
                     value={healthForm.sleepBed}
                     onChange={e => setHealthForm(prev => ({ ...prev, sleepBed: e.target.value }))}
-                    style={{ width: "100%", background: "#f5f0e8", border: "1.5px solid rgba(60,40,20,0.12)", borderRadius: 10, padding: "10px 12px", fontSize: 14, color: "#1a1410", outline: "none" }}
+                    style={inputStyle}
                   />
                 </div>
                 <div style={{ display: "flex", alignItems: "flex-end", paddingBottom: 12, color: "#c17f4a", fontSize: 12 }}>→</div>
@@ -407,7 +1368,7 @@ export default function TuyukusaApp() {
                     type="time"
                     value={healthForm.sleepWake}
                     onChange={e => setHealthForm(prev => ({ ...prev, sleepWake: e.target.value }))}
-                    style={{ width: "100%", background: "#f5f0e8", border: "1.5px solid rgba(60,40,20,0.12)", borderRadius: 10, padding: "10px 12px", fontSize: 14, color: "#1a1410", outline: "none" }}
+                    style={inputStyle}
                   />
                 </div>
               </div>
@@ -424,6 +1385,23 @@ export default function TuyukusaApp() {
               value={healthForm.nightToilet}
               onChange={v => setHealthForm(prev => ({ ...prev, nightToilet: v }))}
             />
+
+            {/* 夕食時間 */}
+            <div style={cardStyle}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
+                <div style={{ ...fieldLabelStyle, marginBottom: 0 }}>🍚 夕食時間</div>
+                <span style={{ fontSize: 18, fontWeight: "bold", color: "#1a1410" }}>{healthForm.dinnerTime}</span>
+              </div>
+              <input
+                type="time"
+                value={healthForm.dinnerTime}
+                onChange={e => setHealthForm(prev => ({ ...prev, dinnerTime: e.target.value }))}
+                style={inputStyle}
+              />
+              <div style={{ fontSize: 10, color: "#3d3228", opacity: 0.5, marginTop: 6 }}>
+                推奨：16:00（塩・タンパク質・海産物中心）
+              </div>
+            </div>
 
             {/* 朝の体調 */}
             <div style={cardStyle}>
@@ -445,30 +1423,32 @@ export default function TuyukusaApp() {
               </div>
             </div>
 
-            {/* 便通 */}
+            {/* 便通：状態 + 回数 */}
             <div style={cardStyle}>
-              <div style={fieldLabelStyle}>便通</div>
+              <div style={fieldLabelStyle}>便通の状態</div>
+              <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginBottom: 14 }}>
+                {BOWEL_OPTIONS.map(opt => (
+                  <ChipButton
+                    key={opt}
+                    selected={healthForm.bowelType === opt}
+                    onClick={() => setHealthForm(prev => ({ ...prev, bowelType: opt }))}
+                  >
+                    {opt}
+                  </ChipButton>
+                ))}
+              </div>
+              <div style={{ fontSize: 11, color: "#3d3228", opacity: 0.6, marginBottom: 8 }}>回数</div>
               <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
-                {BOWEL_OPTIONS.map(opt => {
-                  const selected = healthForm.bowel === opt;
+                {COUNT_OPTIONS.map(opt => {
+                  const selected = healthForm.bowelCount === opt;
                   return (
-                    <button
-                      key={opt}
-                      type="button"
-                      onClick={() => setHealthForm(prev => ({ ...prev, bowel: opt }))}
-                      style={{
-                        padding: "8px 14px",
-                        borderRadius: 20,
-                        border: selected ? "1.5px solid #c17f4a" : "1.5px solid rgba(60,40,20,0.12)",
-                        background: selected ? "#fdf0e4" : "#ede5d4",
-                        color: selected ? "#c17f4a" : "#3d3228",
-                        fontSize: 12,
-                        fontWeight: selected ? "bold" : "normal",
-                        cursor: "pointer",
-                      }}
+                    <ChipButton
+                      key={String(opt)}
+                      selected={selected}
+                      onClick={() => setHealthForm(prev => ({ ...prev, bowelCount: opt }))}
                     >
-                      {opt}
-                    </button>
+                      {opt === "5回以上" ? opt : `${opt}回`}
+                    </ChipButton>
                   );
                 })}
               </div>
@@ -491,31 +1471,222 @@ export default function TuyukusaApp() {
               ))}
             </div>
 
+            {/* 血圧 */}
+            {isFieldEnabled("bloodPressure") && (
+              <div style={cardStyle}>
+                <div style={fieldLabelStyle}>🩺 血圧</div>
+                <div style={{ display: "flex", gap: 12 }}>
+                  <div style={{ flex: 1 }}>
+                    <div style={{ fontSize: 11, color: "#3d3228", opacity: 0.6, marginBottom: 6 }}>収縮期</div>
+                    <input
+                      type="number"
+                      placeholder="120"
+                      value={healthForm.bloodPressure.systolic}
+                      onChange={e => setHealthForm(prev => ({
+                        ...prev,
+                        bloodPressure: { ...prev.bloodPressure, systolic: e.target.value },
+                      }))}
+                      style={inputStyle}
+                    />
+                  </div>
+                  <div style={{ display: "flex", alignItems: "flex-end", paddingBottom: 12, color: "#c17f4a", fontSize: 12 }}>/</div>
+                  <div style={{ flex: 1 }}>
+                    <div style={{ fontSize: 11, color: "#3d3228", opacity: 0.6, marginBottom: 6 }}>拡張期</div>
+                    <input
+                      type="number"
+                      placeholder="80"
+                      value={healthForm.bloodPressure.diastolic}
+                      onChange={e => setHealthForm(prev => ({
+                        ...prev,
+                        bloodPressure: { ...prev.bloodPressure, diastolic: e.target.value },
+                      }))}
+                      style={inputStyle}
+                    />
+                  </div>
+                </div>
+                <div style={{ fontSize: 10, color: "#3d3228", opacity: 0.5, marginTop: 6 }}>mmHg</div>
+              </div>
+            )}
+
+            {/* 生理関連 */}
+            {isFieldEnabled("menstrual") && (
+              <div style={cardStyle}>
+                <div style={fieldLabelStyle}>🌸 生理関連（各10段階）</div>
+                {MENSTRUAL_ITEMS.map(item => (
+                  <LevelSlider
+                    key={item.key}
+                    label={item.label}
+                    value={healthForm.menstrual[item.key]}
+                    onChange={val => setHealthForm(prev => ({
+                      ...prev,
+                      menstrual: { ...prev.menstrual, [item.key]: val },
+                    }))}
+                    min={1}
+                    max={10}
+                    minLabel="軽い"
+                    maxLabel="強い"
+                  />
+                ))}
+              </div>
+            )}
+
+            {/* アレルギー */}
+            {isFieldEnabled("allergy") && (
+              <div style={cardStyle}>
+                <div style={fieldLabelStyle}>🤧 アレルギー（各5段階）</div>
+                {ALLERGY_ITEMS.map(item => (
+                  <LevelSlider
+                    key={item.key}
+                    label={item.label}
+                    value={healthForm.allergy[item.key]}
+                    onChange={val => setHealthForm(prev => ({
+                      ...prev,
+                      allergy: { ...prev.allergy, [item.key]: val },
+                    }))}
+                    min={1}
+                    max={5}
+                    minLabel="なし"
+                    maxLabel="強い"
+                  />
+                ))}
+              </div>
+            )}
+
+            {/* 飲酒 */}
+            {isFieldEnabled("alcohol") && (
+              <div style={cardStyle}>
+                <div style={fieldLabelStyle}>🍶 飲酒</div>
+                <div style={{ marginBottom: 10 }}>
+                  <div style={{ fontSize: 11, color: "#3d3228", opacity: 0.6, marginBottom: 6 }}>種類</div>
+                  <input
+                    type="text"
+                    placeholder="例：日本酒・ビール"
+                    value={healthForm.alcohol.type}
+                    onChange={e => setHealthForm(prev => ({
+                      ...prev,
+                      alcohol: { ...prev.alcohol, type: e.target.value },
+                    }))}
+                    style={inputStyle}
+                  />
+                </div>
+                <div>
+                  <div style={{ fontSize: 11, color: "#3d3228", opacity: 0.6, marginBottom: 6 }}>量</div>
+                  <input
+                    type="text"
+                    placeholder="例：1合・350ml"
+                    value={healthForm.alcohol.amount}
+                    onChange={e => setHealthForm(prev => ({
+                      ...prev,
+                      alcohol: { ...prev.alcohol, amount: e.target.value },
+                    }))}
+                    style={inputStyle}
+                  />
+                </div>
+              </div>
+            )}
+
+            {/* 漢方・薬 */}
+            {isFieldEnabled("kampo") && (
+              <div style={cardStyle}>
+                <div style={fieldLabelStyle}>💊 漢方・薬の内服（複数選択可）</div>
+                <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+                  {KAMPO_OPTIONS.map(item => (
+                    <ChipButton
+                      key={item}
+                      selected={healthForm.kampoTaken.includes(item)}
+                      onClick={() => toggleKampo(item)}
+                      variant="dark"
+                    >
+                      {item}
+                    </ChipButton>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* 携帯使用時間 */}
+            {isFieldEnabled("phoneTime") && (
+              <div style={cardStyle}>
+                <div style={fieldLabelStyle}>📱 携帯使用時間</div>
+                <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                  <input
+                    type="number"
+                    min={0}
+                    max={1440}
+                    placeholder="120"
+                    value={healthForm.phoneTimeMinutes}
+                    onChange={e => setHealthForm(prev => ({ ...prev, phoneTimeMinutes: e.target.value }))}
+                    style={{ ...inputStyle, flex: 1 }}
+                  />
+                  <span style={{ fontSize: 13, color: "#3d3228", flexShrink: 0 }}>分/日</span>
+                </div>
+                <input
+                  type="range"
+                  min={0}
+                  max={480}
+                  step={15}
+                  value={Number(healthForm.phoneTimeMinutes) || 0}
+                  onChange={e => setHealthForm(prev => ({ ...prev, phoneTimeMinutes: e.target.value }))}
+                  style={{ width: "100%", marginTop: 12, accentColor: "#c17f4a" }}
+                />
+                <div style={{ display: "flex", justifyContent: "space-between", fontSize: 10, color: "#3d3228", opacity: 0.5, marginTop: 4 }}>
+                  <span>0分</span>
+                  <span>8時間</span>
+                </div>
+              </div>
+            )}
+
+            {/* 体重・体温 */}
+            {isFieldEnabled("weightTemp") && (
+              <div style={cardStyle}>
+                <div style={fieldLabelStyle}>⚖️ 体重・体温</div>
+                <div style={{ display: "flex", gap: 12 }}>
+                  <div style={{ flex: 1 }}>
+                    <div style={{ fontSize: 11, color: "#3d3228", opacity: 0.6, marginBottom: 6 }}>体重</div>
+                    <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                      <input
+                        type="number"
+                        step="0.1"
+                        placeholder="55.0"
+                        value={healthForm.weight}
+                        onChange={e => setHealthForm(prev => ({ ...prev, weight: e.target.value }))}
+                        style={inputStyle}
+                      />
+                      <span style={{ fontSize: 12, color: "#3d3228", flexShrink: 0 }}>kg</span>
+                    </div>
+                  </div>
+                  <div style={{ flex: 1 }}>
+                    <div style={{ fontSize: 11, color: "#3d3228", opacity: 0.6, marginBottom: 6 }}>体温</div>
+                    <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                      <input
+                        type="number"
+                        step="0.1"
+                        placeholder="36.5"
+                        value={healthForm.temperature}
+                        onChange={e => setHealthForm(prev => ({ ...prev, temperature: e.target.value }))}
+                        style={inputStyle}
+                      />
+                      <span style={{ fontSize: 12, color: "#3d3228", flexShrink: 0 }}>℃</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+
             {/* 主な症状 */}
             <div style={cardStyle}>
               <div style={fieldLabelStyle}>主な症状（複数選択可）</div>
               <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
-                {SYMPTOM_OPTIONS.map(symptom => {
-                  const selected = healthForm.symptoms.includes(symptom);
-                  return (
-                    <button
-                      key={symptom}
-                      type="button"
-                      onClick={() => toggleSymptom(symptom)}
-                      style={{
-                        padding: "8px 14px",
-                        borderRadius: 20,
-                        border: selected ? "1.5px solid #1a1410" : "1.5px solid rgba(60,40,20,0.12)",
-                        background: selected ? "#1a1410" : "#ede5d4",
-                        color: selected ? "#f5f0e8" : "#3d3228",
-                        fontSize: 12,
-                        cursor: "pointer",
-                      }}
-                    >
-                      {symptom}
-                    </button>
-                  );
-                })}
+                {SYMPTOM_OPTIONS.map(symptom => (
+                  <ChipButton
+                    key={symptom}
+                    selected={healthForm.symptoms.includes(symptom)}
+                    onClick={() => toggleSymptom(symptom)}
+                    variant="dark"
+                  >
+                    {symptom}
+                  </ChipButton>
+                ))}
               </div>
               {healthForm.symptoms.includes("その他") && (
                 <input
@@ -523,7 +1694,7 @@ export default function TuyukusaApp() {
                   placeholder="その他の症状を入力..."
                   value={healthForm.otherSymptom}
                   onChange={e => setHealthForm(prev => ({ ...prev, otherSymptom: e.target.value }))}
-                  style={{ width: "100%", marginTop: 10, background: "#f5f0e8", border: "1.5px solid rgba(60,40,20,0.12)", borderRadius: 10, padding: "10px 12px", fontSize: 13, color: "#1a1410", outline: "none" }}
+                  style={{ ...inputStyle, marginTop: 10, fontSize: 13 }}
                 />
               )}
             </div>
@@ -536,7 +1707,7 @@ export default function TuyukusaApp() {
                 value={healthForm.diary}
                 onChange={e => setHealthForm(prev => ({ ...prev, diary: e.target.value }))}
                 rows={4}
-                style={{ width: "100%", background: "#f5f0e8", border: "1.5px solid rgba(60,40,20,0.12)", borderRadius: 10, padding: "12px", fontSize: 13, color: "#1a1410", outline: "none", resize: "vertical", lineHeight: 1.7, fontFamily: "sans-serif", boxSizing: "border-box" }}
+                style={{ ...inputStyle, resize: "vertical", lineHeight: 1.7, fontFamily: "sans-serif" }}
               />
             </div>
 

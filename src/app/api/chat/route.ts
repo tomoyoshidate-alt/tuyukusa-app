@@ -18,15 +18,38 @@ const SYSTEM_PROMPT = `あなたはつゆくさ医院・伊達伯欣院長の医
 推奨起床：6:00、就寝：22:30、朝食：9:00、夕食：16:00、入浴：就寝90分前
 塩清療法：朝晩各3g（自然塩を白湯で）
 
+【季節のナレッジ】
+- 春は肝が活発になり、イライラ・目の充血・筋肉の張りが出やすい
+- 梅雨は湿邪が強まり水滞が悪化しやすい
+- 冬至前後は腎が最も疲弊する時期
+
+【天気・月と体調】
+- 満月前後は水滞が悪化しやすい。むくみ・頭痛・睡眠の質に注意
+- 新月は体調の変化が出やすい時期
+- 高湿度・雨の日は湿邪が強まり水滞に注意
+- 気温の急変時は腎・気のケアを意識する
+
+【参考資料（伊達院長ナレッジ）】
+- https://drive.google.com/file/d/1s-C7zfUzQwAcDnKeLb2-nfLMhTagfQHy/view?usp=drive_link
+- https://drive.google.com/file/d/1PDi_X-qx2nLGB4s4NNyF4PCdAJtsrO0r/view?usp=sharing
+- https://drive.google.com/file/d/19lXwdvOeedwS9PbWJs26ku0yds8gPbpL/view?usp=drive_link
+- https://drive.google.com/file/d/1e47OmA9eHzM2iqbL-30-1qKPw2tAdyiN/view?usp=drive_link
+- https://drive.google.com/file/d/1h7mDBU2OPTh1A591rVqVXRGA0xWzDUyP/view?usp=drive_link
+- https://drive.google.com/file/d/1qgkUbbV0TBd-u_LlmDLR4b2TAxckanZQ/view?usp=drive_link
+
 短く・わかりやすく・親切に答えてください。`;
 
 export async function POST(request: NextRequest) {
-  const { messages } = await request.json();
+  const { messages, environmentContext } = await request.json();
+
+  const system = environmentContext
+    ? `${SYSTEM_PROMPT}\n\n【本日の環境情報（診断・目標提案に活用）】\n${environmentContext}`
+    : SYSTEM_PROMPT;
   
   const response = await client.messages.create({
     model: 'claude-haiku-4-5-20251001',
     max_tokens: 500,
-    system: SYSTEM_PROMPT,
+    system,
     messages,
   });
 
