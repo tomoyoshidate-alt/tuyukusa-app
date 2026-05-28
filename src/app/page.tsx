@@ -2,6 +2,15 @@
 
 import { useState, useEffect, useRef } from "react";
 
+type Message = {
+  type: string;
+  text: string;
+  choices?: string[];
+  step?: string;
+  showSchedule?: boolean;
+  multi?: boolean;
+};
+
 const MOCK_SCHEDULE = {
   diagnosis: "水滞",
   wakeTime: "06:00",
@@ -61,7 +70,7 @@ const fieldLabelStyle = {
 
 export default function TuyukusaApp() {
   const [tab, setTab] = useState("home");
-  const [chatMessages, setChatMessages] = useState([]);
+  const [chatMessages, setChatMessages] = useState<Message[]>([]);
   const [chatInput, setChatInput] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [healthForm, setHealthForm] = useState(INITIAL_HEALTH);
