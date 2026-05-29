@@ -15,6 +15,7 @@ export type RadioPlaybackSnapshot = {
   isPlaying: boolean;
   title: string;
   embedUrl: string | null;
+  audioUrl: string | null;
   openUrl: string;
 };
 
@@ -25,14 +26,40 @@ const PLAYBACK_STORAGE_KEY = "tuyukusa-radio-playback";
 type StoredPlayback = {
   isPlaying: boolean;
   activeFavoriteId: string | null;
+  activeEpisodeId: string | null;
 };
 
-function resolveSource(settings: RadioSettings): Pick<RadioPlaybackSnapshot, "title" | "embedUrl" | "openUrl"> {
-  const fav = settings.favorites.find(f => f.id === settings.activeFavoriteId);
-  const openUrl = fav?.url ?? TSUYUKUSA_RADIO_URL;
-  const title = fav?.title ?? TSUYUKUSA_RADIO_TITLE;
-  const embedUrl = settings.activeFavoriteId ? toEmbedUrl(openUrl) : TSUYUKUSA_RADIO_EMBED_URL;
-  return { title, embedUrl, openUrl };
+function resolveSource(
+  settings: RadioSettings
+): Pick<RadioPlaybackSnapshot, "title" | "embedUrl" | "audioUrl" | "openUrl"> {
+  if (settings.activeFavoriteId) {
+    const fav = settings.favorites.find(f => f.id === settings.activeFavoriteId);
+    if (fav) {
+      return {
+        title: fav.title,
+        openUrl: fav.url,
+        embedUrl: toEmbedUrl(fav.url),
+        audioUrl: null,
+      };
+    }
+  }
+
+  if (settings.activeEpisode) {
+    const ep = settings.activeEpisode;
+    return {
+      title: ep.title,
+      openUrl: ep.openUrl,
+      embedUrl: ep.embedUrl,
+      audioUrl: ep.audioUrl,
+    };
+  }
+
+  return {
+    title: TSUYUKUSA_RADIO_TITLE,
+    openUrl: TSUYUKUSA_RADIO_URL,
+    embedUrl: TSUYUKUSA_RADIO_EMBED_URL,
+    audioUrl: null,
+  };
 }
 
 function readStoredPlayback(): StoredPlayback | null {
@@ -45,18 +72,23 @@ function readStoredPlayback(): StoredPlayback | null {
     return {
       isPlaying: d.isPlaying,
       activeFavoriteId: typeof d.activeFavoriteId === "string" ? d.activeFavoriteId : null,
+      activeEpisodeId: typeof d.activeEpisodeId === "string" ? d.activeEpisodeId : null,
     };
   } catch {
     return null;
   }
 }
 
-function writeStoredPlayback(isPlaying: boolean, activeFavoriteId: string | null): void {
+function writeStoredPlayback(isPlaying: boolean, settings: RadioSettings): void {
   if (typeof window === "undefined") return;
   try {
     localStorage.setItem(
       PLAYBACK_STORAGE_KEY,
-      JSON.stringify({ isPlaying, activeFavoriteId })
+      JSON.stringify({
+        isPlaying,
+        activeFavoriteId: settings.activeFavoriteId,
+        activeEpisodeId: settings.activeEpisode?.id ?? null,
+      })
     );
   } catch {
     /* ignore */
@@ -77,6 +109,7 @@ class RadioPlaybackManager {
   private isPlaying = false;
   private title = TSUYUKUSA_RADIO_TITLE;
   private embedUrl: string | null = TSUYUKUSA_RADIO_EMBED_URL;
+  private audioUrl: string | null = null;
   private openUrl = TSUYUKUSA_RADIO_URL;
   private activeFavoriteId: string | null = null;
   private listeners = new Set<Listener>();
@@ -102,6 +135,7 @@ class RadioPlaybackManager {
       isPlaying: this.isPlaying,
       title: this.title,
       embedUrl: this.embedUrl,
+      audioUrl: this.audioUrl,
       openUrl: this.openUrl,
     };
   }
@@ -114,14 +148,11 @@ class RadioPlaybackManager {
     if (!stored?.isPlaying) return;
 
     const settings = readRadioSettings();
-    const merged: RadioSettings = {
-      ...settings,
-      activeFavoriteId: stored.activeFavoriteId ?? settings.activeFavoriteId,
-    };
-    const source = resolveSource(merged);
-    this.activeFavoriteId = merged.activeFavoriteId;
+    const source = resolveSource(settings);
+    this.activeFavoriteId = settings.activeFavoriteId;
     this.title = source.title;
     this.embedUrl = source.embedUrl;
+    this.audioUrl = source.audioUrl;
     this.openUrl = source.openUrl;
     this.isPlaying = true;
 
@@ -135,12 +166,13 @@ class RadioPlaybackManager {
     this.activeFavoriteId = settings.activeFavoriteId;
     this.title = source.title;
     this.embedUrl = source.embedUrl;
+    this.audioUrl = source.audioUrl;
     this.openUrl = source.openUrl;
     this.isPlaying = true;
 
     configurePlaybackAudioSession();
     await this.acquireBackgroundSession();
-    writeStoredPlayback(true, this.activeFavoriteId);
+    writeStoredPlayback(true, settings);
     this.emit();
   }
 
@@ -148,7 +180,7 @@ class RadioPlaybackManager {
     this.isPlaying = false;
     this.releaseBackgroundSession();
     this.clearMediaSession();
-    writeStoredPlayback(false, this.activeFavoriteId);
+    writeStoredPlayback(false, readRadioSettings());
     this.emit();
   }
 
@@ -165,9 +197,10 @@ class RadioPlaybackManager {
     this.activeFavoriteId = settings.activeFavoriteId;
     this.title = source.title;
     this.embedUrl = source.embedUrl;
+    this.audioUrl = source.audioUrl;
     this.openUrl = source.openUrl;
     if (this.isPlaying) {
-      writeStoredPlayback(true, this.activeFavoriteId);
+      writeStoredPlayback(true, settings);
       this.setupMediaSession();
     }
     this.emit();

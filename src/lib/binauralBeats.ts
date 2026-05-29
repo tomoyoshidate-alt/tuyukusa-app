@@ -9,6 +9,7 @@ export type BinauralBeatId =
   | "deep-relax-delta";
 
 export type AmbientSoundId =
+  | "silent"
   | "rain"
   | "ocean"
   | "forest"
@@ -46,6 +47,7 @@ export const BINURAL_BEAT_PRESETS: BinauralBeatPreset[] = [
 ];
 
 export const AMBIENT_SOUND_PRESETS: AmbientSoundPreset[] = [
+  { id: "silent", emoji: "🔇", label: "無音" },
   { id: "rain", emoji: "🌧️", label: "雨音" },
   { id: "ocean", emoji: "🌊", label: "波音" },
   { id: "forest", emoji: "🌳", label: "森の音" },

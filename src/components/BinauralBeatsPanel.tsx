@@ -15,6 +15,12 @@ import {
   binauralPlaybackManager,
   type BinauralPlaybackSnapshot,
 } from "@/src/lib/binauralPlaybackManager";
+import {
+  BB_FAVORITES_MAX,
+  readBinauralFavorites,
+  writeBinauralFavorites,
+  type BinauralFavorite,
+} from "@/src/lib/binauralFavorites";
 import { requestNotificationPermission } from "@/src/lib/timerServiceWorker";
 import PomodoroTimer from "@/src/components/PomodoroTimer";
 import BinauralExplainPage from "@/src/components/BinauralExplainPage";
@@ -51,6 +57,12 @@ export default function BinauralBeatsPanel({ diagnosis, onClose, initialPanelMod
     binauralPlaybackManager.getSnapshot()
   );
   const [isApplying, setIsApplying] = useState(false);
+  const [bbFavorites, setBbFavorites] = useState<BinauralFavorite[]>([]);
+  const [favoriteName, setFavoriteName] = useState("");
+
+  useEffect(() => {
+    setBbFavorites(readBinauralFavorites());
+  }, []);
 
   useEffect(() => {
     return binauralPlaybackManager.subscribe(setPlayback);
@@ -106,6 +118,41 @@ export default function BinauralBeatsPanel({ diagnosis, onClose, initialPanelMod
       ambient: ambientVolume,
     });
   }, [masterVolume, binauralVolume, ambientVolume, isPlaying]);
+
+  const saveFavorite = () => {
+    const name = favoriteName.trim();
+    if (!name) return;
+    const fav: BinauralFavorite = {
+      id: `bb-fav-${Date.now()}`,
+      name,
+      beatId: selectedBeat,
+      ambientId: selectedAmbient,
+      masterVolume,
+      binauralVolume,
+      ambientVolume,
+      timerMinutes,
+      createdAt: Date.now(),
+    };
+    const next = [fav, ...bbFavorites].slice(0, BB_FAVORITES_MAX);
+    setBbFavorites(next);
+    writeBinauralFavorites(next);
+    setFavoriteName("");
+  };
+
+  const loadFavorite = (fav: BinauralFavorite) => {
+    setSelectedBeat(fav.beatId);
+    setSelectedAmbient(fav.ambientId);
+    setMasterVolume(fav.masterVolume);
+    setBinauralVolume(fav.binauralVolume);
+    setAmbientVolume(fav.ambientVolume);
+    setTimerMinutes(fav.timerMinutes);
+  };
+
+  const removeFavorite = (id: string) => {
+    const next = bbFavorites.filter(f => f.id !== id);
+    setBbFavorites(next);
+    writeBinauralFavorites(next);
+  };
 
   const recommended = getBeatPreset(recommendedId);
 
@@ -248,7 +295,7 @@ export default function BinauralBeatsPanel({ diagnosis, onClose, initialPanelMod
           })}
         </div>
 
-        <SectionTitle>背景音（9種類）</SectionTitle>
+        <SectionTitle>背景音（11種類）</SectionTitle>
         <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginBottom: 16 }}>
           {AMBIENT_SOUND_PRESETS.map(preset => {
             const selected = selectedAmbient === preset.id;
@@ -290,6 +337,98 @@ export default function BinauralBeatsPanel({ diagnosis, onClose, initialPanelMod
         <VolumeSlider label="全体" value={masterVolume} onChange={setMasterVolume} />
         <VolumeSlider label="バイノーラル" value={binauralVolume} onChange={setBinauralVolume} />
         <VolumeSlider label="背景音" value={ambientVolume} onChange={setAmbientVolume} />
+
+        <SectionTitle>⭐ お気に入り（最大{BB_FAVORITES_MAX}件）</SectionTitle>
+        <div style={{ marginBottom: 12 }}>
+          <div style={{ display: "flex", gap: 6, marginBottom: 8 }}>
+            <input
+              type="text"
+              placeholder="お気に入り名（例：朝の集中セット）"
+              value={favoriteName}
+              onChange={e => setFavoriteName(e.target.value)}
+              style={{
+                flex: 1,
+                boxSizing: "border-box",
+                background: "#f5f0e8",
+                border: "1.5px solid rgba(60,40,20,0.12)",
+                borderRadius: 8,
+                padding: "8px 10px",
+                fontSize: 12,
+              }}
+            />
+            <button
+              type="button"
+              onClick={saveFavorite}
+              disabled={!favoriteName.trim() || bbFavorites.length >= BB_FAVORITES_MAX}
+              style={{
+                padding: "8px 12px",
+                borderRadius: 8,
+                border: "1.5px solid #c17f4a",
+                background: "#fdf0e4",
+                color: "#8b5a2b",
+                fontSize: 11,
+                fontWeight: "bold",
+                cursor: "pointer",
+                flexShrink: 0,
+                opacity: !favoriteName.trim() || bbFavorites.length >= BB_FAVORITES_MAX ? 0.5 : 1,
+              }}
+            >
+              保存
+            </button>
+          </div>
+          {bbFavorites.length === 0 ? (
+            <div style={{ fontSize: 11, color: "#9a8b7a" }}>
+              現在のBB・背景音・音量の組み合わせを名前をつけて保存できます
+            </div>
+          ) : (
+            <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+              {bbFavorites.map(fav => {
+                const beat = getBeatPreset(fav.beatId);
+                const ambient = AMBIENT_SOUND_PRESETS.find(a => a.id === fav.ambientId);
+                return (
+                  <div
+                    key={fav.id}
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      gap: 8,
+                      padding: "8px 10px",
+                      borderRadius: 10,
+                      background: "white",
+                      border: "1px solid rgba(60,40,20,0.1)",
+                    }}
+                  >
+                    <button
+                      type="button"
+                      onClick={() => loadFavorite(fav)}
+                      style={{
+                        flex: 1,
+                        textAlign: "left",
+                        background: "none",
+                        border: "none",
+                        cursor: "pointer",
+                        padding: 0,
+                      }}
+                    >
+                      <div style={{ fontSize: 12, fontWeight: "bold", color: "#3d3228" }}>{fav.name}</div>
+                      <div style={{ fontSize: 10, color: "#9a8b7a", marginTop: 2 }}>
+                        {beat.emoji} {beat.label} · {ambient?.emoji} {ambient?.label}
+                      </div>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => removeFavorite(fav.id)}
+                      style={{ background: "none", border: "none", color: "#9a8b7a", cursor: "pointer", fontSize: 14 }}
+                      aria-label="削除"
+                    >
+                      ×
+                    </button>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
 
         {isPlaying && hasPendingChanges && (
           <button

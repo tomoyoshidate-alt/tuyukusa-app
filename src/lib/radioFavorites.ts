@@ -7,15 +7,35 @@ export type MediaFavorite = {
   platform: MediaPlatform;
 };
 
+export type RadioEpisode = {
+  id: string;
+  title: string;
+  pubDate: string;
+  duration: string;
+  openUrl: string;
+  embedUrl: string | null;
+  audioUrl: string | null;
+};
+
+export type RadioActiveEpisode = {
+  id: string;
+  title: string;
+  openUrl: string;
+  embedUrl: string | null;
+  audioUrl: string | null;
+};
+
 export type RadioSettings = {
   favorites: MediaFavorite[];
   activeFavoriteId: string | null;
+  activeEpisode: RadioActiveEpisode | null;
 };
 
 /** Spotify catalog show ID (podcasters slug tsuyuraji does not work in embed). */
 export const TSUYUKUSA_RADIO_SHOW_ID = "1NyJRLlG2bkfIW4VCAJJFX";
 export const TSUYUKUSA_RADIO_URL = `https://open.spotify.com/show/${TSUYUKUSA_RADIO_SHOW_ID}`;
-export const TSUYUKUSA_RADIO_EMBED_URL = `https://open.spotify.com/embed/show/${TSUYUKUSA_RADIO_SHOW_ID}`;
+export const TSUYUKUSA_RADIO_EMBED_URL = `https://open.spotify.com/embed/show/${TSUYUKUSA_RADIO_SHOW_ID}?utm_source=generator`;
+export const TSUYUKUSA_RADIO_EPISODE_LIST_EMBED_URL = `https://open.spotify.com/embed/show/${TSUYUKUSA_RADIO_SHOW_ID}?utm_source=generator&theme=0`;
 export const TSUYUKUSA_RADIO_TITLE = "つゆくさラジオ";
 
 const PODCASTERS_SHOW_IDS: Record<string, string> = {
@@ -25,6 +45,7 @@ const PODCASTERS_SHOW_IDS: Record<string, string> = {
 export const INITIAL_RADIO_SETTINGS: RadioSettings = {
   favorites: [],
   activeFavoriteId: null,
+  activeEpisode: null,
 };
 
 export function detectMediaPlatform(url: string): MediaPlatform {
@@ -51,12 +72,16 @@ export function toEmbedUrl(url: string): string | null {
       if (path.startsWith("embed/")) return parsed.toString();
       return `https://open.spotify.com/embed/${path}${parsed.search}`;
     }
-    if (parsed.hostname.includes("podcasters.spotify.com")) {
-      const match = parsed.pathname.match(/\/pod\/show\/([^/]+)/);
-      const slug = match?.[1];
-      if (slug) {
-        const showId = PODCASTERS_SHOW_IDS[slug] ?? slug;
-        return `https://open.spotify.com/embed/show/${showId}`;
+    if (parsed.hostname.includes("podcasters.spotify.com") || parsed.hostname.includes("creators.spotify.com")) {
+      const showMatch = parsed.pathname.match(/\/pod\/show\/([^/]+)/);
+      const epMatch = parsed.pathname.match(/\/episodes\/([^/]+)/);
+      if (epMatch && showMatch) {
+        const showId = PODCASTERS_SHOW_IDS[showMatch[1]] ?? TSUYUKUSA_RADIO_SHOW_ID;
+        return `https://open.spotify.com/embed/show/${showId}/episode/${epMatch[1]}?utm_source=generator`;
+      }
+      if (showMatch) {
+        const showId = PODCASTERS_SHOW_IDS[showMatch[1]] ?? showMatch[1];
+        return `https://open.spotify.com/embed/show/${showId}?utm_source=generator`;
       }
     }
     if (parsed.hostname.includes("podcasts.apple.com")) {
@@ -86,5 +111,21 @@ export function normalizeRadioSettings(data: unknown): RadioSettings {
   return {
     favorites,
     activeFavoriteId: typeof d.activeFavoriteId === "string" ? d.activeFavoriteId : null,
+    activeEpisode: normalizeActiveEpisode(d.activeEpisode),
+  };
+}
+
+function normalizeActiveEpisode(data: unknown): RadioActiveEpisode | null {
+  if (!data || typeof data !== "object") return null;
+  const e = data as Partial<RadioActiveEpisode>;
+  if (typeof e.id !== "string" || typeof e.title !== "string" || typeof e.openUrl !== "string") {
+    return null;
+  }
+  return {
+    id: e.id,
+    title: e.title,
+    openUrl: e.openUrl,
+    embedUrl: typeof e.embedUrl === "string" ? e.embedUrl : null,
+    audioUrl: typeof e.audioUrl === "string" ? e.audioUrl : null,
   };
 }

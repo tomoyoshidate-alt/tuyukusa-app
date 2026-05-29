@@ -55,6 +55,8 @@ function buildAmbient(
   const timers: ReturnType<typeof setInterval>[] = [];
 
   switch (ambientId) {
+    case "silent":
+      break;
     case "rain": {
       cleanups.push(
         connectNoiseLoop(ctx, ambientGain, (_src, filter) => {
@@ -202,39 +204,20 @@ function buildAmbient(
       break;
     }
     case "space": {
-      cleanups.push(
-        connectNoiseLoop(ctx, ambientGain, (_src, filter) => {
-          filter.type = "lowpass";
-          filter.frequency.value = 180;
-        })
-      );
-      const drone = ctx.createOscillator();
-      const droneGain = ctx.createGain();
-      drone.type = "sine";
-      drone.frequency.value = 52;
-      droneGain.gain.value = 0.028;
-      drone.connect(droneGain);
-      droneGain.connect(ambientGain);
-      drone.start();
-      cleanups.push(() => {
-        drone.stop();
-        drone.disconnect();
-        droneGain.disconnect();
-      });
       const shimmer = () => {
         const osc = ctx.createOscillator();
         const g = ctx.createGain();
         osc.type = "sine";
-        osc.frequency.value = 700 + Math.random() * 1400;
+        osc.frequency.value = 2200 + Math.random() * 3800;
         g.gain.setValueAtTime(0, ctx.currentTime);
-        g.gain.linearRampToValueAtTime(0.01, ctx.currentTime + 0.6);
-        g.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 3.5);
+        g.gain.linearRampToValueAtTime(0.012, ctx.currentTime + 0.4);
+        g.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 2.8);
         osc.connect(g);
         g.connect(ambientGain);
         osc.start();
-        osc.stop(ctx.currentTime + 3.6);
+        osc.stop(ctx.currentTime + 3);
       };
-      timers.push(setInterval(shimmer, 3500 + Math.random() * 5500));
+      timers.push(setInterval(shimmer, 2200 + Math.random() * 3200));
       shimmer();
       break;
     }
