@@ -44,6 +44,10 @@ const DailyWeatherChart = dynamic(() => import("@/src/components/DailyWeatherCha
   ),
 });
 
+const BinauralBeatsPanel = dynamic(() => import("@/src/components/BinauralBeatsPanel"), {
+  ssr: false,
+});
+
 function useLocalStorage<T>(
   key: string,
   initialValue: T,
@@ -2078,6 +2082,7 @@ export default function TuyukusaApp() {
   const [monthlyInput, setMonthlyInput] = useState("");
   const [monthlyCategory, setMonthlyCategory] = useState<GoalCategory>("その他");
   const [saveMessage, setSaveMessage] = useState("");
+  const [showBinauralPanel, setShowBinauralPanel] = useState(false);
   const [scheduleEdit, setScheduleEdit] = useState<ScheduleEditDraft | null>(null);
   const [templateEditDay, setTemplateEditDay] = useState(() => new Date().getDay());
   const [templateScheduleEdit, setTemplateScheduleEdit] = useState<ScheduleEditDraft | null>(null);
@@ -2960,6 +2965,24 @@ ${buildHealthSummary(healthForm)}`;
               <div style={{ fontSize: 13, lineHeight: 1.8, opacity: 0.8, borderLeft: "2px solid #c17f4a", paddingLeft: 12 }}>
                 {MOCK_SCHEDULE.advice}
               </div>
+              <button
+                type="button"
+                onClick={() => setShowBinauralPanel(true)}
+                style={{
+                  marginTop: 16,
+                  width: "100%",
+                  padding: "12px 14px",
+                  borderRadius: 12,
+                  border: "1.5px solid rgba(193,127,74,0.4)",
+                  background: "rgba(193,127,74,0.15)",
+                  color: "#e8a86a",
+                  fontSize: 13,
+                  fontWeight: "bold",
+                  cursor: "pointer",
+                }}
+              >
+                🎧 バイノーラルビート（診断におすすめ）
+              </button>
             </div>
             )}
 
@@ -3032,6 +3055,26 @@ ${buildHealthSummary(healthForm)}`;
         {/* AI相談 */}
         {tab === "chat" && (
           <div style={{ display: "flex", flexDirection: "column", height: "calc(100vh - 120px)" }}>
+            <div style={{ margin: "12px 16px 0" }}>
+              <button
+                type="button"
+                onClick={() => setShowBinauralPanel(true)}
+                style={{
+                  width: "100%",
+                  padding: "10px 14px",
+                  borderRadius: 10,
+                  border: "1.5px solid rgba(60,40,20,0.12)",
+                  background: "white",
+                  color: "#3d3228",
+                  fontSize: 13,
+                  fontWeight: "bold",
+                  cursor: "pointer",
+                  textAlign: "left",
+                }}
+              >
+                🎧 バイノーラルビート · リラックス・集中サポート
+              </button>
+            </div>
             {weather && (
               <div style={{ margin: "12px 16px 0", background: "white", borderRadius: 10, padding: "10px 12px", border: "1px solid rgba(60,40,20,0.1)", fontSize: 11, color: "#3d3228", lineHeight: 1.6 }}>
                 <div style={{ fontWeight: "bold", color: "#4a6741", marginBottom: 4 }}>🌿 本日の環境（診断に反映）</div>
@@ -4017,6 +4060,13 @@ ${buildHealthSummary(healthForm)}`;
           onSave={saveTemplateScheduleEdit}
           onDelete={templateScheduleEdit.mode === "edit" ? deleteTemplateScheduleEdit : undefined}
           onClose={() => setTemplateScheduleEdit(null)}
+        />
+      )}
+
+      {showBinauralPanel && (
+        <BinauralBeatsPanel
+          diagnosis={MOCK_SCHEDULE.diagnosis}
+          onClose={() => setShowBinauralPanel(false)}
         />
       )}
 
