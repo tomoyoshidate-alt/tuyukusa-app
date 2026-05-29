@@ -5,6 +5,7 @@ export const TUYUKUSA_STORAGE_KEYS = [
   "tuyukusa-goals",
   "tuyukusa-ai-goals",
   "tuyukusa-schedule",
+  "tuyukusa-schedule-templates",
   "tuyukusa-home-display",
   "tuyukusa-user-profile",
 ] as const;
@@ -81,11 +82,16 @@ function isUserProfileStorageValid(data: unknown): boolean {
   return true;
 }
 
+function isScheduleTemplatesStorageValid(data: unknown): boolean {
+  return !!data && typeof data === "object";
+}
+
 function isStoredDataValid(): boolean {
   const validators: Record<(typeof TUYUKUSA_STORAGE_KEYS)[number], (data: unknown) => boolean> = {
     "tuyukusa-goals": isGoalsStorageValid,
     "tuyukusa-ai-goals": isAiSuggestionsStorageValid,
     "tuyukusa-schedule": isScheduleStorageValid,
+    "tuyukusa-schedule-templates": isScheduleTemplatesStorageValid,
     "tuyukusa-home-display": isHomeDisplayStorageValid,
     "tuyukusa-user-profile": isUserProfileStorageValid,
   };

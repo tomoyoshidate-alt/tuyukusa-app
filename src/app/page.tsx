@@ -229,11 +229,6 @@ function syncScheduleAlerts(items: ScheduleItem[]): ScheduleAlert[] {
   return sortByTime(items).map(scheduleAlertFromItem);
 }
 
-function createFreshSchedule(dayKey = getDayKey()): ScheduleState {
-  const items = BASE_SCHEDULE_ITEMS.map(i => ({ ...i }));
-  return { dayKey, items, alerts: syncScheduleAlerts(items) };
-}
-
 function mergeLegacyScheduleItems(customItems: ScheduleItem[]): ScheduleItem[] {
   const customByTime = new Map(customItems.map(i => [i.time, i]));
   const baseIds = new Set(BASE_SCHEDULE_ITEMS.map(i => i.id));
@@ -737,11 +732,69 @@ const BASE_SCHEDULE_ITEMS: ScheduleItem[] = [
   { id: "sleep", time: "22:30", label: "就寝", sub: "就寝前：自然塩3gを白湯で" },
 ];
 
+type ScheduleTemplates = Record<number, ScheduleItem[]>;
+
+const WEEKDAY_OPTIONS = [
+  { key: 1, label: "月" },
+  { key: 2, label: "火" },
+  { key: 3, label: "水" },
+  { key: 4, label: "木" },
+  { key: 5, label: "金" },
+  { key: 6, label: "土" },
+  { key: 0, label: "日" },
+] as const;
+
+function cloneScheduleItems(items: ScheduleItem[]): ScheduleItem[] {
+  return items.map(i => ({ ...i }));
+}
+
+function createDefaultScheduleTemplates(): ScheduleTemplates {
+  const templates: ScheduleTemplates = {};
+  for (const { key } of WEEKDAY_OPTIONS) {
+    templates[key] = cloneScheduleItems(BASE_SCHEDULE_ITEMS);
+  }
+  return templates;
+}
+
+const DEFAULT_SCHEDULE_TEMPLATES = createDefaultScheduleTemplates();
+
+function buildScheduleItemsForDate(templates: ScheduleTemplates, dayKey = getDayKey()): ScheduleItem[] {
+  const date = new Date(`${dayKey}T12:00:00`);
+  const weekday = date.getDay();
+  const dayItems = templates[weekday];
+  if (Array.isArray(dayItems) && dayItems.length > 0) {
+    return sortByTime(
+      dayItems.map(normalizeScheduleItem).filter((i): i is ScheduleItem => i !== null)
+    );
+  }
+  return cloneScheduleItems(BASE_SCHEDULE_ITEMS);
+}
+
+function createFreshSchedule(dayKey = getDayKey(), templates: ScheduleTemplates = DEFAULT_SCHEDULE_TEMPLATES): ScheduleState {
+  const items = buildScheduleItemsForDate(templates, dayKey);
+  return { dayKey, items, alerts: syncScheduleAlerts(items) };
+}
+
+function normalizeScheduleTemplates(data: unknown): ScheduleTemplates {
+  const fallback = createDefaultScheduleTemplates();
+  if (!data || typeof data !== "object") return fallback;
+  const d = data as Record<string, unknown>;
+  const result: ScheduleTemplates = { ...fallback };
+  for (const { key } of WEEKDAY_OPTIONS) {
+    const raw = d[String(key)] ?? d[key];
+    if (Array.isArray(raw) && raw.length > 0) {
+      const items = raw.map(normalizeScheduleItem).filter((i): i is ScheduleItem => i !== null);
+      if (items.length) result[key] = items;
+    }
+  }
+  return result;
+}
+
 const INITIAL_SCHEDULE: ScheduleState = createFreshSchedule();
 
-function normalizeSchedule(data: unknown): ScheduleState {
+function normalizeSchedule(data: unknown, templates: ScheduleTemplates = DEFAULT_SCHEDULE_TEMPLATES): ScheduleState {
   const dayKey = getDayKey();
-  const fallback = createFreshSchedule(dayKey);
+  const fallback = createFreshSchedule(dayKey, templates);
   if (!data || typeof data !== "object") return fallback;
   const d = data as Partial<ScheduleState & { customItems?: ScheduleItem[] }>;
   if (d.dayKey !== dayKey) return fallback;
@@ -1796,7 +1849,12 @@ export default function TuyukusaApp() {
   const [schedule, setSchedule, scheduleHydrated] = useLocalStorage<ScheduleState>(
     "tuyukusa-schedule",
     INITIAL_SCHEDULE,
-    normalizeSchedule
+    data => normalizeSchedule(data, DEFAULT_SCHEDULE_TEMPLATES)
+  );
+  const [scheduleTemplates, setScheduleTemplates, templatesHydrated] = useLocalStorage<ScheduleTemplates>(
+    "tuyukusa-schedule-templates",
+    DEFAULT_SCHEDULE_TEMPLATES,
+    normalizeScheduleTemplates
   );
   const [homeDisplay, setHomeDisplay, homeDisplayHydrated] = useLocalStorage<HomeDisplaySettings>(
     "tuyukusa-home-display",
@@ -1829,15 +1887,20 @@ export default function TuyukusaApp() {
   const [monthlyCategory, setMonthlyCategory] = useState<GoalCategory>("その他");
   const [saveMessage, setSaveMessage] = useState("");
   const [scheduleEdit, setScheduleEdit] = useState<ScheduleEditDraft | null>(null);
+  const [templateEditDay, setTemplateEditDay] = useState(() => new Date().getDay());
+  const [templateScheduleEdit, setTemplateScheduleEdit] = useState<ScheduleEditDraft | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const autoSuggestRef = useRef(false);
   const firstLaunchRef = useRef(false);
+  const scheduleTemplatesRef = useRef(scheduleTemplates);
+  scheduleTemplatesRef.current = scheduleTemplates;
   const envContext = buildEnvironmentContext(weather);
 
   const timelineItems = sortByTime(schedule.items ?? []);
   const storageReady =
     goalsHydrated &&
     scheduleHydrated &&
+    templatesHydrated &&
     homeDisplayHydrated &&
     aiSuggestionsHydrated &&
     userProfileHydrated;
@@ -1853,8 +1916,26 @@ export default function TuyukusaApp() {
   }, [goalsHydrated, setGoals]);
 
   useEffect(() => {
-    if (scheduleHydrated) setSchedule(prev => normalizeSchedule(prev));
-  }, [scheduleHydrated, setSchedule]);
+    if (!scheduleHydrated || !templatesHydrated) return;
+    setSchedule(prev => normalizeSchedule(prev, scheduleTemplatesRef.current));
+  }, [scheduleHydrated, templatesHydrated, setSchedule]);
+
+  useEffect(() => {
+    if (!scheduleHydrated || !templatesHydrated) return;
+    const refreshIfNewDay = () => {
+      const dayKey = getDayKey();
+      setSchedule(prev =>
+        prev.dayKey === dayKey ? prev : createFreshSchedule(dayKey, scheduleTemplatesRef.current)
+      );
+    };
+    refreshIfNewDay();
+    const intervalId = setInterval(refreshIfNewDay, 60_000);
+    document.addEventListener("visibilitychange", refreshIfNewDay);
+    return () => {
+      clearInterval(intervalId);
+      document.removeEventListener("visibilitychange", refreshIfNewDay);
+    };
+  }, [scheduleHydrated, templatesHydrated, setSchedule]);
 
   useEffect(() => {
     const day = getDayKey();
@@ -2001,7 +2082,7 @@ ${buildHealthSummary(healthForm)}`;
   const applyScheduleUpdate = (update: ScheduleUpdate) => {
     setSchedule(prev => {
       const dayKey = getDayKey();
-      const base = prev.dayKey === dayKey ? prev : createFreshSchedule(dayKey);
+      const base = prev.dayKey === dayKey ? prev : createFreshSchedule(dayKey, scheduleTemplates);
       const time = normalizeScheduleTime(update.time);
       const existingIdx = base.items.findIndex(i => i.time === time && i.label === update.label);
       const newItem: ScheduleItem =
@@ -2024,7 +2105,7 @@ ${buildHealthSummary(healthForm)}`;
   const upsertScheduleItem = (item: ScheduleItem) => {
     setSchedule(prev => {
       const dayKey = getDayKey();
-      const base = prev.dayKey === dayKey ? prev : createFreshSchedule(dayKey);
+      const base = prev.dayKey === dayKey ? prev : createFreshSchedule(dayKey, scheduleTemplates);
       const normalized = normalizeScheduleItem(item);
       if (!normalized) return base;
       const exists = base.items.some(i => i.id === normalized.id);
@@ -2040,7 +2121,7 @@ ${buildHealthSummary(healthForm)}`;
   const removeScheduleItem = (id: string) => {
     setSchedule(prev => {
       const dayKey = getDayKey();
-      const base = prev.dayKey === dayKey ? prev : createFreshSchedule(dayKey);
+      const base = prev.dayKey === dayKey ? prev : createFreshSchedule(dayKey, scheduleTemplates);
       const items = base.items.filter(i => i.id !== id);
       return { dayKey, items, alerts: syncScheduleAlerts(items) };
     });
@@ -2066,6 +2147,49 @@ ${buildHealthSummary(healthForm)}`;
     removeScheduleItem(scheduleEdit.item.id);
     setScheduleEdit(null);
   };
+
+  const upsertTemplateItem = (weekday: number, item: ScheduleItem) => {
+    setScheduleTemplates(prev => {
+      const normalized = normalizeScheduleItem(item);
+      if (!normalized) return prev;
+      const current = prev[weekday] ?? cloneScheduleItems(BASE_SCHEDULE_ITEMS);
+      const exists = current.some(i => i.id === normalized.id);
+      const nextItems = sortByTime(
+        exists ? current.map(i => (i.id === normalized.id ? normalized : i)) : [...current, normalized]
+      );
+      return { ...prev, [weekday]: nextItems };
+    });
+  };
+
+  const removeTemplateItem = (weekday: number, id: string) => {
+    setScheduleTemplates(prev => ({
+      ...prev,
+      [weekday]: (prev[weekday] ?? []).filter(i => i.id !== id),
+    }));
+  };
+
+  const saveTemplateScheduleEdit = () => {
+    if (!templateScheduleEdit) return;
+    const { mode, item } = templateScheduleEdit;
+    if (!item.label.trim() || !/^\d{1,2}:\d{2}$/.test(item.time)) return;
+    const toSave: ScheduleItem = {
+      ...item,
+      id: mode === "add" || !item.id ? newScheduleItemId() : item.id,
+      time: normalizeScheduleTime(item.time),
+      label: item.label.trim(),
+      sub: item.sub.trim(),
+    };
+    upsertTemplateItem(templateEditDay, toSave);
+    setTemplateScheduleEdit(null);
+  };
+
+  const deleteTemplateScheduleEdit = () => {
+    if (!templateScheduleEdit || templateScheduleEdit.mode !== "edit" || !templateScheduleEdit.item.id) return;
+    removeTemplateItem(templateEditDay, templateScheduleEdit.item.id);
+    setTemplateScheduleEdit(null);
+  };
+
+  const templateItemsForDay = sortByTime(scheduleTemplates[templateEditDay] ?? []);
 
   const addSuggestionToSchedule = (messageIndex: number, suggestionId: string) => {
     const msg = chatMessages[messageIndex];
@@ -2571,6 +2695,75 @@ ${buildHealthSummary(healthForm)}`;
                 onChange={v => setHomeDisplay(prev => ({ ...prev, [opt.key]: v }))}
               />
             ))}
+
+            <div style={{ fontSize: 15, fontWeight: "bold", color: "#3d3228", marginBottom: 4, paddingTop: 12, borderTop: "1px solid rgba(60,40,20,0.12)", marginTop: 8 }}>📅 曜日別スケジュール</div>
+            <div style={{ fontSize: 11, color: "#3d3228", opacity: 0.6, marginBottom: 12, lineHeight: 1.5 }}>
+              月〜日それぞれの基本スケジュールを設定できます。毎朝、その曜日のテンプレートから今日のスケジュールが自動生成されます。
+            </div>
+            <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginBottom: 12 }}>
+              {WEEKDAY_OPTIONS.map(day => (
+                <ChipButton
+                  key={day.key}
+                  selected={templateEditDay === day.key}
+                  onClick={() => setTemplateEditDay(day.key)}
+                >
+                  {day.label}
+                </ChipButton>
+              ))}
+            </div>
+            <div style={{ ...cardStyle, marginBottom: 12 }}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
+                <div style={{ fontSize: 13, fontWeight: "bold", color: "#3d3228" }}>
+                  {WEEKDAY_OPTIONS.find(d => d.key === templateEditDay)?.label}曜日のテンプレート
+                </div>
+                <button
+                  type="button"
+                  onClick={() =>
+                    setTemplateScheduleEdit({
+                      mode: "add",
+                      item: { id: "", time: "12:00", label: "", sub: "" },
+                    })
+                  }
+                  style={{
+                    background: "#fdf0e4",
+                    border: "1.5px solid #c17f4a",
+                    borderRadius: 14,
+                    padding: "4px 10px",
+                    fontSize: 11,
+                    color: "#8b5a2b",
+                    cursor: "pointer",
+                    fontWeight: "bold",
+                  }}
+                >
+                  ＋ 追加
+                </button>
+              </div>
+              {templateItemsForDay.length === 0 && (
+                <div style={{ fontSize: 12, color: "#9a8b7a", padding: "8px 0" }}>項目がありません</div>
+              )}
+              {templateItemsForDay.map(item => (
+                <button
+                  key={item.id}
+                  type="button"
+                  onClick={() => setTemplateScheduleEdit({ mode: "edit", item: { ...item } })}
+                  style={{
+                    display: "block",
+                    width: "100%",
+                    background: "#f5f0e8",
+                    borderRadius: 10,
+                    padding: "10px 12px",
+                    marginBottom: 6,
+                    border: "1px solid rgba(60,40,20,0.08)",
+                    cursor: "pointer",
+                    textAlign: "left",
+                  }}
+                >
+                  <div style={{ fontSize: 11, color: "#4a6741", fontWeight: "bold" }}>{item.label}</div>
+                  <div style={{ fontSize: 15, fontWeight: "bold", color: "#1a1410" }}>{item.time}</div>
+                  {item.sub && <div style={{ fontSize: 10, color: "#3d3228", opacity: 0.7 }}>{item.sub}</div>}
+                </button>
+              ))}
+            </div>
 
             <div style={{ fontSize: 15, fontWeight: "bold", color: "#3d3228", marginBottom: 4, paddingTop: 12, borderTop: "1px solid rgba(60,40,20,0.12)", marginTop: 8 }}>🎯 目標設定</div>
             <div style={{ fontSize: 11, color: "#3d3228", opacity: 0.6, marginBottom: 8, lineHeight: 1.5 }}>
@@ -3210,6 +3403,16 @@ ${buildHealthSummary(healthForm)}`;
           onSave={saveScheduleEdit}
           onDelete={scheduleEdit.mode === "edit" ? deleteScheduleEdit : undefined}
           onClose={() => setScheduleEdit(null)}
+        />
+      )}
+
+      {templateScheduleEdit && (
+        <ScheduleEditModal
+          draft={templateScheduleEdit}
+          onChange={item => setTemplateScheduleEdit(prev => (prev ? { ...prev, item } : null))}
+          onSave={saveTemplateScheduleEdit}
+          onDelete={templateScheduleEdit.mode === "edit" ? deleteTemplateScheduleEdit : undefined}
+          onClose={() => setTemplateScheduleEdit(null)}
         />
       )}
 
