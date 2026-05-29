@@ -1023,6 +1023,129 @@ function buildEnvironmentContext(weather: WeatherData | null): string {
   ].join("\n");
 }
 
+type ChatTimeBand = "morning" | "day" | "evening" | "late";
+
+function getChatTimeBand(hour = new Date().getHours()): ChatTimeBand {
+  if (hour >= 5 && hour < 10) return "morning";
+  if (hour >= 10 && hour < 17) return "day";
+  if (hour >= 17 && hour < 22) return "evening";
+  return "late";
+}
+
+function buildTemperatureComment(temperature: number | null | undefined): string {
+  if (temperature == null || Number.isNaN(temperature)) return "";
+  if (temperature >= 28) {
+    return `\n\n🌡️ 今日は${temperature}℃と暑いです。熱中症に注意し、こまめな塩・水分補給を意識しましょう。`;
+  }
+  if (temperature <= 10) {
+    return `\n\n🌡️ 今日は${temperature}℃と冷え込んでいます。体を温めるため、入浴と塩湯で足元から温まりましょう。`;
+  }
+  return "";
+}
+
+function buildChatOpeningMessage(weather: WeatherData | null): { text: string; choices: string[] } {
+  const band = getChatTimeBand();
+  const greetingByBand: Record<ChatTimeBand, string> = {
+    morning: "おはようございます。今朝の目覚めはいかがですか？",
+    day: "こんにちは。今日の体調はいかがですか？",
+    evening: "お疲れさまです。今日はいかがでしたか？",
+    late: "夜遅くまでお疲れさまです。眠れそうですか？",
+  };
+
+  const weatherLine = weather
+    ? `\n（${weatherLabel(weather.weatherCode)}・${weather.temperature}℃）`
+    : "";
+  const tempComment = buildTemperatureComment(weather?.temperature);
+
+  const text =
+    `${greetingByBand[band]}${weatherLine}${tempComment}\n\n` +
+    "🌿 つゆくさ生活リズムAIです。\n\n" +
+    "どんな生活を目標にしたいですか？それが達成できる生活リズムをご提案します。";
+
+  return {
+    text,
+    choices: [
+      "🛏 22時には眠りたい",
+      "🌅 早起きしたい",
+      "⚖️ 食事の時間を整えたい",
+      "💬 自分で入力する",
+    ],
+  };
+}
+
+type ChatFlowStep = "intro" | "goal" | "return_home" | "dinner" | "bath" | "wake" | "proposal" | "free";
+
+type ChatFlowData = {
+  goal?: string;
+  returnHome?: string;
+  dinner?: string;
+  bath?: string;
+  wake?: string;
+};
+
+const CHAT_GOAL_FROM_CHOICE: Record<string, string> = {
+  "🛏 22時には眠りたい": "22時には眠りたい",
+  "🌅 早起きしたい": "早起きしたい",
+  "⚖️ 食事の時間を整えたい": "食事の時間を整えたい",
+};
+
+type FlowQuestionStep = Exclude<ChatFlowStep, "intro" | "goal" | "proposal" | "free">;
+
+const FLOW_STEP_CONFIG: Record<
+  FlowQuestionStep,
+  { question: string; choices: string[]; field: keyof ChatFlowData; hint: string; next: FlowQuestionStep | "proposal" }
+> = {
+  return_home: {
+    question: "だいたい何時頃に帰宅されますか？",
+    choices: ["17:00頃", "18:00頃", "19:00頃", "20:00以降"],
+    field: "returnHome",
+    hint: "帰宅後はまず足を温め、リラックスできる時間を確保しましょう。",
+    next: "dinner",
+  },
+  dinner: {
+    question: "夕食は何時頃にとりたいですか？",
+    choices: ["16:00頃", "17:00頃", "18:00頃", "19:00以降"],
+    field: "dinner",
+    hint: "18時以降の糖質は控えめに。消化に優しい塩・タンパク質・海産物中心の夕食が養生に合います。",
+    next: "bath",
+  },
+  bath: {
+    question: "入浴は何時頃が理想ですか？",
+    choices: ["19:30頃", "20:00頃", "20:30頃", "21:00頃"],
+    field: "bath",
+    hint: "38〜39度・30分以内の入浴で血行を促し、就寝90分前が理想です。",
+    next: "wake",
+  },
+  wake: {
+    question: "翌朝は何時に起きたいですか？",
+    choices: ["6:00", "6:30", "7:00", "7:30"],
+    field: "wake",
+    hint: "早寝早起きは気を補い、一日のリズムの土台になります。",
+    next: "proposal",
+  },
+};
+
+function parseGoalFromChoice(choice: string): string | null {
+  if (choice in CHAT_GOAL_FROM_CHOICE) return CHAT_GOAL_FROM_CHOICE[choice];
+  if (choice === "💬 自分で入力する") return null;
+  return choice.trim() || null;
+}
+
+function buildScheduleProposalPrompt(data: ChatFlowData): string {
+  return [
+    "【生活リズム相談】以下の情報をもとに、漢方・養生（気血水・陰陽・塩清療法）の観点からアドバイスを交え、最適な1日のスケジュールを提案してください。",
+    "",
+    `・目標: ${data.goal ?? "未設定"}`,
+    `・帰宅時間: ${data.returnHome ?? "未設定"}`,
+    `・夕食時間: ${data.dinner ?? "未設定"}`,
+    `・入浴時間: ${data.bath ?? "未設定"}`,
+    `・起床時間: ${data.wake ?? "未設定"}`,
+    "",
+    "起床・朝食・塩湯・夕食・入浴・就寝前塩湯・就寝の時刻を含め、",
+    "SCHEDULE_SUGGESTIONS形式で5〜7項目返してください。",
+  ].join("\n");
+}
+
 function buildHealthSummary(form: HealthForm): string {
   const parts: string[] = [];
   if (form.morningCondition) parts.push(`朝の体調: ${form.morningCondition}/10`);
@@ -1878,6 +2001,8 @@ export default function TuyukusaApp() {
     normalizeGoogleCalendarSettings
   );
   const [calendarMessage, setCalendarMessage] = useState("");
+  const [chatFlowStep, setChatFlowStep] = useState<ChatFlowStep>("intro");
+  const [chatFlowData, setChatFlowData] = useState<ChatFlowData>({});
   const [weather, setWeather] = useState<WeatherData | null>(null);
   const [weatherLoading, setWeatherLoading] = useState(true);
   const [suggestingPeriod, setSuggestingPeriod] = useState<GoalPeriod | "deadline" | null>(null);
@@ -2376,22 +2501,179 @@ ${buildHealthSummary(healthForm)}`;
   };
 
   useEffect(() => {
-    if (tab === "chat" && chatMessages.length === 0) {
-      setTimeout(() => {
-        setChatMessages([{
-          type: "ai",
-          text: "おはようございます🌿\nつゆくさ生活リズムAIです。\n\n今朝の目覚めはいかがですか？",
-          choices: ["😴 だるく目が覚めた", "😐 普通に起きられた", "😊 スッキリ目覚めた"]
-        }]);
+    if (tab !== "chat") return;
+
+    const opening = buildChatOpeningMessage(weather);
+
+    if (chatMessages.length === 0) {
+      const timer = setTimeout(() => {
+        setChatMessages([
+          { type: "ai", text: opening.text, choices: opening.choices, step: "intro" },
+        ]);
+        setChatFlowStep("intro");
+        setChatFlowData({});
       }, 300);
+      return () => clearTimeout(timer);
     }
-  }, [tab]);
+
+    if (
+      chatMessages.length === 1 &&
+      chatFlowStep === "intro" &&
+      chatMessages[0]?.step === "intro" &&
+      weather
+    ) {
+      setChatMessages([
+        { type: "ai", text: opening.text, choices: opening.choices, step: "intro" },
+      ]);
+    }
+  }, [tab, weather, chatMessages.length, chatFlowStep, chatMessages[0]?.step]);
+
+  const startGoalFlow = (goal: string, userMessages: Message[]) => {
+    const data: ChatFlowData = { goal };
+    setChatFlowData(data);
+    setChatMessages([
+      ...userMessages,
+      {
+        type: "ai",
+        text: `「${goal}」ですね。素晴らしい目標です🌿\n\n${FLOW_STEP_CONFIG.return_home.question}`,
+        choices: FLOW_STEP_CONFIG.return_home.choices,
+        step: "return_home",
+      },
+    ]);
+    setChatFlowStep("return_home");
+  };
+
+  const generateScheduleProposal = async (baseMessages: Message[], data: ChatFlowData) => {
+    setIsLoading(true);
+    setChatFlowStep("proposal");
+    try {
+      const prompt = buildScheduleProposalPrompt(data);
+      const flowMessages: Message[] = [...baseMessages, { type: "user", text: prompt }];
+      const reply = await fetchChatReply(flowMessages, envContext);
+      setChatMessages(prev => [
+        ...prev,
+        {
+          ...createAiChatMessage(reply.content, reply),
+          step: "proposal",
+          showSchedule: true,
+        },
+      ]);
+      setChatFlowStep("free");
+    } catch {
+      setChatMessages(prev => [
+        ...prev,
+        {
+          type: "ai",
+          text: "申し訳ございません。スケジュール提案の生成に失敗しました。もう一度お試しください。",
+        },
+      ]);
+      setChatFlowStep("free");
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const advanceChatFlow = async (answer: string, fromStep: ChatFlowStep) => {
+    const trimmed = answer.trim();
+    if (!trimmed) return;
+
+    const userMessages: Message[] = [...chatMessages, { type: "user", text: trimmed }];
+
+    if (fromStep === "intro") {
+      if (trimmed === "💬 自分で入力する") {
+        setChatMessages([
+          ...userMessages,
+          {
+            type: "ai",
+            text: "どんな生活を目標にしたいですか？自由にお書きください。\n（例：22時に寝たい、朝6時起きたい）",
+            step: "goal",
+          },
+        ]);
+        setChatFlowStep("goal");
+        return;
+      }
+      const goal = parseGoalFromChoice(trimmed);
+      if (goal) startGoalFlow(goal, userMessages);
+      return;
+    }
+
+    if (fromStep === "goal") {
+      startGoalFlow(trimmed, userMessages);
+      return;
+    }
+
+    const config = FLOW_STEP_CONFIG[fromStep as FlowQuestionStep];
+    if (!config) {
+      setChatMessages(userMessages);
+      setIsLoading(true);
+      try {
+        const reply = await fetchChatReply(userMessages, envContext);
+        setChatMessages(prev => [...prev, createAiChatMessage(reply.content, reply)]);
+      } catch {
+        setChatMessages(prev => [
+          ...prev,
+          { type: "ai", text: "申し訳ございません。接続に問題が発生しました。しばらくしてからもう一度お試しください。" },
+        ]);
+      } finally {
+        setIsLoading(false);
+      }
+      return;
+    }
+
+    const newData = { ...chatFlowData, [config.field]: trimmed };
+    setChatFlowData(newData);
+
+    if (config.next === "proposal") {
+      setChatMessages([
+        ...userMessages,
+        {
+          type: "ai",
+          text: `${config.hint}\n\nいただいた情報をもとに、最適な生活リズムを提案します…`,
+        },
+      ]);
+      await generateScheduleProposal(userMessages, newData);
+      return;
+    }
+
+    const nextConfig = FLOW_STEP_CONFIG[config.next];
+    setChatMessages([
+      ...userMessages,
+      {
+        type: "ai",
+        text: `承知しました。\n${config.hint}\n\n${nextConfig.question}`,
+        choices: nextConfig.choices,
+        step: config.next,
+      },
+    ]);
+    setChatFlowStep(config.next);
+  };
+
+  const applyAllSuggestionsToSchedule = (messageIndex: number) => {
+    const msg = chatMessages[messageIndex];
+    if (!msg?.scheduleSuggestions?.length) return;
+    for (const sug of msg.scheduleSuggestions) {
+      if (!msg.addedScheduleIds?.includes(sug.id)) {
+        applyScheduleUpdate(sug);
+      }
+    }
+    setChatMessages(prev =>
+      prev.map((m, idx) =>
+        idx === messageIndex
+          ? { ...m, addedScheduleIds: msg.scheduleSuggestions!.map(s => s.id) }
+          : m
+      )
+    );
+  };
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [chatMessages]);
 
   const handleChoice = async (choice: string) => {
+    if (chatFlowStep !== "free" && chatFlowStep !== "proposal") {
+      await advanceChatFlow(choice, chatFlowStep);
+      return;
+    }
     const updatedMessages: Message[] = [...chatMessages, { type: "user", text: choice }];
     setChatMessages(updatedMessages);
     setIsLoading(true);
@@ -2413,6 +2695,12 @@ ${buildHealthSummary(healthForm)}`;
     const text = chatInput.trim();
     setChatInput("");
     setIsComposing(false);
+
+    if (chatFlowStep !== "free" && chatFlowStep !== "proposal") {
+      await advanceChatFlow(text, chatFlowStep);
+      return;
+    }
+
     const updatedMessages: Message[] = [...chatMessages, { type: "user", text }];
     setChatMessages(updatedMessages);
     setIsLoading(true);
@@ -2675,7 +2963,32 @@ ${buildHealthSummary(healthForm)}`;
                   )}
                   {msg.scheduleSuggestions && msg.scheduleSuggestions.length > 0 && (
                     <div style={{ display: "flex", flexDirection: "column", gap: 6, marginTop: 8, maxWidth: "85%" }}>
-                      {msg.scheduleSuggestions.map(sug => {
+                      {msg.showSchedule && (
+                        <button
+                          type="button"
+                          disabled={msg.scheduleSuggestions.every(s => msg.addedScheduleIds?.includes(s.id))}
+                          onClick={() => applyAllSuggestionsToSchedule(i)}
+                          style={{
+                            textAlign: "center",
+                            background: msg.scheduleSuggestions.every(s => msg.addedScheduleIds?.includes(s.id))
+                              ? "#e8f0e4"
+                              : "#1a1410",
+                            border: `1.5px solid ${msg.scheduleSuggestions.every(s => msg.addedScheduleIds?.includes(s.id)) ? "#6b8f62" : "#1a1410"}`,
+                            borderRadius: 12,
+                            padding: "12px 16px",
+                            fontSize: 13,
+                            fontWeight: "bold",
+                            cursor: msg.scheduleSuggestions.every(s => msg.addedScheduleIds?.includes(s.id)) ? "default" : "pointer",
+                            color: msg.scheduleSuggestions.every(s => msg.addedScheduleIds?.includes(s.id)) ? "#4a6741" : "#f5f0e8",
+                          }}
+                        >
+                          {msg.scheduleSuggestions.every(s => msg.addedScheduleIds?.includes(s.id))
+                            ? "✓ 今日のスケジュールに反映済み"
+                            : "📅 今日のスケジュールに反映する"}
+                        </button>
+                      )}
+                      {!msg.showSchedule &&
+                        msg.scheduleSuggestions.map(sug => {
                         const added = msg.addedScheduleIds?.includes(sug.id);
                         return (
                           <button

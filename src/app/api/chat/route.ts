@@ -46,7 +46,10 @@ timeはHH:MM形式。labelは短い項目名（10字以内）。subは補足（2
 - https://drive.google.com/file/d/1h7mDBU2OPTh1A591rVqVXRGA0xWzDUyP/view?usp=drive_link
 - https://drive.google.com/file/d/1qgkUbbV0TBd-u_LlmDLR4b2TAxckanZQ/view?usp=drive_link
 
-短く・わかりやすく・親切に答えてください。`;
+短く・わかりやすく・親切に答えてください。
+
+【生活リズム相談フロー】
+ユーザーが目標・帰宅・夕食・入浴・起床の時間を伝えた場合は、漢方・養生の観点から具体的な1日のスケジュールを提案し、SCHEDULE_SUGGESTIONS形式で返してください。`;
 
 type ScheduleUpdate = { time: string; label: string; sub: string };
 
