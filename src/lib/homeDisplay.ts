@@ -74,7 +74,7 @@ export const HOME_WEATHER_TOGGLE_OPTIONS = [
   { key: "moonPhase" as const, label: "月の満ち欠け" },
 ];
 
-export const HOME_SECTION_TOGGLE_OPTIONS: { key: HomeSectionId; label: string }[] = [
+export const HOME_SECTION_TOGGLE_OPTIONS: { key: Exclude<HomeSectionId, "weather">; label: string }[] = [
   { key: "sunTimes", label: "日の出・日の入り" },
   { key: "dailyGoal", label: "今日の目標" },
   { key: "weeklyGoal", label: "今週の目標" },
