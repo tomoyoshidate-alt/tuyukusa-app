@@ -10,7 +10,7 @@ export async function GET(request: NextRequest) {
   }
 
   const weatherRes = await fetch(
-    `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&current=temperature_2m,relative_humidity_2m,weather_code,precipitation&hourly=temperature_2m,relative_humidity_2m,weather_code&forecast_days=1&timezone=Asia/Tokyo`
+    `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&current=temperature_2m,relative_humidity_2m,weather_code,precipitation&hourly=temperature_2m,relative_humidity_2m,weather_code&daily=sunrise,sunset&forecast_days=1&timezone=Asia%2FTokyo`
   );
   const weather = await weatherRes.json();
 
@@ -25,6 +25,9 @@ export async function GET(request: NextRequest) {
     weatherCode: weather.hourly.weather_code[i] as number,
   }));
 
+  const sunriseRaw = weather.daily?.sunrise?.[0] as string | undefined;
+  const sunsetRaw = weather.daily?.sunset?.[0] as string | undefined;
+
   return NextResponse.json({
     temperature: weather.current.temperature_2m,
     humidity: weather.current.relative_humidity_2m,
@@ -32,8 +35,17 @@ export async function GET(request: NextRequest) {
     precipitation: weather.current.precipitation,
     moonAge: lunarAge,
     moonPhase: moonPhase,
+    sunrise: formatSunTime(sunriseRaw),
+    sunset: formatSunTime(sunsetRaw),
     hourly,
   });
+}
+
+function formatSunTime(iso: string | undefined): string | null {
+  if (!iso) return null;
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return null;
+  return d.toLocaleTimeString("ja-JP", { hour: "2-digit", minute: "2-digit", hour12: false, timeZone: "Asia/Tokyo" });
 }
 
 function getLunarAge(date: Date): number {

@@ -106,11 +106,15 @@ function parseScheduleMeta(text: string): { content: string; scheduleSuggestions
 }
 
 export async function POST(request: NextRequest) {
-  const { messages, environmentContext } = await request.json();
+  const { messages, environmentContext, userKnowledgeContext } = await request.json();
 
-  const system = environmentContext
-    ? `${SYSTEM_PROMPT}\n\n【本日の環境情報（診断・目標提案に活用）】\n${environmentContext}`
-    : SYSTEM_PROMPT;
+  let system = SYSTEM_PROMPT;
+  if (userKnowledgeContext) {
+    system += `\n\n【ユーザーについて（過去の相談から把握している情報）】\n${userKnowledgeContext}\n\n上記を踏まえ、継続性のある提案・回答をしてください。`;
+  }
+  if (environmentContext) {
+    system += `\n\n【本日の環境情報（診断・目標提案に活用）】\n${environmentContext}`;
+  }
 
   const response = await client.messages.create({
     model: 'claude-haiku-4-5-20251001',

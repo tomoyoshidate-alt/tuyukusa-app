@@ -17,6 +17,23 @@ import {
   normalizeGoogleCalendarSettings,
   type GoogleCalendarSettings,
 } from "@/src/lib/googleCalendar";
+import {
+  buildUserKnowledgeContext,
+  INITIAL_CHAT_KNOWLEDGE,
+  normalizeChatKnowledge,
+  normalizeStoredChatMessages,
+  updateChatKnowledgeFromFlow,
+  updateChatKnowledgeFromUserMessage,
+  type ChatKnowledge,
+  type StoredChatMessage,
+} from "@/src/lib/chatKnowledge";
+import {
+  getRegionById,
+  INITIAL_LOCATION_SETTINGS,
+  normalizeLocationSettings,
+  REGION_OPTIONS,
+  type LocationSettings,
+} from "@/src/lib/regions";
 
 const DailyWeatherChart = dynamic(() => import("@/src/components/DailyWeatherChart"), {
   ssr: false,
@@ -668,6 +685,8 @@ type WeatherData = {
   precipitation: number;
   moonAge: number;
   moonPhase: string;
+  sunrise: string | null;
+  sunset: string | null;
   hourly: HourlyWeather[];
 };
 
@@ -675,6 +694,7 @@ type HomeDisplaySettings = {
   weatherChart: boolean;
   humidityChart: boolean;
   moonPhase: boolean;
+  sunTimes: boolean;
   diagnosis: boolean;
   dailyGoal: boolean;
   schedule: boolean;
@@ -684,6 +704,7 @@ const DEFAULT_HOME_DISPLAY: HomeDisplaySettings = {
   weatherChart: true,
   humidityChart: true,
   moonPhase: true,
+  sunTimes: true,
   diagnosis: true,
   dailyGoal: true,
   schedule: true,
@@ -693,13 +714,19 @@ const DEFAULT_USER_NAME = "つゆくさ太郎";
 
 type UserProfile = {
   name: string;
+  nickname: string;
   nameConfigured: boolean;
 };
 
 const INITIAL_USER_PROFILE: UserProfile = {
   name: DEFAULT_USER_NAME,
+  nickname: "",
   nameConfigured: false,
 };
+
+function getDisplayName(profile: UserProfile): string {
+  return profile.nickname.trim() || profile.name.trim() || DEFAULT_USER_NAME;
+}
 
 function normalizeUserProfile(data: unknown): UserProfile {
   if (!data || typeof data !== "object") return INITIAL_USER_PROFILE;
@@ -707,6 +734,7 @@ function normalizeUserProfile(data: unknown): UserProfile {
   const name = typeof d.name === "string" && d.name.trim() ? d.name.trim() : DEFAULT_USER_NAME;
   return {
     name,
+    nickname: typeof d.nickname === "string" ? d.nickname.trim() : "",
     nameConfigured: !!d.nameConfigured,
   };
 }
@@ -715,6 +743,7 @@ const HOME_DISPLAY_OPTIONS: { key: keyof HomeDisplaySettings; label: string }[] 
   { key: "weatherChart", label: "天気・気温グラフ" },
   { key: "humidityChart", label: "湿度グラフ" },
   { key: "moonPhase", label: "月の満ち欠け" },
+  { key: "sunTimes", label: "日の出・日の入り" },
   { key: "diagnosis", label: "今日の診断" },
   { key: "dailyGoal", label: "今日の目標" },
   { key: "schedule", label: "スケジュールタイムライン" },
@@ -728,7 +757,19 @@ const INITIAL_AI_SUGGESTIONS: Record<GoalPeriod, AiSuggestedGoal | null> = {
   monthly: null,
 };
 
-const DEFAULT_COORDS = { lat: 35.6812, lon: 139.7671 };
+function toStoredChatMessages(messages: Message[]): StoredChatMessage[] {
+  return messages.map(({ type, text, step, showSchedule, choices }) => ({
+    type,
+    text,
+    step,
+    showSchedule,
+    choices,
+  }));
+}
+
+function fromStoredChatMessages(stored: StoredChatMessage[]): Message[] {
+  return stored.map(m => ({ ...m }));
+}
 
 const BASE_SCHEDULE_ITEMS: ScheduleItem[] = [
   { id: "wake", time: "06:00", label: "起床", sub: "朝：自然塩3gをお湯に溶かして" },
@@ -1158,7 +1199,8 @@ function buildHealthSummary(form: HealthForm): string {
 
 async function fetchChatReply(
   messages: Message[],
-  environmentContext?: string
+  environmentContext?: string,
+  userKnowledgeContext?: string
 ): Promise<ChatReply> {
   const res = await fetch("/api/chat", {
     method: "POST",
@@ -1166,6 +1208,7 @@ async function fetchChatReply(
     body: JSON.stringify({
       messages: toApiMessages(messages),
       environmentContext,
+      userKnowledgeContext,
     }),
   });
   if (!res.ok) throw new Error("Chat API request failed");
@@ -2000,9 +2043,21 @@ export default function TuyukusaApp() {
     INITIAL_GOOGLE_CALENDAR,
     normalizeGoogleCalendarSettings
   );
+  const [chatKnowledge, setChatKnowledge, chatKnowledgeHydrated] = useLocalStorage<ChatKnowledge>(
+    "tuyukusa-chat-knowledge",
+    INITIAL_CHAT_KNOWLEDGE,
+    normalizeChatKnowledge
+  );
+  const [locationSettings, setLocationSettings, locationHydrated] = useLocalStorage<LocationSettings>(
+    "tuyukusa-location",
+    INITIAL_LOCATION_SETTINGS,
+    normalizeLocationSettings
+  );
   const [calendarMessage, setCalendarMessage] = useState("");
   const [chatFlowStep, setChatFlowStep] = useState<ChatFlowStep>("intro");
   const [chatFlowData, setChatFlowData] = useState<ChatFlowData>({});
+  const [chatMessages, setChatMessages] = useState<Message[]>([]);
+  const chatHistoryLoadedRef = useRef(false);
   const [weather, setWeather] = useState<WeatherData | null>(null);
   const [weatherLoading, setWeatherLoading] = useState(true);
   const [suggestingPeriod, setSuggestingPeriod] = useState<GoalPeriod | "deadline" | null>(null);
@@ -2032,6 +2087,7 @@ export default function TuyukusaApp() {
   const scheduleTemplatesRef = useRef(scheduleTemplates);
   scheduleTemplatesRef.current = scheduleTemplates;
   const envContext = buildEnvironmentContext(weather);
+  const userKnowledgeContext = buildUserKnowledgeContext(chatKnowledge, userProfile);
 
   const timelineItems = sortByTime(schedule.items ?? []);
   const storageReady =
@@ -2041,7 +2097,43 @@ export default function TuyukusaApp() {
     homeDisplayHydrated &&
     aiSuggestionsHydrated &&
     userProfileHydrated &&
-    calendarHydrated;
+    calendarHydrated &&
+    chatKnowledgeHydrated &&
+    locationHydrated;
+
+  useEffect(() => {
+    runTuyukusaStorageMigration();
+    try {
+      const raw = localStorage.getItem("tuyukusa-chat-history");
+      if (raw) {
+        const parsed = normalizeStoredChatMessages(JSON.parse(raw));
+        setChatMessages(fromStoredChatMessages(parsed));
+        if (parsed.length > 0) setChatFlowStep("free");
+      }
+    } catch {
+      /* ignore */
+    }
+    chatHistoryLoadedRef.current = true;
+  }, []);
+
+  useEffect(() => {
+    if (!chatHistoryLoadedRef.current) return;
+    try {
+      localStorage.setItem("tuyukusa-chat-history", JSON.stringify(toStoredChatMessages(chatMessages)));
+    } catch {
+      /* ignore */
+    }
+  }, [chatMessages]);
+
+  const recordChatKnowledge = (text: string, flowData?: ChatFlowData) => {
+    setChatKnowledge(prev => {
+      let next = updateChatKnowledgeFromUserMessage(prev, text);
+      if (flowData && Object.values(flowData).some(v => v)) {
+        next = updateChatKnowledgeFromFlow(next, flowData);
+      }
+      return next;
+    });
+  };
 
   useEffect(() => {
     if (!storageReady || userProfile.nameConfigured || firstLaunchRef.current) return;
@@ -2112,16 +2204,10 @@ export default function TuyukusaApp() {
   };
 
   useEffect(() => {
-    if (!navigator.geolocation) {
-      fetchWeather(DEFAULT_COORDS.lat, DEFAULT_COORDS.lon);
-      return;
-    }
-    navigator.geolocation.getCurrentPosition(
-      pos => fetchWeather(pos.coords.latitude, pos.coords.longitude),
-      () => fetchWeather(DEFAULT_COORDS.lat, DEFAULT_COORDS.lon),
-      { timeout: 10000 }
-    );
-  }, []);
+    if (!locationHydrated) return;
+    const region = getRegionById(locationSettings.regionId);
+    fetchWeather(region.lat, region.lon);
+  }, [locationHydrated, locationSettings.regionId]);
 
   const periodKey = (p: GoalPeriod) =>
     p === "daily" ? getDayKey() : p === "weekly" ? getWeekKey() : getMonthKey();
@@ -2187,7 +2273,7 @@ export default function TuyukusaApp() {
 三行目：期限日（YYYY-MM-DD形式、今日から7〜30日後）
 
 ${buildHealthSummary(healthForm)}`;
-      const { content } = await fetchChatReply([{ type: "user", text: prompt }], envContext);
+      const { content } = await fetchChatReply([{ type: "user", text: prompt }], envContext, userKnowledgeContext);
       setAiDeadlineSuggestion(parseAiDeadlineReply(content));
     } catch {
       setAiDeadlineSuggestion({
@@ -2418,7 +2504,7 @@ ${buildHealthSummary(healthForm)}`;
       const prompt = `${labels[period]}の目標を1つだけ提案してください。以下を踏まえ、20字以内の具体的な行動目標にしてください。カテゴリ（睡眠/食事/運動/塩清療法/その他）も一行目に【カテゴリ】の形式で付けてください。
 
 ${buildHealthSummary(healthForm)}`;
-      const { content } = await fetchChatReply([{ type: "user", text: prompt }], envContext);
+      const { content } = await fetchChatReply([{ type: "user", text: prompt }], envContext, userKnowledgeContext);
       const parsed = parseAiGoalReply(content);
       setAiSuggestions(prev => ({
         ...prev,
@@ -2501,7 +2587,7 @@ ${buildHealthSummary(healthForm)}`;
   };
 
   useEffect(() => {
-    if (tab !== "chat") return;
+    if (tab !== "chat" || !chatHistoryLoadedRef.current) return;
 
     const opening = buildChatOpeningMessage(weather);
 
@@ -2529,6 +2615,7 @@ ${buildHealthSummary(healthForm)}`;
   }, [tab, weather, chatMessages.length, chatFlowStep, chatMessages[0]?.step]);
 
   const startGoalFlow = (goal: string, userMessages: Message[]) => {
+    recordChatKnowledge(goal, { goal });
     const data: ChatFlowData = { goal };
     setChatFlowData(data);
     setChatMessages([
@@ -2549,7 +2636,7 @@ ${buildHealthSummary(healthForm)}`;
     try {
       const prompt = buildScheduleProposalPrompt(data);
       const flowMessages: Message[] = [...baseMessages, { type: "user", text: prompt }];
-      const reply = await fetchChatReply(flowMessages, envContext);
+      const reply = await fetchChatReply(flowMessages, envContext, userKnowledgeContext);
       setChatMessages(prev => [
         ...prev,
         {
@@ -2576,6 +2663,8 @@ ${buildHealthSummary(healthForm)}`;
   const advanceChatFlow = async (answer: string, fromStep: ChatFlowStep) => {
     const trimmed = answer.trim();
     if (!trimmed) return;
+
+    recordChatKnowledge(trimmed);
 
     const userMessages: Message[] = [...chatMessages, { type: "user", text: trimmed }];
 
@@ -2607,7 +2696,7 @@ ${buildHealthSummary(healthForm)}`;
       setChatMessages(userMessages);
       setIsLoading(true);
       try {
-        const reply = await fetchChatReply(userMessages, envContext);
+        const reply = await fetchChatReply(userMessages, envContext, userKnowledgeContext);
         setChatMessages(prev => [...prev, createAiChatMessage(reply.content, reply)]);
       } catch {
         setChatMessages(prev => [
@@ -2631,6 +2720,7 @@ ${buildHealthSummary(healthForm)}`;
           text: `${config.hint}\n\nいただいた情報をもとに、最適な生活リズムを提案します…`,
         },
       ]);
+      recordChatKnowledge(trimmed, newData);
       await generateScheduleProposal(userMessages, newData);
       return;
     }
@@ -2674,11 +2764,12 @@ ${buildHealthSummary(healthForm)}`;
       await advanceChatFlow(choice, chatFlowStep);
       return;
     }
+    recordChatKnowledge(choice);
     const updatedMessages: Message[] = [...chatMessages, { type: "user", text: choice }];
     setChatMessages(updatedMessages);
     setIsLoading(true);
     try {
-      const reply = await fetchChatReply(updatedMessages, envContext);
+      const reply = await fetchChatReply(updatedMessages, envContext, userKnowledgeContext);
       setChatMessages(prev => [...prev, createAiChatMessage(reply.content, reply)]);
     } catch {
       setChatMessages(prev => [
@@ -2701,11 +2792,13 @@ ${buildHealthSummary(healthForm)}`;
       return;
     }
 
+    recordChatKnowledge(text);
+
     const updatedMessages: Message[] = [...chatMessages, { type: "user", text }];
     setChatMessages(updatedMessages);
     setIsLoading(true);
     try {
-      const reply = await fetchChatReply(updatedMessages, envContext);
+      const reply = await fetchChatReply(updatedMessages, envContext, userKnowledgeContext);
       setChatMessages(prev => [...prev, createAiChatMessage(reply.content, reply)]);
     } catch {
       setChatMessages(prev => [
@@ -2792,6 +2885,22 @@ ${buildHealthSummary(healthForm)}`;
               </div>
             )}
 
+            {homeDisplay.sunTimes && weather && !weatherLoading && (weather.sunrise || weather.sunset) && (
+              <div style={{ margin: "12px 16px 0", background: "white", borderRadius: 12, padding: "12px 14px", border: "1px solid rgba(60,40,20,0.1)" }}>
+                <div style={{ fontSize: 10, color: "#9a8b7a", marginBottom: 8, textAlign: "center" }}>
+                  📍 {getRegionById(locationSettings.regionId).label}
+                </div>
+                <div style={{ display: "flex", justifyContent: "space-around", fontSize: 13, color: "#3d3228" }}>
+                  {weather.sunrise && (
+                    <span>🌅 日の出 <strong>{weather.sunrise}</strong></span>
+                  )}
+                  {weather.sunset && (
+                    <span>🌇 日の入り <strong>{weather.sunset}</strong></span>
+                  )}
+                </div>
+              </div>
+            )}
+
             {homeDisplay.dailyGoal && (
               <>
                 <HomeGoalSection
@@ -2844,7 +2953,7 @@ ${buildHealthSummary(healthForm)}`;
             {homeDisplay.diagnosis && (
             <div style={{ background: "linear-gradient(160deg, #1a1410, #2d2218)", color: "#f5f0e8", padding: "28px 20px", marginTop: 16 }}>
               <div style={{ fontSize: 12, opacity: 0.6, marginBottom: 4 }}>おはようございます</div>
-              <div style={{ fontSize: 22, fontWeight: "bold", marginBottom: 16 }}>{userProfile.name} 様</div>
+              <div style={{ fontSize: 22, fontWeight: "bold", marginBottom: 16 }}>{getDisplayName(userProfile)} 様</div>
               <div style={{ display: "inline-block", background: "rgba(193,127,74,0.2)", border: "1px solid rgba(193,127,74,0.3)", borderRadius: 20, padding: "6px 14px", fontSize: 13, color: "#e8a86a", marginBottom: 16 }}>
                 今日の診断：{MOCK_SCHEDULE.diagnosis}
               </div>
@@ -3055,7 +3164,7 @@ ${buildHealthSummary(healthForm)}`;
           <div style={{ padding: 16 }}>
             <div style={{ fontSize: 15, fontWeight: "bold", color: "#3d3228", marginBottom: 4 }}>👤 プロフィール</div>
             <div style={{ fontSize: 11, color: "#3d3228", opacity: 0.6, marginBottom: 12 }}>
-              ホーム画面の挨拶に表示されるお名前です
+              ホーム画面の挨拶に表示されるお名前です。AI相談ではニックネームでお呼びします。
             </div>
             <div style={{ ...cardStyle, marginBottom: 12 }}>
               <div style={fieldLabelStyle}>お名前</div>
@@ -3068,6 +3177,17 @@ ${buildHealthSummary(healthForm)}`;
                   const trimmed = userProfile.name.trim() || DEFAULT_USER_NAME;
                   setUserProfile(prev => ({ ...prev, name: trimmed, nameConfigured: true }));
                 }}
+                style={{ ...inputStyle, marginBottom: 12 }}
+              />
+              <div style={fieldLabelStyle}>ニックネーム（なんと呼ばれたいですか？）</div>
+              <input
+                type="text"
+                placeholder="例：たろう、太郎さん"
+                value={userProfile.nickname}
+                onChange={e => setUserProfile(prev => ({ ...prev, nickname: e.target.value }))}
+                onBlur={() => {
+                  setUserProfile(prev => ({ ...prev, nickname: prev.nickname.trim(), nameConfigured: true }));
+                }}
                 style={inputStyle}
               />
               {!userProfile.nameConfigured && (
@@ -3075,6 +3195,25 @@ ${buildHealthSummary(healthForm)}`;
                   初回設定です。お名前を入力して保存してください。
                 </div>
               )}
+            </div>
+
+            <div style={{ fontSize: 15, fontWeight: "bold", color: "#3d3228", marginBottom: 4, paddingTop: 8, borderTop: "1px solid rgba(60,40,20,0.12)" }}>📍 在住地域</div>
+            <div style={{ fontSize: 11, color: "#3d3228", opacity: 0.6, marginBottom: 12, lineHeight: 1.5 }}>
+              地域に合わせて天気・日の出・日の入り時間を表示します
+            </div>
+            <div style={{ ...cardStyle, marginBottom: 12 }}>
+              <div style={fieldLabelStyle}>地域を選択</div>
+              <select
+                value={locationSettings.regionId}
+                onChange={e => setLocationSettings({ regionId: e.target.value })}
+                style={{ ...inputStyle, appearance: "auto" }}
+              >
+                {REGION_OPTIONS.map(region => (
+                  <option key={region.id} value={region.id}>
+                    {region.label}
+                  </option>
+                ))}
+              </select>
             </div>
 
             <div style={{ fontSize: 15, fontWeight: "bold", color: "#3d3228", marginBottom: 4 }}>🏠 ホーム表示設定</div>

@@ -9,6 +9,9 @@ export const TUYUKUSA_STORAGE_KEYS = [
   "tuyukusa-google-calendar",
   "tuyukusa-home-display",
   "tuyukusa-user-profile",
+  "tuyukusa-chat-history",
+  "tuyukusa-chat-knowledge",
+  "tuyukusa-location",
 ] as const;
 
 let migrationRan = false;
@@ -79,6 +82,7 @@ function isUserProfileStorageValid(data: unknown): boolean {
   if (!data || typeof data !== "object") return false;
   const d = data as Record<string, unknown>;
   if ("name" in d && d.name !== undefined && typeof d.name !== "string") return false;
+  if ("nickname" in d && d.nickname !== undefined && typeof d.nickname !== "string") return false;
   if ("nameConfigured" in d && d.nameConfigured !== undefined && typeof d.nameConfigured !== "boolean") return false;
   return true;
 }
@@ -96,6 +100,21 @@ function isGoogleCalendarStorageValid(data: unknown): boolean {
   return true;
 }
 
+function isChatHistoryStorageValid(data: unknown): boolean {
+  return Array.isArray(data);
+}
+
+function isChatKnowledgeStorageValid(data: unknown): boolean {
+  return !!data && typeof data === "object";
+}
+
+function isLocationStorageValid(data: unknown): boolean {
+  if (!data || typeof data !== "object") return false;
+  const d = data as Record<string, unknown>;
+  if ("regionId" in d && d.regionId !== undefined && typeof d.regionId !== "string") return false;
+  return true;
+}
+
 function isStoredDataValid(): boolean {
   const validators: Record<(typeof TUYUKUSA_STORAGE_KEYS)[number], (data: unknown) => boolean> = {
     "tuyukusa-goals": isGoalsStorageValid,
@@ -105,6 +124,9 @@ function isStoredDataValid(): boolean {
     "tuyukusa-google-calendar": isGoogleCalendarStorageValid,
     "tuyukusa-home-display": isHomeDisplayStorageValid,
     "tuyukusa-user-profile": isUserProfileStorageValid,
+    "tuyukusa-chat-history": isChatHistoryStorageValid,
+    "tuyukusa-chat-knowledge": isChatKnowledgeStorageValid,
+    "tuyukusa-location": isLocationStorageValid,
   };
 
   for (const key of TUYUKUSA_STORAGE_KEYS) {
