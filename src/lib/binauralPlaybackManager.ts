@@ -10,6 +10,7 @@ import {
   scheduleSwAlarm,
   stopSwAlarm,
 } from "@/src/lib/timerServiceWorker";
+import { triggerAirplaneModeShortcutIfEnabled } from "@/src/lib/timerEndSettings";
 
 export type BinauralPlaybackSnapshot = {
   isPlaying: boolean;
@@ -198,6 +199,7 @@ class BinauralPlaybackManager {
     if (!options?.skipSwNotify) {
       fireSwAlarm(title, body, "binaural");
     }
+    triggerAirplaneModeShortcutIfEnabled();
     this.emit();
   }
 

@@ -33,9 +33,10 @@ export type RadioSettings = {
 
 /** Spotify catalog show ID (podcasters slug tsuyuraji does not work in embed). */
 export const TSUYUKUSA_RADIO_SHOW_ID = "1NyJRLlG2bkfIW4VCAJJFX";
+export const TSUYUKUSA_RADIO_PODCASTERS_URL = "https://podcasters.spotify.com/pod/show/tsuyuraji";
 export const TSUYUKUSA_RADIO_URL = `https://open.spotify.com/show/${TSUYUKUSA_RADIO_SHOW_ID}`;
-export const TSUYUKUSA_RADIO_EMBED_URL = `https://open.spotify.com/embed/show/${TSUYUKUSA_RADIO_SHOW_ID}?utm_source=generator`;
-export const TSUYUKUSA_RADIO_EPISODE_LIST_EMBED_URL = `https://open.spotify.com/embed/show/${TSUYUKUSA_RADIO_SHOW_ID}?utm_source=generator&theme=0`;
+export const TSUYUKUSA_RADIO_EMBED_URL = `https://open.spotify.com/embed/show/${TSUYUKUSA_RADIO_SHOW_ID}`;
+export const TSUYUKUSA_RADIO_EPISODE_LIST_EMBED_URL = TSUYUKUSA_RADIO_EMBED_URL;
 export const TSUYUKUSA_RADIO_TITLE = "つゆくさラジオ";
 
 const PODCASTERS_SHOW_IDS: Record<string, string> = {
@@ -74,14 +75,9 @@ export function toEmbedUrl(url: string): string | null {
     }
     if (parsed.hostname.includes("podcasters.spotify.com") || parsed.hostname.includes("creators.spotify.com")) {
       const showMatch = parsed.pathname.match(/\/pod\/show\/([^/]+)/);
-      const epMatch = parsed.pathname.match(/\/episodes\/([^/]+)/);
-      if (epMatch && showMatch) {
-        const showId = PODCASTERS_SHOW_IDS[showMatch[1]] ?? TSUYUKUSA_RADIO_SHOW_ID;
-        return `https://open.spotify.com/embed/show/${showId}/episode/${epMatch[1]}?utm_source=generator`;
-      }
       if (showMatch) {
-        const showId = PODCASTERS_SHOW_IDS[showMatch[1]] ?? showMatch[1];
-        return `https://open.spotify.com/embed/show/${showId}?utm_source=generator`;
+        const showId = PODCASTERS_SHOW_IDS[showMatch[1]] ?? TSUYUKUSA_RADIO_SHOW_ID;
+        return `https://open.spotify.com/embed/show/${showId}`;
       }
     }
     if (parsed.hostname.includes("podcasts.apple.com")) {

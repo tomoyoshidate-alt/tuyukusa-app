@@ -21,6 +21,8 @@ import {
   ALARM_TRIGGER_EVENT,
   type AlarmTriggerDetail,
 } from "@/src/lib/alarmCoordinator";
+import { triggerAirplaneModeShortcutIfEnabled } from "@/src/lib/timerEndSettings";
+import AirplaneModeOption from "@/src/components/AirplaneModeOption";
 import {
   fireSwAlarm,
   requestNotificationPermission,
@@ -158,6 +160,7 @@ export default function PomodoroTimer({
     if (!skipSwNotify) {
       fireSwAlarm(title, body, "pomodoro");
     }
+    triggerAirplaneModeShortcutIfEnabled();
   }, []);
 
   const prepareNextPhase = useCallback((nextPhase: PomodoroPhase, nextSetNumber: number, nextCompleted: number) => {
@@ -403,6 +406,8 @@ export default function PomodoroTimer({
         />
         バイノーラルビートと連動（作業=ベータ波 / 休憩=アルファ波）
       </label>
+
+      <AirplaneModeOption />
 
       <div style={{ display: "flex", gap: 8 }}>
         <button

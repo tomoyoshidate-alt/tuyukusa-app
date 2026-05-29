@@ -24,6 +24,7 @@ import {
 import { requestNotificationPermission } from "@/src/lib/timerServiceWorker";
 import PomodoroTimer from "@/src/components/PomodoroTimer";
 import BinauralExplainPage from "@/src/components/BinauralExplainPage";
+import AirplaneModeOption from "@/src/components/AirplaneModeOption";
 
 type PanelMode = "beats" | "pomodoro";
 
@@ -321,7 +322,7 @@ export default function BinauralBeatsPanel({ diagnosis, onClose, initialPanelMod
         </div>
 
         <SectionTitle>タイマー</SectionTitle>
-        <div style={{ display: "flex", gap: 8, marginBottom: 16 }}>
+        <div style={{ display: "flex", gap: 8, marginBottom: 8 }}>
           <TimerChip label="なし" selected={timerMinutes === null} onClick={() => setTimerMinutes(null)} />
           {TIMER_OPTIONS.map(min => (
             <TimerChip
@@ -332,6 +333,7 @@ export default function BinauralBeatsPanel({ diagnosis, onClose, initialPanelMod
             />
           ))}
         </div>
+        <AirplaneModeOption />
 
         <SectionTitle>音量</SectionTitle>
         <VolumeSlider label="全体" value={masterVolume} onChange={setMasterVolume} />

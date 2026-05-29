@@ -28,7 +28,7 @@ type Props = {
   locationSettings: LocationSettings;
   onLocationChange: (next: LocationSettings) => void;
   homeDisplay: HomeDisplaySettings;
-  onHomeDisplayChange: (next: HomeDisplaySettings) => void;
+  onHomeDisplayChange: (next: HomeDisplaySettings | ((prev: HomeDisplaySettings) => HomeDisplaySettings)) => void;
   healthData: HealthData;
 };
 
@@ -68,9 +68,9 @@ export default function ScreenSettingsTab({
 
   const handleSectionReorder = useCallback(
     (sectionOrder: HomeDisplaySettings["sectionOrder"]) => {
-      onHomeDisplayChange({ ...homeDisplay, sectionOrder });
+      onHomeDisplayChange(prev => ({ ...prev, sectionOrder }));
     },
-    [homeDisplay, onHomeDisplayChange]
+    [onHomeDisplayChange]
   );
 
   return (

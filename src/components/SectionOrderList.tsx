@@ -33,10 +33,10 @@ export default function SectionOrderList({ sectionOrder, onReorder }: Props) {
 
   const sensors = useSensors(
     useSensor(PointerSensor, {
-      activationConstraint: { distance: 8 },
+      activationConstraint: { distance: 6 },
     }),
     useSensor(TouchSensor, {
-      activationConstraint: { delay: 150, tolerance: 8 },
+      activationConstraint: { delay: 200, tolerance: 12 },
     }),
     useSensor(KeyboardSensor, {
       coordinateGetter: sortableKeyboardCoordinates,
@@ -72,7 +72,7 @@ export default function SectionOrderList({ sectionOrder, onReorder }: Props) {
       onDragCancel={handleDragCancel}
     >
       <SortableContext items={sectionOrder} strategy={verticalListSortingStrategy}>
-        <div style={{ touchAction: "none" }}>
+        <div role="list" aria-label="ホーム表示順">
           {sectionOrder.map((sectionId, index) => (
             <SortableSectionRow
               key={sectionId}
@@ -86,12 +86,7 @@ export default function SectionOrderList({ sectionOrder, onReorder }: Props) {
 
       <DragOverlay dropAnimation={{ duration: 200, easing: "ease" }}>
         {activeId ? (
-          <SectionRowContent
-            sectionId={activeId}
-            index={activeIndex}
-            isDragging
-            isOverlay
-          />
+          <SectionRowContent sectionId={activeId} index={activeIndex} isDragging isOverlay />
         ) : null}
       </DragOverlay>
     </DndContext>
@@ -114,18 +109,15 @@ function SortableSectionRow({
   const style: CSSProperties = {
     transform: CSS.Transform.toString(transform),
     transition,
-    opacity: isDragging ? 0.35 : 1,
-    zIndex: isDragging ? 0 : 1,
+    opacity: isDragging ? 0.4 : 1,
+    position: "relative",
+    zIndex: isDragging ? 2 : 1,
+    touchAction: "manipulation",
   };
 
   return (
-    <div ref={setNodeRef} style={style}>
-      <SectionRowContent
-        sectionId={sectionId}
-        index={index}
-        isDragging={isActive}
-        dragHandleProps={{ ...attributes, ...listeners }}
-      />
+    <div ref={setNodeRef} style={style} {...attributes} {...listeners}>
+      <SectionRowContent sectionId={sectionId} index={index} isDragging={isActive || isDragging} />
     </div>
   );
 }
@@ -135,13 +127,11 @@ function SectionRowContent({
   index,
   isDragging,
   isOverlay = false,
-  dragHandleProps,
 }: {
   sectionId: HomeSectionId;
   index: number;
   isDragging: boolean;
   isOverlay?: boolean;
-  dragHandleProps?: Record<string, unknown>;
 }) {
   return (
     <div
@@ -149,29 +139,30 @@ function SectionRowContent({
         display: "flex",
         alignItems: "center",
         gap: 10,
-        padding: "10px 8px",
+        padding: "12px 10px",
         marginBottom: 4,
         borderRadius: 8,
         background: isDragging ? "#fdf0e4" : "#f5f0e8",
         border: isDragging ? "2px solid #c17f4a" : "1px solid rgba(60,40,20,0.08)",
-        boxShadow: isOverlay ? "0 8px 24px rgba(60,40,20,0.18)" : isDragging ? "0 2px 8px rgba(193,127,74,0.25)" : "none",
-        cursor: isOverlay ? "grabbing" : "default",
+        boxShadow: isOverlay
+          ? "0 8px 24px rgba(60,40,20,0.18)"
+          : isDragging
+            ? "0 2px 8px rgba(193,127,74,0.25)"
+            : "none",
+        cursor: isOverlay ? "grabbing" : "grab",
         userSelect: "none",
         WebkitUserSelect: "none",
+        WebkitTouchCallout: "none",
       }}
     >
       <span
-        {...dragHandleProps}
         style={{
           fontSize: 16,
           opacity: isDragging ? 1 : 0.5,
           color: isDragging ? "#c17f4a" : "inherit",
-          cursor: "grab",
-          touchAction: "none",
-          padding: "4px 2px",
           flexShrink: 0,
         }}
-        aria-label={`${HOME_SECTION_LABELS[sectionId]}を並び替え`}
+        aria-hidden
       >
         ⠿
       </span>

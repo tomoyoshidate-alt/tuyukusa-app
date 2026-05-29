@@ -1,12 +1,25 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type CSSProperties } from "react";
 import {
   radioPlaybackManager,
   type RadioPlaybackSnapshot,
 } from "@/src/lib/radioPlaybackManager";
 
-/** Persistent Spotify embed / RSS audio – lives in root layout so tab switches never unmount it. */
+const PLAYER_STYLE: CSSProperties = {
+  position: "fixed",
+  left: "50%",
+  transform: "translateX(-50%)",
+  bottom: 108,
+  width: "min(430px, 100vw)",
+  height: 152,
+  border: "none",
+  borderRadius: 12,
+  zIndex: 155,
+  boxShadow: "0 4px 20px rgba(26,20,16,0.15)",
+};
+
+/** Persistent Spotify embed / RSS audio – survives tab switches. Visible iframe required for Spotify autoplay. */
 export default function RadioPersistentIframe() {
   const [snap, setSnap] = useState<RadioPlaybackSnapshot>(() => radioPlaybackManager.getSnapshot());
   const audioRef = useRef<HTMLAudioElement | null>(null);
@@ -18,7 +31,7 @@ export default function RadioPersistentIframe() {
 
   useEffect(() => {
     const audio = audioRef.current;
-    if (!audio || !snap.isPlaying || !snap.audioUrl) return;
+    if (!audio || !snap.isPlaying || !snap.audioUrl || snap.embedUrl) return;
     if (audio.src !== snap.audioUrl) {
       audio.src = snap.audioUrl;
       audio.load();
@@ -26,35 +39,14 @@ export default function RadioPersistentIframe() {
     void audio.play().catch(() => {
       /* autoplay may need user gesture */
     });
-  }, [snap.isPlaying, snap.audioUrl]);
+  }, [snap.isPlaying, snap.audioUrl, snap.embedUrl]);
 
   useEffect(() => {
     if (snap.isPlaying) return;
-    const audio = audioRef.current;
-    if (!audio) return;
-    audio.pause();
+    audioRef.current?.pause();
   }, [snap.isPlaying]);
 
   if (!snap.isPlaying) return null;
-
-  if (snap.audioUrl) {
-    return (
-      <audio
-        ref={audioRef}
-        src={snap.audioUrl}
-        preload="auto"
-        playsInline
-        style={{
-          position: "fixed",
-          width: 1,
-          height: 1,
-          opacity: 0.01,
-          pointerEvents: "none",
-          left: -9999,
-        }}
-      />
-    );
-  }
 
   if (snap.embedUrl) {
     return (
@@ -63,18 +55,20 @@ export default function RadioPersistentIframe() {
         src={snap.embedUrl}
         title={snap.title}
         allow="autoplay; clipboard-write; encrypted-media; fullscreen; picture-in-picture"
-        style={{
-          position: "fixed",
-          left: "50%",
-          transform: "translateX(-50%)",
-          bottom: 108,
-          width: "min(430px, 100vw)",
-          height: 152,
-          border: "none",
-          opacity: 0.01,
-          pointerEvents: "none",
-          zIndex: 150,
-        }}
+        loading="eager"
+        style={PLAYER_STYLE}
+      />
+    );
+  }
+
+  if (snap.audioUrl) {
+    return (
+      <audio
+        ref={audioRef}
+        src={snap.audioUrl}
+        preload="auto"
+        playsInline
+        style={{ ...PLAYER_STYLE, width: 1, height: 1, opacity: 0, bottom: 108 }}
       />
     );
   }

@@ -1,7 +1,4 @@
-import {
-  TSUYUKUSA_RADIO_SHOW_ID,
-  type RadioEpisode,
-} from "@/src/lib/radioFavorites";
+import type { RadioEpisode } from "@/src/lib/radioFavorites";
 
 export const revalidate = 3600;
 
@@ -25,15 +22,8 @@ function extractTag(block: string, tag: string): string {
   return plain ? decodeXml(plain[1]) : "";
 }
 
-function episodeEmbedFromLink(link: string): string | null {
-  try {
-    const parsed = new URL(link);
-    const slugMatch = parsed.pathname.match(/\/episodes\/([^/]+)/);
-    if (!slugMatch) return null;
-    return `https://open.spotify.com/embed/show/${TSUYUKUSA_RADIO_SHOW_ID}/episode/${slugMatch[1]}?utm_source=generator`;
-  } catch {
-    return null;
-  }
+function episodeEmbedFromLink(_link: string): string | null {
+  return null;
 }
 
 function parseEpisodes(xml: string): RadioEpisode[] {

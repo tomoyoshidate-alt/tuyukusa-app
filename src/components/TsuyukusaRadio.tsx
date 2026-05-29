@@ -6,6 +6,7 @@ import {
   detectMediaPlatform,
   toEmbedUrl,
   TSUYUKUSA_RADIO_EPISODE_LIST_EMBED_URL,
+  TSUYUKUSA_RADIO_PODCASTERS_URL,
   TSUYUKUSA_RADIO_TITLE,
   TSUYUKUSA_RADIO_URL,
   type MediaFavorite,
@@ -72,7 +73,9 @@ export default function TsuyukusaRadio({
   const activeUrl =
     activeFavorite?.url ??
     radioSettings.activeEpisode?.openUrl ??
-    TSUYUKUSA_RADIO_URL;
+    (isShowDefault ? TSUYUKUSA_RADIO_PODCASTERS_URL : TSUYUKUSA_RADIO_URL);
+  const showEmbedUrl =
+    !playback.isPlaying && isShowDefault ? TSUYUKUSA_RADIO_EPISODE_LIST_EMBED_URL : null;
   const canPlay =
     isShowDefault ||
     !!radioSettings.activeEpisode?.embedUrl ||
@@ -172,12 +175,27 @@ export default function TsuyukusaRadio({
             </button>
             {isPlayingThisSource && (
               <div style={{ fontSize: 11, color: "#4a6741", textAlign: "center" }}>
-                タブを切り替えても再生は続きます
+                画面下部のプレイヤーで再生中（タブを切り替えても続きます）
               </div>
             )}
             <a href={activeUrl} target="_blank" rel="noopener noreferrer" style={linkBtnStyle}>
-              Spotifyアプリで開く ↗
+              Spotifyで開く ↗
             </a>
+            {showEmbedUrl && (
+              <iframe
+                src={showEmbedUrl}
+                title={activeTitle}
+                allow="autoplay; clipboard-write; encrypted-media; fullscreen; picture-in-picture"
+                loading="lazy"
+                style={{
+                  width: "100%",
+                  height: 152,
+                  border: "none",
+                  borderRadius: 10,
+                  background: "#1a1410",
+                }}
+              />
+            )}
           </div>
         ) : (
           <a href={activeUrl} target="_blank" rel="noopener noreferrer" style={playLinkStyle}>

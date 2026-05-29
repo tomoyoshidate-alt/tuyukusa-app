@@ -50,7 +50,7 @@ function resolveSource(
       title: ep.title,
       openUrl: ep.openUrl,
       embedUrl: ep.embedUrl,
-      audioUrl: ep.audioUrl,
+      audioUrl: ep.embedUrl ? null : ep.audioUrl,
     };
   }
 
