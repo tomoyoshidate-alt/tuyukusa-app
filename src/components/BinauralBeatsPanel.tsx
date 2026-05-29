@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import { BinauralAudioEngine } from "@/src/lib/binauralAudioEngine";
 import {
   AMBIENT_SOUND_PRESETS,
