@@ -12,6 +12,9 @@ import {
   type BinauralBeatId,
   type TimerMinutes,
 } from "@/src/lib/binauralBeats";
+import PomodoroTimer from "@/src/components/PomodoroTimer";
+
+type PanelMode = "beats" | "pomodoro";
 
 type Props = {
   diagnosis: string;
@@ -27,6 +30,7 @@ function formatRemaining(seconds: number): string {
 
 export default function BinauralBeatsPanel({ diagnosis, onClose, onExplainRequest }: Props) {
   const recommendedId = getRecommendedBeatId(diagnosis);
+  const [panelMode, setPanelMode] = useState<PanelMode>("beats");
   const [selectedBeat, setSelectedBeat] = useState<BinauralBeatId>(recommendedId);
   const [selectedAmbient, setSelectedAmbient] = useState<AmbientSoundId>("rain");
   const [timerMinutes, setTimerMinutes] = useState<TimerMinutes | null>(10);
@@ -131,8 +135,8 @@ export default function BinauralBeatsPanel({ diagnosis, onClose, onExplainReques
       >
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
           <div>
-            <div style={{ fontSize: 18, fontWeight: "bold", color: "#3d3228" }}>🎧 バイノーラルビート</div>
-            <div style={{ fontSize: 11, color: "#9a8b7a", marginTop: 2 }}>Web Audio API · ヘッドホン推奨</div>
+            <div style={{ fontSize: 18, fontWeight: "bold", color: "#3d3228" }}>🎧 サウンド & タイマー</div>
+            <div style={{ fontSize: 11, color: "#9a8b7a", marginTop: 2 }}>バイノーラルビート · ポモドーロ</div>
           </div>
           <button
             type="button"
@@ -143,6 +147,20 @@ export default function BinauralBeatsPanel({ diagnosis, onClose, onExplainReques
           </button>
         </div>
 
+        <div style={{ display: "flex", gap: 8, marginBottom: 16 }}>
+          <TabChip label="🎧 ビート" selected={panelMode === "beats"} onClick={() => setPanelMode("beats")} />
+          <TabChip label="🍅 ポモドーロ" selected={panelMode === "pomodoro"} onClick={() => setPanelMode("pomodoro")} />
+        </div>
+
+        {panelMode === "pomodoro" ? (
+          <PomodoroTimer
+            ambientId={selectedAmbient}
+            masterVolume={masterVolume}
+            binauralVolume={binauralVolume}
+            ambientVolume={ambientVolume}
+          />
+        ) : (
+        <>
         <button
           type="button"
           onClick={onExplainRequest}
@@ -299,8 +317,40 @@ export default function BinauralBeatsPanel({ diagnosis, onClose, onExplainReques
         <div style={{ fontSize: 10, color: "#9a8b7a", marginTop: 12, lineHeight: 1.6, textAlign: "center" }}>
           左右で異なる周波数を聴取し、脳波誘導をサポートします。安全のため音量は控えめに。
         </div>
+        </>
+        )}
       </div>
     </div>
+  );
+}
+
+function TabChip({
+  label,
+  selected,
+  onClick,
+}: {
+  label: string;
+  selected: boolean;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      style={{
+        flex: 1,
+        padding: "10px 12px",
+        borderRadius: 10,
+        border: selected ? "2px solid #c17f4a" : "1.5px solid rgba(60,40,20,0.12)",
+        background: selected ? "#fdf0e4" : "white",
+        fontSize: 13,
+        fontWeight: selected ? "bold" : "normal",
+        cursor: "pointer",
+        color: "#3d3228",
+      }}
+    >
+      {label}
+    </button>
   );
 }
 

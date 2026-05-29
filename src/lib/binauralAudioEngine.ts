@@ -184,11 +184,6 @@ function buildAmbient(
 export class BinauralAudioEngine {
   private nodes: EngineNodes | null = null;
 
-  private ensureContext(): AudioContext {
-    if (!this.nodes) throw new Error("Audio engine not started");
-    return this.nodes.ctx;
-  }
-
   async start(preset: BinauralBeatPreset, ambientId: AmbientSoundId): Promise<void> {
     this.stop();
     const ctx = new AudioContext();
@@ -266,6 +261,14 @@ export class BinauralAudioEngine {
   setAmbientVolume(value: number): void {
     if (!this.nodes) return;
     this.nodes.ambientGain.gain.value = Math.max(0, Math.min(1, value));
+  }
+
+  updatePreset(preset: BinauralBeatPreset): void {
+    if (!this.nodes) return;
+    const { ctx, leftOsc, rightOsc } = this.nodes;
+    const t = ctx.currentTime;
+    leftOsc.frequency.setValueAtTime(preset.carrierHz, t);
+    rightOsc.frequency.setValueAtTime(preset.carrierHz + preset.beatHz, t);
   }
 
   isPlaying(): boolean {
