@@ -16,21 +16,26 @@ import PomodoroTimer from "@/src/components/PomodoroTimer";
 
 type PanelMode = "beats" | "pomodoro";
 
-type Props = {
-  diagnosis: string;
-  onClose: () => void;
-  onExplainRequest: () => void;
-};
-
 function formatRemaining(seconds: number): string {
   const m = Math.floor(seconds / 60);
   const s = seconds % 60;
   return `${m}:${String(s).padStart(2, "0")}`;
 }
 
-export default function BinauralBeatsPanel({ diagnosis, onClose, onExplainRequest }: Props) {
+type Props = {
+  diagnosis: string;
+  onClose: () => void;
+  onExplainRequest: () => void;
+  initialPanelMode?: PanelMode;
+};
+
+export default function BinauralBeatsPanel({ diagnosis, onClose, onExplainRequest, initialPanelMode = "beats" }: Props) {
   const recommendedId = getRecommendedBeatId(diagnosis);
-  const [panelMode, setPanelMode] = useState<PanelMode>("beats");
+  const [panelMode, setPanelMode] = useState<PanelMode>(initialPanelMode);
+
+  useEffect(() => {
+    setPanelMode(initialPanelMode);
+  }, [initialPanelMode]);
   const [selectedBeat, setSelectedBeat] = useState<BinauralBeatId>(recommendedId);
   const [selectedAmbient, setSelectedAmbient] = useState<AmbientSoundId>("rain");
   const [timerMinutes, setTimerMinutes] = useState<TimerMinutes | null>(10);

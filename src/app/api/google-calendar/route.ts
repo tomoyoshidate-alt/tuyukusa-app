@@ -1,19 +1,19 @@
 import { NextRequest, NextResponse } from "next/server";
 import {
-  buildGoogleCalendarIcsUrl,
   detectCalendarDayMode,
   filterEventsForDay,
+  isValidIcalFeedUrl,
   parseIcsEvents,
 } from "@/src/lib/googleCalendar";
 
 export const dynamic = "force-dynamic";
 
 export async function GET(request: NextRequest) {
-  const email = request.nextUrl.searchParams.get("email")?.trim();
+  const icalUrl = request.nextUrl.searchParams.get("icalUrl")?.trim();
   const day = request.nextUrl.searchParams.get("day")?.trim() ?? new Date().toISOString().slice(0, 10);
 
-  if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
-    return NextResponse.json({ error: "有効なメールアドレスを入力してください" }, { status: 400 });
+  if (!icalUrl || !isValidIcalFeedUrl(icalUrl)) {
+    return NextResponse.json({ error: "有効なiCalフィードURLを入力してください" }, { status: 400 });
   }
 
   if (!/^\d{4}-\d{2}-\d{2}$/.test(day)) {
@@ -21,8 +21,7 @@ export async function GET(request: NextRequest) {
   }
 
   try {
-    const icsUrl = buildGoogleCalendarIcsUrl(email);
-    const res = await fetch(icsUrl, {
+    const res = await fetch(icalUrl, {
       headers: { "User-Agent": "tuyukusa-app/1.0" },
       next: { revalidate: 300 },
     });
@@ -31,7 +30,7 @@ export async function GET(request: NextRequest) {
       return NextResponse.json(
         {
           error:
-            "カレンダーを取得できませんでした。Googleカレンダーを「一般公開」に設定しているか確認してください。",
+            "カレンダーを取得できませんでした。Googleカレンダーの「非公開アドレス（iCal形式）」URLが正しいか確認してください。",
         },
         { status: 502 }
       );

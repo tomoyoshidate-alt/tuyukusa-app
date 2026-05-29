@@ -1,7 +1,7 @@
 export async function registerTimerServiceWorker(): Promise<ServiceWorkerRegistration | null> {
   if (typeof window === "undefined" || !("serviceWorker" in navigator)) return null;
   try {
-    const registration = await navigator.serviceWorker.register("/timer-sw.js", { scope: "/" });
+    const registration = await navigator.serviceWorker.register("/sw.js", { scope: "/" });
     await navigator.serviceWorker.ready;
     return registration;
   } catch {

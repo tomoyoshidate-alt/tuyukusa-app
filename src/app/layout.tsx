@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Noto_Sans_JP, Noto_Serif_JP } from "next/font/google";
 import RegisterTimerServiceWorker from "@/src/components/RegisterTimerServiceWorker";
 import "./globals.css";
@@ -21,6 +21,20 @@ const notoSerif = Noto_Serif_JP({
 export const metadata: Metadata = {
   title: "つゆくさ生活リズム",
   description: "和の暮らしに寄り添う、生活リズム診断アプリ",
+  manifest: "/manifest.json",
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: "default",
+    title: "つゆくさ",
+  },
+  icons: {
+    icon: "/icons/icon-192.svg",
+    apple: "/icons/icon-512.svg",
+  },
+};
+
+export const viewport: Viewport = {
+  themeColor: "#1a1410",
 };
 
 export default function RootLayout({

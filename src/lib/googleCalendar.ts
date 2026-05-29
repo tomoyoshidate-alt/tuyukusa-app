@@ -8,13 +8,13 @@ export type CalendarEvent = {
 export type CalendarDayMode = "default" | "work" | "holiday";
 
 export type GoogleCalendarSettings = {
-  email: string;
+  icalUrl: string;
   connected: boolean;
   lastSyncDayKey?: string;
 };
 
 export const INITIAL_GOOGLE_CALENDAR: GoogleCalendarSettings = {
-  email: "",
+  icalUrl: "",
   connected: false,
 };
 
@@ -167,13 +167,30 @@ export function applyCalendarAdjustments<T extends ScheduleItemLike>(
 
 export function normalizeGoogleCalendarSettings(data: unknown): GoogleCalendarSettings {
   if (!data || typeof data !== "object") return INITIAL_GOOGLE_CALENDAR;
-  const d = data as Partial<GoogleCalendarSettings>;
-  const email = typeof d.email === "string" ? d.email.trim() : "";
+  const d = data as Partial<GoogleCalendarSettings & { email?: string }>;
+  let icalUrl = typeof d.icalUrl === "string" ? d.icalUrl.trim() : "";
+  if (!icalUrl && typeof d.email === "string" && d.email.trim()) {
+    icalUrl = buildGoogleCalendarIcsUrl(d.email.trim());
+  }
   return {
-    email,
-    connected: !!d.connected && !!email,
+    icalUrl,
+    connected: !!d.connected && !!icalUrl,
     lastSyncDayKey: typeof d.lastSyncDayKey === "string" ? d.lastSyncDayKey : undefined,
   };
+}
+
+export function isValidIcalFeedUrl(url: string): boolean {
+  try {
+    const parsed = new URL(url);
+    if (parsed.protocol !== "https:" && parsed.protocol !== "http:") return false;
+    return (
+      parsed.hostname.includes("calendar.google.com") ||
+      parsed.pathname.includes(".ics") ||
+      parsed.search.includes("ical")
+    );
+  } catch {
+    return false;
+  }
 }
 
 export function buildGoogleCalendarIcsUrl(email: string): string {

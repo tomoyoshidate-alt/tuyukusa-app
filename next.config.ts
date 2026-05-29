@@ -20,7 +20,7 @@ const nextConfig: NextConfig = {
   async headers() {
     return [
       {
-        source: "/:path*",
+        source: "/((?!sw.js|manifest.json|icons/).*)",
         headers: noStoreHeaders,
       },
     ];

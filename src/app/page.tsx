@@ -18,6 +18,21 @@ import {
   type GoogleCalendarSettings,
 } from "@/src/lib/googleCalendar";
 import {
+  DEFAULT_HOME_DISPLAY,
+  isSectionVisible,
+  normalizeHomeDisplay,
+  type HomeDisplaySettings,
+  type HomeSectionId,
+} from "@/src/lib/homeDisplay";
+import {
+  INITIAL_RADIO_SETTINGS,
+  normalizeRadioSettings,
+  type RadioSettings,
+} from "@/src/lib/radioFavorites";
+import AddToHomeScreen from "@/src/components/AddToHomeScreen";
+import ScreenSettingsTab from "@/src/components/ScreenSettingsTab";
+import TsuyukusaRadio from "@/src/components/TsuyukusaRadio";
+import {
   buildUserKnowledgeContext,
   INITIAL_CHAT_KNOWLEDGE,
   normalizeChatKnowledge,
@@ -523,7 +538,7 @@ type Message = {
   addedScheduleIds?: string[];
 };
 
-type Tab = "home" | "chat" | "history" | "settings";
+type Tab = "home" | "chat" | "history" | "display" | "settings";
 type MoodKey = "anger" | "anxiety" | "sadness" | "fog" | "manic";
 type CountOption = number | "5回以上";
 type HealthFieldId =
@@ -647,6 +662,17 @@ const cardStyle = {
   marginBottom: 8,
   border: "1px solid rgba(60,40,20,0.1)",
 };
+const homeActionBtnStyle: CSSProperties = {
+  width: "100%",
+  padding: "12px 14px",
+  borderRadius: 12,
+  border: "none",
+  background: "#1a1410",
+  color: "#f5f0e8",
+  fontSize: 13,
+  fontWeight: "bold",
+  cursor: "pointer",
+};
 const fieldLabelStyle = {
   fontSize: 12,
   fontWeight: "bold",
@@ -682,6 +708,46 @@ type HourlyWeather = {
   weatherCode: number;
 };
 
+const DEFAULT_USER_NAME = "つゆくさ太郎";
+
+const USER_MANUAL_STEPS = [
+  {
+    icon: "🖥",
+    title: "画面設定",
+    body: "「画面」タブでプロフィール・地域・ホーム表示項目・表示順を設定できます。ドラッグ＆ドロップで並び替えも可能です。",
+  },
+  {
+    icon: "🏠",
+    title: "ホーム画面",
+    body: "天気・目標・診断・スケジュール・つゆくさラジオ・バイノーラルビート・ポモドーロを一覧できます。「ホーム画面に追加」でアプリのように起動できます。",
+  },
+  {
+    icon: "📻",
+    title: "つゆくさラジオ",
+    body: "Spotify埋め込みでつゆくさラジオを再生。YouTube・Spotify・Apple PodcastsのURLをお気に入り登録できます。ビート/タイマーと切り替え可能です。",
+  },
+  {
+    icon: "🎧",
+    title: "バイノーラルビート & ポモドーロ",
+    body: "診断に合わせた周波数で集中・リラックスをサポート。ポモドーロは作業25分/休憩5分（カスタム可）で、作業中ベータ波・休憩中アルファ波を自動切替。終了時はアラームが鳴ります。",
+  },
+  {
+    icon: "💬",
+    title: "AI相談",
+    body: "体調や生活リズムを相談すると、つゆくさ理論に基づくアドバイスとスケジュール提案が得られます。提案はワンタップで今日のスケジュールに追加できます。",
+  },
+  {
+    icon: "📆",
+    title: "Googleカレンダー（iCal）",
+    body: "設定タブで非公開のiCalフィードURLを登録。予定名に「仕事」「休日」を含めると、起床・夕食時間などが自動調整されます。一般公開は不要です。",
+  },
+  {
+    icon: "🔒",
+    title: "データの保存",
+    body: "目標・スケジュール・設定は端末のlocalStorageに保存されます。アプリ更新時にデータ形式が変わる場合、自動でマイグレーションまたはリセットされます。",
+  },
+] as const;
+
 type WeatherData = {
   temperature: number;
   humidity: number;
@@ -693,28 +759,6 @@ type WeatherData = {
   sunset: string | null;
   hourly: HourlyWeather[];
 };
-
-type HomeDisplaySettings = {
-  weatherChart: boolean;
-  humidityChart: boolean;
-  moonPhase: boolean;
-  sunTimes: boolean;
-  diagnosis: boolean;
-  dailyGoal: boolean;
-  schedule: boolean;
-};
-
-const DEFAULT_HOME_DISPLAY: HomeDisplaySettings = {
-  weatherChart: true,
-  humidityChart: true,
-  moonPhase: true,
-  sunTimes: true,
-  diagnosis: true,
-  dailyGoal: true,
-  schedule: true,
-};
-
-const DEFAULT_USER_NAME = "つゆくさ太郎";
 
 type UserProfile = {
   name: string;
@@ -742,16 +786,6 @@ function normalizeUserProfile(data: unknown): UserProfile {
     nameConfigured: !!d.nameConfigured,
   };
 }
-
-const HOME_DISPLAY_OPTIONS: { key: keyof HomeDisplaySettings; label: string }[] = [
-  { key: "weatherChart", label: "天気・気温グラフ" },
-  { key: "humidityChart", label: "湿度グラフ" },
-  { key: "moonPhase", label: "月の満ち欠け" },
-  { key: "sunTimes", label: "日の出・日の入り" },
-  { key: "diagnosis", label: "今日の診断" },
-  { key: "dailyGoal", label: "今日の目標" },
-  { key: "schedule", label: "スケジュールタイムライン" },
-];
 
 type AiSuggestedGoal = { text: string; category: GoalCategory; periodKey: string };
 
@@ -866,11 +900,6 @@ function normalizeSchedule(data: unknown, templates: ScheduleTemplates = DEFAULT
 
   if (!items.length) items = fallback.items;
   return { dayKey, items, alerts: syncScheduleAlerts(items) };
-}
-
-function normalizeHomeDisplay(data: unknown): HomeDisplaySettings {
-  if (!data || typeof data !== "object") return DEFAULT_HOME_DISPLAY;
-  return { ...DEFAULT_HOME_DISPLAY, ...(data as Partial<HomeDisplaySettings>) };
 }
 
 function normalizeAiSuggestions(data: unknown): Record<GoalPeriod, AiSuggestedGoal | null> {
@@ -2057,6 +2086,11 @@ export default function TuyukusaApp() {
     INITIAL_LOCATION_SETTINGS,
     normalizeLocationSettings
   );
+  const [radioSettings, setRadioSettings, radioHydrated] = useLocalStorage<RadioSettings>(
+    "tuyukusa-radio",
+    INITIAL_RADIO_SETTINGS,
+    normalizeRadioSettings
+  );
   const [calendarMessage, setCalendarMessage] = useState("");
   const [chatFlowStep, setChatFlowStep] = useState<ChatFlowStep>("intro");
   const [chatFlowData, setChatFlowData] = useState<ChatFlowData>({});
@@ -2083,6 +2117,7 @@ export default function TuyukusaApp() {
   const [monthlyCategory, setMonthlyCategory] = useState<GoalCategory>("その他");
   const [saveMessage, setSaveMessage] = useState("");
   const [showBinauralPanel, setShowBinauralPanel] = useState(false);
+  const [binauralPanelMode, setBinauralPanelMode] = useState<"beats" | "pomodoro">("beats");
   const [scheduleEdit, setScheduleEdit] = useState<ScheduleEditDraft | null>(null);
   const [templateEditDay, setTemplateEditDay] = useState(() => new Date().getDay());
   const [templateScheduleEdit, setTemplateScheduleEdit] = useState<ScheduleEditDraft | null>(null);
@@ -2104,7 +2139,8 @@ export default function TuyukusaApp() {
     userProfileHydrated &&
     calendarHydrated &&
     chatKnowledgeHydrated &&
-    locationHydrated;
+    locationHydrated &&
+    radioHydrated;
 
   useEffect(() => {
     runTuyukusaStorageMigration();
@@ -2178,10 +2214,15 @@ export default function TuyukusaApp() {
     void startBinauralExplainChat();
   }, [pendingBinauralExplain, tab]);
 
+  const openBinauralPanel = (mode: "beats" | "pomodoro" = "beats") => {
+    setBinauralPanelMode(mode);
+    setShowBinauralPanel(true);
+  };
+
   useEffect(() => {
     if (!storageReady || userProfile.nameConfigured || firstLaunchRef.current) return;
     firstLaunchRef.current = true;
-    setTab("settings");
+    setTab("display");
   }, [storageReady, userProfile.nameConfigured]);
 
   useEffect(() => {
@@ -2462,13 +2503,13 @@ ${buildHealthSummary(healthForm)}`;
 
   const templateItemsForDay = sortByTime(scheduleTemplates[templateEditDay] ?? []);
 
-  const syncGoogleCalendar = async (emailOverride?: string) => {
-    const email = (emailOverride ?? googleCalendar.email).trim();
-    if (!email) return false;
+  const syncGoogleCalendar = async (icalUrlOverride?: string) => {
+    const icalUrl = (icalUrlOverride ?? googleCalendar.icalUrl).trim();
+    if (!icalUrl) return false;
     const dayKey = getDayKey();
     try {
       const res = await fetch(
-        `/api/google-calendar?email=${encodeURIComponent(email)}&day=${dayKey}`
+        `/api/google-calendar?icalUrl=${encodeURIComponent(icalUrl)}&day=${dayKey}`
       );
       const data = (await res.json()) as {
         events?: { summary: string; start: string; end: string; allDay: boolean }[];
@@ -2487,7 +2528,7 @@ ${buildHealthSummary(healthForm)}`;
         );
         return { dayKey, items: adjusted, alerts: syncScheduleAlerts(adjusted) };
       });
-      setGoogleCalendar(prev => ({ ...prev, email, connected: true, lastSyncDayKey: dayKey }));
+      setGoogleCalendar(prev => ({ ...prev, icalUrl, connected: true, lastSyncDayKey: dayKey }));
       return true;
     } catch (err) {
       setCalendarMessage(err instanceof Error ? err.message : "カレンダーの取得に失敗しました");
@@ -2497,12 +2538,12 @@ ${buildHealthSummary(healthForm)}`;
 
   const connectGoogleCalendar = async () => {
     setCalendarMessage("");
-    const email = googleCalendar.email.trim();
-    if (!email) {
-      setCalendarMessage("メールアドレスを入力してください");
+    const icalUrl = googleCalendar.icalUrl.trim();
+    if (!icalUrl) {
+      setCalendarMessage("iCalフィードURLを入力してください");
       return;
     }
-    const ok = await syncGoogleCalendar(email);
+    const ok = await syncGoogleCalendar(icalUrl);
     if (ok) {
       setCalendarMessage("Googleカレンダーに接続しました。予定に合わせてスケジュールを調整しました。");
     }
@@ -2515,14 +2556,14 @@ ${buildHealthSummary(healthForm)}`;
 
   useEffect(() => {
     if (!scheduleHydrated || !calendarHydrated) return;
-    if (!googleCalendar.connected || !googleCalendar.email) return;
+    if (!googleCalendar.connected || !googleCalendar.icalUrl) return;
     if (googleCalendar.lastSyncDayKey === getDayKey()) return;
     syncGoogleCalendar();
   }, [
     scheduleHydrated,
     calendarHydrated,
     googleCalendar.connected,
-    googleCalendar.email,
+    googleCalendar.icalUrl,
     googleCalendar.lastSyncDayKey,
   ]);
 
@@ -2867,6 +2908,228 @@ ${buildHealthSummary(healthForm)}`;
     setTimeout(() => setSaveMessage(""), 3000);
   };
 
+  const renderHomeSection = (sectionId: HomeSectionId) => {
+    switch (sectionId) {
+      case "weather":
+        return (
+          <div style={{ margin: "16px 16px 0" }}>
+            {weatherLoading && (
+              <div style={{ background: "white", borderRadius: 14, padding: 16, height: 140, border: "1px solid rgba(60,40,20,0.1)", fontSize: 11, color: "#9a8b7a", textAlign: "center", lineHeight: "108px" }}>
+                天気を取得中...
+              </div>
+            )}
+            {weather && !weatherLoading && weather.hourly?.length > 0 && (
+              <DailyWeatherChart
+                hourly={weather.hourly}
+                showTemperature={homeDisplay.weatherChart}
+                showHumidity={homeDisplay.humidityChart}
+                showMoon={homeDisplay.moonPhase}
+                moonAge={weather.moonAge}
+                moonPhase={weather.moonPhase}
+              />
+            )}
+          </div>
+        );
+      case "sunTimes":
+        if (!weather || weatherLoading || (!weather.sunrise && !weather.sunset)) return null;
+        return (
+          <div style={{ margin: "12px 16px 0", background: "white", borderRadius: 12, padding: "12px 14px", border: "1px solid rgba(60,40,20,0.1)" }}>
+            <div style={{ fontSize: 10, color: "#9a8b7a", marginBottom: 8, textAlign: "center" }}>
+              📍 {getRegionById(locationSettings.regionId).label}
+            </div>
+            <div style={{ display: "flex", justifyContent: "space-around", fontSize: 13, color: "#3d3228" }}>
+              {weather.sunrise && <span>🌅 日の出 <strong>{weather.sunrise}</strong></span>}
+              {weather.sunset && <span>🌇 日の入り <strong>{weather.sunset}</strong></span>}
+            </div>
+          </div>
+        );
+      case "dailyGoal":
+        return (
+          <>
+            <HomeGoalSection
+              title="🎯 今日の目標"
+              goalList={goals.daily}
+              collapsed={false}
+              collapsible={false}
+              inputText={dailyInput}
+              inputCategory={dailyCategory}
+              onInputTextChange={setDailyInput}
+              onInputCategoryChange={setDailyCategory}
+              onAdd={() => {
+                if (!dailyInput.trim()) return;
+                addGoalItem("daily", dailyInput.trim(), dailyCategory);
+                setDailyInput("");
+              }}
+              onUpdateItem={(id, patch) => updateGoalItem("daily", id, patch)}
+              onRemoveItem={id => removeGoalItem("daily", id)}
+              onAiSuggest={() => suggestGoal("daily")}
+              isSuggesting={suggestingPeriod === "daily"}
+              aiSuggestion={aiSuggestions.daily?.periodKey === getDayKey() ? aiSuggestions.daily : null}
+              onAdoptAi={() => adoptAiGoal("daily")}
+            />
+            <HomeDeadlineGoalsSection
+              goals={goals.deadlineGoals ?? []}
+              inputText={deadlineInput}
+              inputCategory={deadlineCategory}
+              inputGoalType={deadlineGoalType}
+              inputDeadline={deadlineDate}
+              onInputTextChange={setDeadlineInput}
+              onInputCategoryChange={setDeadlineCategory}
+              onInputGoalTypeChange={setDeadlineGoalType}
+              onInputDeadlineChange={setDeadlineDate}
+              onAdd={() => {
+                if (!deadlineInput.trim()) return;
+                addDeadlineGoalEntry(deadlineInput.trim(), deadlineCategory, deadlineDate, deadlineGoalType);
+                setDeadlineInput("");
+              }}
+              onUpdateGoal={updateDeadlineGoal}
+              onToggleAchieved={toggleDeadlineGoalAchieved}
+              onRemoveGoal={removeDeadlineGoal}
+              onAiSuggest={suggestDeadlineGoal}
+              isSuggesting={isSuggestingDeadline}
+              aiSuggestion={aiDeadlineSuggestion}
+              onAdoptAi={adoptAiDeadlineGoal}
+            />
+          </>
+        );
+      case "weeklyGoal":
+        return (
+          <HomeGoalSection
+            title="📅 今週の目標"
+            goalList={goals.weekly}
+            collapsed={false}
+            collapsible={false}
+            inputText={weeklyInput}
+            inputCategory={weeklyCategory}
+            onInputTextChange={setWeeklyInput}
+            onInputCategoryChange={setWeeklyCategory}
+            onAdd={() => {
+              if (!weeklyInput.trim()) return;
+              addGoalItem("weekly", weeklyInput.trim(), weeklyCategory);
+              setWeeklyInput("");
+            }}
+            onUpdateItem={(id, patch) => updateGoalItem("weekly", id, patch)}
+            onRemoveItem={id => removeGoalItem("weekly", id)}
+            onAiSuggest={() => suggestGoal("weekly")}
+            isSuggesting={suggestingPeriod === "weekly"}
+            aiSuggestion={aiSuggestions.weekly?.periodKey === getWeekKey() ? aiSuggestions.weekly : null}
+            onAdoptAi={() => adoptAiGoal("weekly")}
+          />
+        );
+      case "monthlyGoal":
+        return (
+          <HomeGoalSection
+            title="🗓 今月の目標"
+            goalList={goals.monthly}
+            collapsed={false}
+            collapsible={false}
+            inputText={monthlyInput}
+            inputCategory={monthlyCategory}
+            onInputTextChange={setMonthlyInput}
+            onInputCategoryChange={setMonthlyCategory}
+            onAdd={() => {
+              if (!monthlyInput.trim()) return;
+              addGoalItem("monthly", monthlyInput.trim(), monthlyCategory);
+              setMonthlyInput("");
+            }}
+            onUpdateItem={(id, patch) => updateGoalItem("monthly", id, patch)}
+            onRemoveItem={id => removeGoalItem("monthly", id)}
+            onAiSuggest={() => suggestGoal("monthly")}
+            isSuggesting={suggestingPeriod === "monthly"}
+            aiSuggestion={aiSuggestions.monthly?.periodKey === getMonthKey() ? aiSuggestions.monthly : null}
+            onAdoptAi={() => adoptAiGoal("monthly")}
+          />
+        );
+      case "diagnosis":
+        return (
+          <div style={{ background: "linear-gradient(160deg, #1a1410, #2d2218)", color: "#f5f0e8", padding: "28px 20px", marginTop: 16 }}>
+            <div style={{ fontSize: 12, opacity: 0.6, marginBottom: 4 }}>おはようございます</div>
+            <div style={{ fontSize: 22, fontWeight: "bold", marginBottom: 16 }}>{getDisplayName(userProfile)} 様</div>
+            <div style={{ display: "inline-block", background: "rgba(193,127,74,0.2)", border: "1px solid rgba(193,127,74,0.3)", borderRadius: 20, padding: "6px 14px", fontSize: 13, color: "#e8a86a", marginBottom: 16 }}>
+              今日の診断：{MOCK_SCHEDULE.diagnosis}
+            </div>
+            <div style={{ fontSize: 13, lineHeight: 1.8, opacity: 0.8, borderLeft: "2px solid #c17f4a", paddingLeft: 12 }}>
+              {MOCK_SCHEDULE.advice}
+            </div>
+          </div>
+        );
+      case "schedule":
+        return (
+          <>
+            <div style={{ padding: "20px 20px 8px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+              <div style={{ fontSize: 15, fontWeight: "bold", color: "#3d3228" }}>📅 今日のスケジュール</div>
+              <button
+                type="button"
+                onClick={() => setScheduleEdit({ mode: "add", item: { id: "", time: "12:00", label: "", sub: "" } })}
+                style={{ background: "#fdf0e4", border: "1.5px solid #c17f4a", borderRadius: 16, padding: "4px 12px", fontSize: 12, color: "#8b5a2b", cursor: "pointer", fontWeight: "bold" }}
+              >
+                ＋ 追加
+              </button>
+            </div>
+            {timelineItems.map(item => (
+              <button
+                key={item.id}
+                type="button"
+                onClick={() => setScheduleEdit({ mode: "edit", item: { ...item } })}
+                style={{
+                  display: "block", width: "calc(100% - 40px)", margin: "0 20px 8px", background: "white", borderRadius: 12, padding: "12px 14px",
+                  border: item.id.startsWith("custom-") || item.id.startsWith("item-") ? "1.5px solid #c17f4a" : "1px solid rgba(60,40,20,0.1)",
+                  cursor: "pointer", textAlign: "left",
+                }}
+              >
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                  <div style={{ fontSize: 11, color: "#4a6741", fontWeight: "bold", marginBottom: 2 }}>{item.label}</div>
+                  {(item.id.startsWith("custom-") || item.id.startsWith("item-")) && (
+                    <span style={{ fontSize: 9, color: "#c17f4a", background: "#fdf0e4", borderRadius: 8, padding: "2px 6px" }}>
+                      {item.id.startsWith("custom-") ? "AI追加" : "追加"}
+                    </span>
+                  )}
+                </div>
+                <div style={{ fontSize: 18, fontWeight: "bold", color: "#1a1410" }}>{item.time}</div>
+                {item.sub && <div style={{ fontSize: 11, color: "#3d3228", opacity: 0.7 }}>{item.sub}</div>}
+                <div style={{ fontSize: 10, color: "#9a8b7a", marginTop: 6 }}>タップして編集</div>
+              </button>
+            ))}
+          </>
+        );
+      case "radio":
+        return (
+          <TsuyukusaRadio
+            radioSettings={radioSettings}
+            onChange={setRadioSettings}
+            onOpenBinaural={() => openBinauralPanel("beats")}
+            onOpenPomodoro={() => openBinauralPanel("pomodoro")}
+          />
+        );
+      case "binaural":
+        return (
+          <div style={{ margin: "12px 16px 0", background: "white", borderRadius: 12, padding: "14px", border: "1px solid rgba(60,40,20,0.1)" }}>
+            <div style={{ fontSize: 13, fontWeight: "bold", color: "#4a6741", marginBottom: 8 }}>🎧 バイノーラルビート</div>
+            <div style={{ fontSize: 11, color: "#9a8b7a", marginBottom: 10, lineHeight: 1.5 }}>
+              診断「{MOCK_SCHEDULE.diagnosis}」におすすめの周波数で集中・リラックスをサポート
+            </div>
+            <button type="button" onClick={() => openBinauralPanel("beats")} style={homeActionBtnStyle}>
+              ビートを聴く
+            </button>
+          </div>
+        );
+      case "pomodoro":
+        return (
+          <div style={{ margin: "12px 16px 0", background: "white", borderRadius: 12, padding: "14px", border: "1px solid rgba(60,40,20,0.1)" }}>
+            <div style={{ fontSize: 13, fontWeight: "bold", color: "#4a6741", marginBottom: 8 }}>🍅 ポモドーロタイマー</div>
+            <div style={{ fontSize: 11, color: "#9a8b7a", marginBottom: 10, lineHeight: 1.5 }}>
+              作業25分・休憩5分（カスタム可）。ベータ波/アルファ波と自動連動
+            </div>
+            <button type="button" onClick={() => openBinauralPanel("pomodoro")} style={homeActionBtnStyle}>
+              タイマーを開く
+            </button>
+          </div>
+        );
+      default:
+        return null;
+    }
+  };
+
   if (!storageReady) {
     return (
       <div style={{ maxWidth: 430, margin: "0 auto", minHeight: "100vh", background: "#f5f0e8", display: "flex", flexDirection: "column", fontFamily: "sans-serif" }}>
@@ -2908,185 +3171,12 @@ ${buildHealthSummary(healthForm)}`;
         {/* ホーム */}
         {tab === "home" && (
           <div>
-            {(homeDisplay.weatherChart || homeDisplay.humidityChart || homeDisplay.moonPhase) && (
-              <div style={{ margin: "16px 16px 0" }}>
-                {weatherLoading && (
-                  <div style={{ background: "white", borderRadius: 14, padding: 16, height: 140, border: "1px solid rgba(60,40,20,0.1)", fontSize: 11, color: "#9a8b7a", textAlign: "center", lineHeight: "108px" }}>
-                    天気を取得中...
-                  </div>
-                )}
-                {weather && !weatherLoading && weather.hourly?.length > 0 && (
-                  <DailyWeatherChart
-                    hourly={weather.hourly}
-                    showTemperature={homeDisplay.weatherChart}
-                    showHumidity={homeDisplay.humidityChart}
-                    showMoon={homeDisplay.moonPhase}
-                    moonAge={weather.moonAge}
-                    moonPhase={weather.moonPhase}
-                  />
-                )}
-              </div>
-            )}
-
-            {homeDisplay.sunTimes && weather && !weatherLoading && (weather.sunrise || weather.sunset) && (
-              <div style={{ margin: "12px 16px 0", background: "white", borderRadius: 12, padding: "12px 14px", border: "1px solid rgba(60,40,20,0.1)" }}>
-                <div style={{ fontSize: 10, color: "#9a8b7a", marginBottom: 8, textAlign: "center" }}>
-                  📍 {getRegionById(locationSettings.regionId).label}
-                </div>
-                <div style={{ display: "flex", justifyContent: "space-around", fontSize: 13, color: "#3d3228" }}>
-                  {weather.sunrise && (
-                    <span>🌅 日の出 <strong>{weather.sunrise}</strong></span>
-                  )}
-                  {weather.sunset && (
-                    <span>🌇 日の入り <strong>{weather.sunset}</strong></span>
-                  )}
-                </div>
-              </div>
-            )}
-
-            {homeDisplay.dailyGoal && (
-              <>
-                <HomeGoalSection
-                  title="🎯 今日の目標"
-                  goalList={goals.daily}
-                  collapsed={false}
-                  collapsible={false}
-                  inputText={dailyInput}
-                  inputCategory={dailyCategory}
-                  onInputTextChange={setDailyInput}
-                  onInputCategoryChange={setDailyCategory}
-                  onAdd={() => {
-                    if (!dailyInput.trim()) return;
-                    addGoalItem("daily", dailyInput.trim(), dailyCategory);
-                    setDailyInput("");
-                  }}
-                  onUpdateItem={(id, patch) => updateGoalItem("daily", id, patch)}
-                  onRemoveItem={id => removeGoalItem("daily", id)}
-                  onAiSuggest={() => suggestGoal("daily")}
-                  isSuggesting={suggestingPeriod === "daily"}
-                  aiSuggestion={aiSuggestions.daily?.periodKey === getDayKey() ? aiSuggestions.daily : null}
-                  onAdoptAi={() => adoptAiGoal("daily")}
-                />
-                <HomeDeadlineGoalsSection
-                  goals={goals.deadlineGoals ?? []}
-                  inputText={deadlineInput}
-                  inputCategory={deadlineCategory}
-                  inputGoalType={deadlineGoalType}
-                  inputDeadline={deadlineDate}
-                  onInputTextChange={setDeadlineInput}
-                  onInputCategoryChange={setDeadlineCategory}
-                  onInputGoalTypeChange={setDeadlineGoalType}
-                  onInputDeadlineChange={setDeadlineDate}
-                  onAdd={() => {
-                    if (!deadlineInput.trim()) return;
-                    addDeadlineGoalEntry(deadlineInput.trim(), deadlineCategory, deadlineDate, deadlineGoalType);
-                    setDeadlineInput("");
-                  }}
-                  onUpdateGoal={updateDeadlineGoal}
-                  onToggleAchieved={toggleDeadlineGoalAchieved}
-                  onRemoveGoal={removeDeadlineGoal}
-                  onAiSuggest={suggestDeadlineGoal}
-                  isSuggesting={isSuggestingDeadline}
-                  aiSuggestion={aiDeadlineSuggestion}
-                  onAdoptAi={adoptAiDeadlineGoal}
-                />
-              </>
-            )}
-
-            {homeDisplay.diagnosis && (
-            <div style={{ background: "linear-gradient(160deg, #1a1410, #2d2218)", color: "#f5f0e8", padding: "28px 20px", marginTop: 16 }}>
-              <div style={{ fontSize: 12, opacity: 0.6, marginBottom: 4 }}>おはようございます</div>
-              <div style={{ fontSize: 22, fontWeight: "bold", marginBottom: 16 }}>{getDisplayName(userProfile)} 様</div>
-              <div style={{ display: "inline-block", background: "rgba(193,127,74,0.2)", border: "1px solid rgba(193,127,74,0.3)", borderRadius: 20, padding: "6px 14px", fontSize: 13, color: "#e8a86a", marginBottom: 16 }}>
-                今日の診断：{MOCK_SCHEDULE.diagnosis}
-              </div>
-              <div style={{ fontSize: 13, lineHeight: 1.8, opacity: 0.8, borderLeft: "2px solid #c17f4a", paddingLeft: 12 }}>
-                {MOCK_SCHEDULE.advice}
-              </div>
-              <button
-                type="button"
-                onClick={() => setShowBinauralPanel(true)}
-                style={{
-                  marginTop: 16,
-                  width: "100%",
-                  padding: "12px 14px",
-                  borderRadius: 12,
-                  border: "1.5px solid rgba(193,127,74,0.4)",
-                  background: "rgba(193,127,74,0.15)",
-                  color: "#e8a86a",
-                  fontSize: 13,
-                  fontWeight: "bold",
-                  cursor: "pointer",
-                }}
-              >
-                🎧 バイノーラルビート（診断におすすめ）
-              </button>
-            </div>
-            )}
-
-            {homeDisplay.schedule && (
-            <>
-            <div style={{ padding: "20px 20px 8px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-              <div style={{ fontSize: 15, fontWeight: "bold", color: "#3d3228" }}>📅 今日のスケジュール</div>
-              <button
-                type="button"
-                onClick={() =>
-                  setScheduleEdit({
-                    mode: "add",
-                    item: { id: "", time: "12:00", label: "", sub: "" },
-                  })
-                }
-                style={{
-                  background: "#fdf0e4",
-                  border: "1.5px solid #c17f4a",
-                  borderRadius: 16,
-                  padding: "4px 12px",
-                  fontSize: 12,
-                  color: "#8b5a2b",
-                  cursor: "pointer",
-                  fontWeight: "bold",
-                }}
-              >
-                ＋ 追加
-              </button>
-            </div>
-
-            {timelineItems.map((item) => (
-              <button
-                key={item.id}
-                type="button"
-                onClick={() => setScheduleEdit({ mode: "edit", item: { ...item } })}
-                style={{
-                  display: "block",
-                  width: "calc(100% - 40px)",
-                  margin: "0 20px 8px",
-                  background: "white",
-                  borderRadius: 12,
-                  padding: "12px 14px",
-                  border: item.id.startsWith("custom-") || item.id.startsWith("item-")
-                    ? "1.5px solid #c17f4a"
-                    : "1px solid rgba(60,40,20,0.1)",
-                  cursor: "pointer",
-                  textAlign: "left",
-                }}
-              >
-                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                  <div style={{ fontSize: 11, color: "#4a6741", fontWeight: "bold", marginBottom: 2 }}>{item.label}</div>
-                  {(item.id.startsWith("custom-") || item.id.startsWith("item-")) && (
-                    <span style={{ fontSize: 9, color: "#c17f4a", background: "#fdf0e4", borderRadius: 8, padding: "2px 6px" }}>
-                      {item.id.startsWith("custom-") ? "AI追加" : "追加"}
-                    </span>
-                  )}
-                </div>
-                <div style={{ fontSize: 18, fontWeight: "bold", color: "#1a1410" }}>{item.time}</div>
-                {item.sub && (
-                  <div style={{ fontSize: 11, color: "#3d3228", opacity: 0.7 }}>{item.sub}</div>
-                )}
-                <div style={{ fontSize: 10, color: "#9a8b7a", marginTop: 6 }}>タップして編集</div>
-              </button>
-            ))}
-            </>
-            )}
+            <AddToHomeScreen />
+            {homeDisplay.sectionOrder
+              .filter(sectionId => isSectionVisible(homeDisplay, sectionId))
+              .map(sectionId => (
+                <div key={sectionId}>{renderHomeSection(sectionId)}</div>
+              ))}
           </div>
         )}
 
@@ -3096,7 +3186,7 @@ ${buildHealthSummary(healthForm)}`;
             <div style={{ margin: "12px 16px 0" }}>
               <button
                 type="button"
-                onClick={() => setShowBinauralPanel(true)}
+                onClick={() => openBinauralPanel("beats")}
                 style={{
                   width: "100%",
                   padding: "10px 14px",
@@ -3240,77 +3330,38 @@ ${buildHealthSummary(healthForm)}`;
           </div>
         )}
 
+        {/* 画面設定 */}
+        {tab === "display" && (
+          <ScreenSettingsTab
+            userProfile={userProfile}
+            onUserProfileChange={setUserProfile}
+            defaultUserName={DEFAULT_USER_NAME}
+            locationSettings={locationSettings}
+            onLocationChange={setLocationSettings}
+            homeDisplay={homeDisplay}
+            onHomeDisplayChange={setHomeDisplay}
+          />
+        )}
+
         {/* 設定 */}
         {tab === "settings" && (
           <div style={{ padding: 16 }}>
-            <div style={{ fontSize: 15, fontWeight: "bold", color: "#3d3228", marginBottom: 4 }}>👤 プロフィール</div>
-            <div style={{ fontSize: 11, color: "#3d3228", opacity: 0.6, marginBottom: 12 }}>
-              ホーム画面の挨拶に表示されるお名前です。AI相談ではニックネームでお呼びします。
+            <div style={{ fontSize: 15, fontWeight: "bold", color: "#3d3228", marginBottom: 4 }}>📖 使い方ガイド</div>
+            <div style={{ fontSize: 11, color: "#9a8b7a", marginBottom: 12, lineHeight: 1.5 }}>
+              つゆくさ生活リズムアプリの主な機能と設定手順
             </div>
-            <div style={{ ...cardStyle, marginBottom: 12 }}>
-              <div style={fieldLabelStyle}>お名前</div>
-              <input
-                type="text"
-                placeholder={DEFAULT_USER_NAME}
-                value={userProfile.name}
-                onChange={e => setUserProfile(prev => ({ ...prev, name: e.target.value }))}
-                onBlur={() => {
-                  const trimmed = userProfile.name.trim() || DEFAULT_USER_NAME;
-                  setUserProfile(prev => ({ ...prev, name: trimmed, nameConfigured: true }));
-                }}
-                style={{ ...inputStyle, marginBottom: 12 }}
-              />
-              <div style={fieldLabelStyle}>ニックネーム（なんと呼ばれたいですか？）</div>
-              <input
-                type="text"
-                placeholder="例：たろう、太郎さん"
-                value={userProfile.nickname}
-                onChange={e => setUserProfile(prev => ({ ...prev, nickname: e.target.value }))}
-                onBlur={() => {
-                  setUserProfile(prev => ({ ...prev, nickname: prev.nickname.trim(), nameConfigured: true }));
-                }}
-                style={inputStyle}
-              />
-              {!userProfile.nameConfigured && (
-                <div style={{ fontSize: 11, color: "#c17f4a", marginTop: 8, lineHeight: 1.5 }}>
-                  初回設定です。お名前を入力して保存してください。
+            {USER_MANUAL_STEPS.map((step, i) => (
+              <div key={step.title} style={{ ...cardStyle, marginBottom: 10 }}>
+                <div style={{ fontSize: 13, fontWeight: "bold", color: "#3d3228", marginBottom: 6 }}>
+                  {i + 1}. {step.icon} {step.title}
                 </div>
-              )}
-            </div>
-
-            <div style={{ fontSize: 15, fontWeight: "bold", color: "#3d3228", marginBottom: 4, paddingTop: 8, borderTop: "1px solid rgba(60,40,20,0.12)" }}>📍 在住地域</div>
-            <div style={{ fontSize: 11, color: "#3d3228", opacity: 0.6, marginBottom: 12, lineHeight: 1.5 }}>
-              地域に合わせて天気・日の出・日の入り時間を表示します
-            </div>
-            <div style={{ ...cardStyle, marginBottom: 12 }}>
-              <div style={fieldLabelStyle}>地域を選択</div>
-              <select
-                value={locationSettings.regionId}
-                onChange={e => setLocationSettings({ regionId: e.target.value })}
-                style={{ ...inputStyle, appearance: "auto" }}
-              >
-                {REGION_OPTIONS.map(region => (
-                  <option key={region.id} value={region.id}>
-                    {region.label}
-                  </option>
-                ))}
-              </select>
-            </div>
-
-            <div style={{ fontSize: 15, fontWeight: "bold", color: "#3d3228", marginBottom: 4 }}>🏠 ホーム表示設定</div>
-            <div style={{ fontSize: 11, color: "#3d3228", opacity: 0.6, marginBottom: 12 }}>
-              ホーム画面に表示する項目を選べます
-            </div>
-            {HOME_DISPLAY_OPTIONS.map(opt => (
-              <DisplayToggle
-                key={opt.key}
-                label={opt.label}
-                checked={homeDisplay[opt.key]}
-                onChange={v => setHomeDisplay(prev => ({ ...prev, [opt.key]: v }))}
-              />
+                <div style={{ fontSize: 12, color: "#3d3228", lineHeight: 1.7, opacity: 0.85, whiteSpace: "pre-line" }}>
+                  {step.body}
+                </div>
+              </div>
             ))}
 
-            <div style={{ fontSize: 15, fontWeight: "bold", color: "#3d3228", marginBottom: 4, paddingTop: 12, borderTop: "1px solid rgba(60,40,20,0.12)", marginTop: 8 }}>📅 曜日別スケジュール</div>
+            <div style={{ fontSize: 15, fontWeight: "bold", color: "#3d3228", marginBottom: 4, paddingTop: 8, borderTop: "1px solid rgba(60,40,20,0.12)" }}>📅 曜日別スケジュール</div>
             <div style={{ fontSize: 11, color: "#3d3228", opacity: 0.6, marginBottom: 12, lineHeight: 1.5 }}>
               月〜日それぞれの基本スケジュールを設定できます。毎朝、その曜日のテンプレートから今日のスケジュールが自動生成されます。
             </div>
@@ -3381,19 +3432,19 @@ ${buildHealthSummary(healthForm)}`;
 
             <div style={{ fontSize: 15, fontWeight: "bold", color: "#3d3228", marginBottom: 4, paddingTop: 12, borderTop: "1px solid rgba(60,40,20,0.12)", marginTop: 8 }}>📆 Googleカレンダー連携</div>
             <div style={{ fontSize: 11, color: "#3d3228", opacity: 0.6, marginBottom: 12, lineHeight: 1.5 }}>
-              Gmailアドレスを入力するだけで接続できます。「仕事」「休日」などの予定に合わせて、今日のスケジュールが自動調整されます。
+              非公開のiCalフィードURLを使って予定を読み取ります。「仕事」「休日」などの予定に合わせてスケジュールが自動調整されます。
             </div>
             <div style={{ ...cardStyle, marginBottom: 12 }}>
-              <div style={fieldLabelStyle}>Googleアカウント（Gmail）</div>
+              <div style={fieldLabelStyle}>iCalフィードURL（非公開アドレス）</div>
               <input
-                type="email"
-                placeholder="example@gmail.com"
-                value={googleCalendar.email}
-                onChange={e => setGoogleCalendar(prev => ({ ...prev, email: e.target.value, connected: false }))}
+                type="url"
+                placeholder="https://calendar.google.com/calendar/ical/..."
+                value={googleCalendar.icalUrl}
+                onChange={e => setGoogleCalendar(prev => ({ ...prev, icalUrl: e.target.value, connected: false }))}
                 style={{ ...inputStyle, marginBottom: 10 }}
               />
-              <div style={{ fontSize: 10, color: "#9a8b7a", marginBottom: 12, lineHeight: 1.5 }}>
-                Googleカレンダーの設定で「一般公開」にすると連携できます。予定名に「仕事」「休日」などを含めると自動調整の精度が上がります。
+              <div style={{ fontSize: 10, color: "#9a8b7a", marginBottom: 12, lineHeight: 1.6 }}>
+                Googleカレンダー → 設定 → 対象カレンダー → 「非公開アドレス（iCal形式）」のURLをコピーして貼り付けてください。カレンダーを一般公開する必要はありません。
               </div>
               <div style={{ display: "flex", gap: 8 }}>
                 <button
@@ -3433,7 +3484,7 @@ ${buildHealthSummary(healthForm)}`;
               </div>
               {googleCalendar.connected && (
                 <div style={{ fontSize: 11, color: "#4a6741", marginTop: 10 }}>
-                  ✓ 接続済み（{googleCalendar.email}）
+                  ✓ 接続済み
                 </div>
               )}
               {calendarMessage && (
@@ -3634,8 +3685,8 @@ ${buildHealthSummary(healthForm)}`;
               { icon: "🍚", label: "食事アラート", val: `${MOCK_SCHEDULE.mealTime1} / ${MOCK_SCHEDULE.mealTime2}` },
               { icon: "🛁", label: "入浴アラート", val: MOCK_SCHEDULE.bathTime },
               { icon: "🌙", label: "就寝アラート", val: MOCK_SCHEDULE.sleepTime },
-              { icon: "📅", label: "Googleカレンダー連携", val: "未連携" },
-              { icon: "💬", label: "LINE通知", val: "未設定" },
+              { icon: "📅", label: "Googleカレンダー連携", val: googleCalendar.connected ? "接続済み" : "未連携" },
+              { icon: "📲", label: "PWA（ホーム画面追加）", val: "対応" },
             ].map((item, i) => (
               <div key={i} style={{ ...cardStyle, display: "flex", alignItems: "center", gap: 12 }}>
                 <div style={{ fontSize: 20 }}>{item.icon}</div>
@@ -4104,6 +4155,7 @@ ${buildHealthSummary(healthForm)}`;
       {showBinauralPanel && (
         <BinauralBeatsPanel
           diagnosis={MOCK_SCHEDULE.diagnosis}
+          initialPanelMode={binauralPanelMode}
           onClose={() => setShowBinauralPanel(false)}
           onExplainRequest={requestBinauralExplain}
         />
@@ -4115,6 +4167,7 @@ ${buildHealthSummary(healthForm)}`;
           { key: "home", icon: "🏠", label: "ホーム" },
           { key: "chat", icon: "💬", label: "AI相談" },
           { key: "history", icon: "📊", label: "履歴" },
+          { key: "display", icon: "🖥", label: "画面" },
           { key: "settings", icon: "⚙️", label: "設定" },
         ].map(item => (
           <button key={item.key} onClick={() => setTab(item.key as Tab)} style={{
