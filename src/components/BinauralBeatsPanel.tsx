@@ -283,7 +283,7 @@ export default function BinauralBeatsPanel({ diagnosis, onClose }: Props) {
   );
 }
 
-function SectionTitle({ children }: { children: React.ReactNode }) {
+function SectionTitle({ children }: { children: ReactNode }) {
   return (
     <div style={{ fontSize: 13, fontWeight: "bold", color: "#4a6741", marginBottom: 8 }}>{children}</div>
   );
