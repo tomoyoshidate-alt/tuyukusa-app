@@ -2060,7 +2060,6 @@ export default function TuyukusaApp() {
   const [calendarMessage, setCalendarMessage] = useState("");
   const [chatFlowStep, setChatFlowStep] = useState<ChatFlowStep>("intro");
   const [chatFlowData, setChatFlowData] = useState<ChatFlowData>({});
-  const [chatMessages, setChatMessages] = useState<Message[]>([]);
   const chatHistoryLoadedRef = useRef(false);
   const [pendingBinauralExplain, setPendingBinauralExplain] = useState(false);
   const [weather, setWeather] = useState<WeatherData | null>(null);
