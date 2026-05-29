@@ -6,6 +6,7 @@ export const TUYUKUSA_STORAGE_KEYS = [
   "tuyukusa-ai-goals",
   "tuyukusa-schedule",
   "tuyukusa-schedule-templates",
+  "tuyukusa-google-calendar",
   "tuyukusa-home-display",
   "tuyukusa-user-profile",
 ] as const;
@@ -86,12 +87,22 @@ function isScheduleTemplatesStorageValid(data: unknown): boolean {
   return !!data && typeof data === "object";
 }
 
+function isGoogleCalendarStorageValid(data: unknown): boolean {
+  if (!data || typeof data !== "object") return false;
+  const d = data as Record<string, unknown>;
+  if ("email" in d && d.email !== undefined && typeof d.email !== "string") return false;
+  if ("connected" in d && d.connected !== undefined && typeof d.connected !== "boolean") return false;
+  if ("lastSyncDayKey" in d && d.lastSyncDayKey !== undefined && typeof d.lastSyncDayKey !== "string") return false;
+  return true;
+}
+
 function isStoredDataValid(): boolean {
   const validators: Record<(typeof TUYUKUSA_STORAGE_KEYS)[number], (data: unknown) => boolean> = {
     "tuyukusa-goals": isGoalsStorageValid,
     "tuyukusa-ai-goals": isAiSuggestionsStorageValid,
     "tuyukusa-schedule": isScheduleStorageValid,
     "tuyukusa-schedule-templates": isScheduleTemplatesStorageValid,
+    "tuyukusa-google-calendar": isGoogleCalendarStorageValid,
     "tuyukusa-home-display": isHomeDisplayStorageValid,
     "tuyukusa-user-profile": isUserProfileStorageValid,
   };

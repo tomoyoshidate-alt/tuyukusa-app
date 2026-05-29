@@ -11,6 +11,12 @@ import {
 } from "react";
 import dynamic from "next/dynamic";
 import { runTuyukusaStorageMigration } from "@/src/lib/tuyukusaStorage";
+import {
+  applyCalendarAdjustments,
+  INITIAL_GOOGLE_CALENDAR,
+  normalizeGoogleCalendarSettings,
+  type GoogleCalendarSettings,
+} from "@/src/lib/googleCalendar";
 
 const DailyWeatherChart = dynamic(() => import("@/src/components/DailyWeatherChart"), {
   ssr: false,
@@ -1866,6 +1872,12 @@ export default function TuyukusaApp() {
     INITIAL_USER_PROFILE,
     normalizeUserProfile
   );
+  const [googleCalendar, setGoogleCalendar, calendarHydrated] = useLocalStorage<GoogleCalendarSettings>(
+    "tuyukusa-google-calendar",
+    INITIAL_GOOGLE_CALENDAR,
+    normalizeGoogleCalendarSettings
+  );
+  const [calendarMessage, setCalendarMessage] = useState("");
   const [weather, setWeather] = useState<WeatherData | null>(null);
   const [weatherLoading, setWeatherLoading] = useState(true);
   const [suggestingPeriod, setSuggestingPeriod] = useState<GoalPeriod | "deadline" | null>(null);
@@ -1903,7 +1915,8 @@ export default function TuyukusaApp() {
     templatesHydrated &&
     homeDisplayHydrated &&
     aiSuggestionsHydrated &&
-    userProfileHydrated;
+    userProfileHydrated &&
+    calendarHydrated;
 
   useEffect(() => {
     if (!storageReady || userProfile.nameConfigured || firstLaunchRef.current) return;
@@ -1927,6 +1940,10 @@ export default function TuyukusaApp() {
       setSchedule(prev =>
         prev.dayKey === dayKey ? prev : createFreshSchedule(dayKey, scheduleTemplatesRef.current)
       );
+      setGoogleCalendar(prev => {
+        if (!prev.connected || !prev.email || prev.lastSyncDayKey === dayKey) return prev;
+        return { ...prev, lastSyncDayKey: undefined };
+      });
     };
     refreshIfNewDay();
     const intervalId = setInterval(refreshIfNewDay, 60_000);
@@ -2190,6 +2207,70 @@ ${buildHealthSummary(healthForm)}`;
   };
 
   const templateItemsForDay = sortByTime(scheduleTemplates[templateEditDay] ?? []);
+
+  const syncGoogleCalendar = async (emailOverride?: string) => {
+    const email = (emailOverride ?? googleCalendar.email).trim();
+    if (!email) return false;
+    const dayKey = getDayKey();
+    try {
+      const res = await fetch(
+        `/api/google-calendar?email=${encodeURIComponent(email)}&day=${dayKey}`
+      );
+      const data = (await res.json()) as {
+        events?: { summary: string; start: string; end: string; allDay: boolean }[];
+        dayMode?: "default" | "work" | "holiday";
+        error?: string;
+      };
+      if (!res.ok) throw new Error(data.error ?? "カレンダーの取得に失敗しました");
+
+      setSchedule(prev => {
+        if (prev.dayKey !== dayKey) return prev;
+        const adjusted = applyCalendarAdjustments(
+          prev.items,
+          data.events ?? [],
+          data.dayMode ?? "default",
+          dayKey
+        );
+        return { dayKey, items: adjusted, alerts: syncScheduleAlerts(adjusted) };
+      });
+      setGoogleCalendar(prev => ({ ...prev, email, connected: true, lastSyncDayKey: dayKey }));
+      return true;
+    } catch (err) {
+      setCalendarMessage(err instanceof Error ? err.message : "カレンダーの取得に失敗しました");
+      return false;
+    }
+  };
+
+  const connectGoogleCalendar = async () => {
+    setCalendarMessage("");
+    const email = googleCalendar.email.trim();
+    if (!email) {
+      setCalendarMessage("メールアドレスを入力してください");
+      return;
+    }
+    const ok = await syncGoogleCalendar(email);
+    if (ok) {
+      setCalendarMessage("Googleカレンダーに接続しました。予定に合わせてスケジュールを調整しました。");
+    }
+  };
+
+  const disconnectGoogleCalendar = () => {
+    setGoogleCalendar(INITIAL_GOOGLE_CALENDAR);
+    setCalendarMessage("");
+  };
+
+  useEffect(() => {
+    if (!scheduleHydrated || !calendarHydrated) return;
+    if (!googleCalendar.connected || !googleCalendar.email) return;
+    if (googleCalendar.lastSyncDayKey === getDayKey()) return;
+    syncGoogleCalendar();
+  }, [
+    scheduleHydrated,
+    calendarHydrated,
+    googleCalendar.connected,
+    googleCalendar.email,
+    googleCalendar.lastSyncDayKey,
+  ]);
 
   const addSuggestionToSchedule = (messageIndex: number, suggestionId: string) => {
     const msg = chatMessages[messageIndex];
@@ -2763,6 +2844,77 @@ ${buildHealthSummary(healthForm)}`;
                   {item.sub && <div style={{ fontSize: 10, color: "#3d3228", opacity: 0.7 }}>{item.sub}</div>}
                 </button>
               ))}
+            </div>
+
+            <div style={{ fontSize: 15, fontWeight: "bold", color: "#3d3228", marginBottom: 4, paddingTop: 12, borderTop: "1px solid rgba(60,40,20,0.12)", marginTop: 8 }}>📆 Googleカレンダー連携</div>
+            <div style={{ fontSize: 11, color: "#3d3228", opacity: 0.6, marginBottom: 12, lineHeight: 1.5 }}>
+              Gmailアドレスを入力するだけで接続できます。「仕事」「休日」などの予定に合わせて、今日のスケジュールが自動調整されます。
+            </div>
+            <div style={{ ...cardStyle, marginBottom: 12 }}>
+              <div style={fieldLabelStyle}>Googleアカウント（Gmail）</div>
+              <input
+                type="email"
+                placeholder="example@gmail.com"
+                value={googleCalendar.email}
+                onChange={e => setGoogleCalendar(prev => ({ ...prev, email: e.target.value, connected: false }))}
+                style={{ ...inputStyle, marginBottom: 10 }}
+              />
+              <div style={{ fontSize: 10, color: "#9a8b7a", marginBottom: 12, lineHeight: 1.5 }}>
+                Googleカレンダーの設定で「一般公開」にすると連携できます。予定名に「仕事」「休日」などを含めると自動調整の精度が上がります。
+              </div>
+              <div style={{ display: "flex", gap: 8 }}>
+                <button
+                  type="button"
+                  onClick={connectGoogleCalendar}
+                  style={{
+                    flex: 1,
+                    padding: "10px",
+                    borderRadius: 10,
+                    border: "none",
+                    background: "#1a1410",
+                    color: "#f5f0e8",
+                    fontSize: 13,
+                    fontWeight: "bold",
+                    cursor: "pointer",
+                  }}
+                >
+                  {googleCalendar.connected ? "再同期" : "接続する"}
+                </button>
+                {googleCalendar.connected && (
+                  <button
+                    type="button"
+                    onClick={disconnectGoogleCalendar}
+                    style={{
+                      padding: "10px 14px",
+                      borderRadius: 10,
+                      border: "1.5px solid rgba(60,40,20,0.12)",
+                      background: "white",
+                      color: "#9a8b7a",
+                      fontSize: 13,
+                      cursor: "pointer",
+                    }}
+                  >
+                    解除
+                  </button>
+                )}
+              </div>
+              {googleCalendar.connected && (
+                <div style={{ fontSize: 11, color: "#4a6741", marginTop: 10 }}>
+                  ✓ 接続済み（{googleCalendar.email}）
+                </div>
+              )}
+              {calendarMessage && (
+                <div
+                  style={{
+                    fontSize: 11,
+                    color: calendarMessage.includes("失敗") || calendarMessage.includes("できません") ? "#c44a4a" : "#4a6741",
+                    marginTop: 10,
+                    lineHeight: 1.5,
+                  }}
+                >
+                  {calendarMessage}
+                </div>
+              )}
             </div>
 
             <div style={{ fontSize: 15, fontWeight: "bold", color: "#3d3228", marginBottom: 4, paddingTop: 12, borderTop: "1px solid rgba(60,40,20,0.12)", marginTop: 8 }}>🎯 目標設定</div>
