@@ -183,22 +183,36 @@ function buildAmbient(
 
 export class BinauralAudioEngine {
   private nodes: EngineNodes | null = null;
+  private targetMaster = 0.7;
+  private targetBinaural = 0.45;
+  private targetAmbient = 0.35;
 
-  async start(preset: BinauralBeatPreset, ambientId: AmbientSoundId): Promise<void> {
+  async start(
+    preset: BinauralBeatPreset,
+    ambientId: AmbientSoundId,
+    options?: { fadeInSec?: number }
+  ): Promise<void> {
     this.stop();
+    const fadeInSec = options?.fadeInSec ?? 0;
     const ctx = new AudioContext();
     await ctx.resume();
 
     const master = ctx.createGain();
-    master.gain.value = 0.7;
+    const t = ctx.currentTime;
+    if (fadeInSec > 0) {
+      master.gain.setValueAtTime(0, t);
+      master.gain.linearRampToValueAtTime(this.targetMaster, t + fadeInSec);
+    } else {
+      master.gain.value = this.targetMaster;
+    }
     master.connect(ctx.destination);
 
     const binauralGain = ctx.createGain();
-    binauralGain.gain.value = 0.45;
+    binauralGain.gain.value = this.targetBinaural;
     binauralGain.connect(master);
 
     const ambientGain = ctx.createGain();
-    ambientGain.gain.value = 0.35;
+    ambientGain.gain.value = this.targetAmbient;
     ambientGain.connect(master);
 
     const merger = ctx.createChannelMerger(2);
@@ -249,18 +263,32 @@ export class BinauralAudioEngine {
   }
 
   setMasterVolume(value: number): void {
+    this.targetMaster = Math.max(0, Math.min(1, value));
     if (!this.nodes) return;
-    this.nodes.master.gain.value = Math.max(0, Math.min(1, value));
+    const { ctx, master } = this.nodes;
+    const t = ctx.currentTime;
+    master.gain.cancelScheduledValues(t);
+    master.gain.setValueAtTime(master.gain.value, t);
+    master.gain.linearRampToValueAtTime(this.targetMaster, t + 0.3);
   }
 
   setBinauralVolume(value: number): void {
+    this.targetBinaural = Math.max(0, Math.min(1, value));
     if (!this.nodes) return;
-    this.nodes.binauralGain.gain.value = Math.max(0, Math.min(1, value));
+    this.nodes.binauralGain.gain.value = this.targetBinaural;
   }
 
   setAmbientVolume(value: number): void {
+    this.targetAmbient = Math.max(0, Math.min(1, value));
     if (!this.nodes) return;
-    this.nodes.ambientGain.gain.value = Math.max(0, Math.min(1, value));
+    this.nodes.ambientGain.gain.value = this.targetAmbient;
+  }
+
+  async resumeIfSuspended(): Promise<void> {
+    if (!this.nodes) return;
+    if (this.nodes.ctx.state === "suspended") {
+      await this.nodes.ctx.resume();
+    }
   }
 
   updatePreset(preset: BinauralBeatPreset): void {

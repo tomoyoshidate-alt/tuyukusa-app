@@ -29,6 +29,7 @@ import {
   type HealthData,
 } from "@/src/lib/healthData";
 import AddToHomeScreen from "@/src/components/AddToHomeScreen";
+import BinauralGlobalAlarm from "@/src/components/BinauralGlobalAlarm";
 import HealthKitBridge from "@/src/components/HealthKitBridge";
 import ScreenSettingsTab from "@/src/components/ScreenSettingsTab";
 import TsuyukusaRadio from "@/src/components/TsuyukusaRadio";
@@ -4223,6 +4224,8 @@ ${buildHealthSummary(healthForm)}`;
           onExplainRequest={requestBinauralExplain}
         />
       )}
+
+      <BinauralGlobalAlarm />
 
       {/* ボトムナビ */}
       <div style={{ background: "#1a1410", display: "flex", borderTop: "1px solid rgba(255,255,255,0.08)" }}>

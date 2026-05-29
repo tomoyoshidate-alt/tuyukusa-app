@@ -1,7 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
-import { BinauralAudioEngine } from "@/src/lib/binauralAudioEngine";
+import { useCallback, useEffect, useState, type ReactNode } from "react";
 import {
   AMBIENT_SOUND_PRESETS,
   BINURAL_BEAT_PRESETS,
@@ -12,6 +11,11 @@ import {
   type BinauralBeatId,
   type TimerMinutes,
 } from "@/src/lib/binauralBeats";
+import {
+  binauralPlaybackManager,
+  type BinauralPlaybackSnapshot,
+} from "@/src/lib/binauralPlaybackManager";
+import { requestNotificationPermission } from "@/src/lib/timerServiceWorker";
 import PomodoroTimer from "@/src/components/PomodoroTimer";
 
 type PanelMode = "beats" | "pomodoro";
@@ -39,77 +43,53 @@ export default function BinauralBeatsPanel({ diagnosis, onClose, onExplainReques
   const [selectedBeat, setSelectedBeat] = useState<BinauralBeatId>(recommendedId);
   const [selectedAmbient, setSelectedAmbient] = useState<AmbientSoundId>("rain");
   const [timerMinutes, setTimerMinutes] = useState<TimerMinutes | null>(10);
-  const [isPlaying, setIsPlaying] = useState(false);
-  const [remainingSec, setRemainingSec] = useState(0);
   const [masterVolume, setMasterVolume] = useState(0.7);
   const [binauralVolume, setBinauralVolume] = useState(0.45);
   const [ambientVolume, setAmbientVolume] = useState(0.35);
+  const [playback, setPlayback] = useState<BinauralPlaybackSnapshot>(() =>
+    binauralPlaybackManager.getSnapshot()
+  );
 
-  const engineRef = useRef<BinauralAudioEngine | null>(null);
-  const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  useEffect(() => {
+    return binauralPlaybackManager.subscribe(setPlayback);
+  }, []);
+
+  const isPlaying = playback.isPlaying;
+  const remainingSec = playback.remainingSec;
 
   const stopPlayback = useCallback(() => {
-    if (timerRef.current) {
-      clearInterval(timerRef.current);
-      timerRef.current = null;
-    }
-    engineRef.current?.stop();
-    engineRef.current = null;
-    setIsPlaying(false);
-    setRemainingSec(0);
+    binauralPlaybackManager.stopAlarm();
+    binauralPlaybackManager.stop();
   }, []);
 
   const startPlayback = useCallback(async () => {
-    stopPlayback();
-    const engine = new BinauralAudioEngine();
-    engineRef.current = engine;
+    await requestNotificationPermission();
     const preset = getBeatPreset(selectedBeat);
-    await engine.start(preset, selectedAmbient);
-    engine.setMasterVolume(masterVolume);
-    engine.setBinauralVolume(binauralVolume);
-    engine.setAmbientVolume(ambientVolume);
-    setIsPlaying(true);
-
-    if (timerMinutes) {
-      setRemainingSec(timerMinutes * 60);
-      timerRef.current = setInterval(() => {
-        setRemainingSec(prev => {
-          if (prev <= 1) {
-            stopPlayback();
-            return 0;
-          }
-          return prev - 1;
-        });
-      }, 1000);
-    }
-  }, [
-    selectedBeat,
-    selectedAmbient,
-    timerMinutes,
-    masterVolume,
-    binauralVolume,
-    ambientVolume,
-    stopPlayback,
-  ]);
+    await binauralPlaybackManager.start(preset, selectedAmbient, timerMinutes, {
+      master: masterVolume,
+      binaural: binauralVolume,
+      ambient: ambientVolume,
+    });
+  }, [selectedBeat, selectedAmbient, timerMinutes, masterVolume, binauralVolume, ambientVolume]);
 
   useEffect(() => {
-    return () => stopPlayback();
-  }, [stopPlayback]);
+    if (!isPlaying) return;
+    binauralPlaybackManager.setVolumes({
+      master: masterVolume,
+      binaural: binauralVolume,
+      ambient: ambientVolume,
+    });
+  }, [masterVolume, binauralVolume, ambientVolume, isPlaying]);
 
   useEffect(() => {
-    if (!isPlaying || !engineRef.current) return;
-    engineRef.current.setMasterVolume(masterVolume);
-  }, [masterVolume, isPlaying]);
+    if (!isPlaying) return;
+    binauralPlaybackManager.updatePreset(getBeatPreset(selectedBeat));
+  }, [selectedBeat, isPlaying]);
 
   useEffect(() => {
-    if (!isPlaying || !engineRef.current) return;
-    engineRef.current.setBinauralVolume(binauralVolume);
-  }, [binauralVolume, isPlaying]);
-
-  useEffect(() => {
-    if (!isPlaying || !engineRef.current) return;
-    engineRef.current.setAmbientVolume(ambientVolume);
-  }, [ambientVolume, isPlaying]);
+    if (!isPlaying) return;
+    binauralPlaybackManager.updateAmbient(selectedAmbient);
+  }, [selectedAmbient, isPlaying]);
 
   const recommended = getBeatPreset(recommendedId);
 
@@ -320,7 +300,7 @@ export default function BinauralBeatsPanel({ diagnosis, onClose, onExplainReques
         </div>
 
         <div style={{ fontSize: 10, color: "#9a8b7a", marginTop: 12, lineHeight: 1.6, textAlign: "center" }}>
-          左右で異なる周波数を聴取し、脳波誘導をサポートします。安全のため音量は控えめに。
+          左右で異なる周波数を聴取し、脳波誘導をサポートします。再生中は画面を閉じても音は続きます（4秒フェードイン）。
         </div>
         </>
         )}

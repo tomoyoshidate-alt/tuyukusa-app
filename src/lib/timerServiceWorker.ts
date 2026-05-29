@@ -21,6 +21,7 @@ export function notifyTimerServiceWorker(payload: {
   title?: string;
   body?: string;
   endTime?: number;
+  source?: "pomodoro" | "binaural";
 }): void {
   if (typeof navigator === "undefined" || !("serviceWorker" in navigator)) return;
   const controller = navigator.serviceWorker.controller;
@@ -33,12 +34,17 @@ export function notifyTimerServiceWorker(payload: {
   });
 }
 
-export function scheduleSwAlarm(endTime: number, title: string, body: string): void {
-  notifyTimerServiceWorker({ type: "SCHEDULE_ALARM", endTime, title, body });
+export function scheduleSwAlarm(
+  endTime: number,
+  title: string,
+  body: string,
+  source: "pomodoro" | "binaural" = "pomodoro"
+): void {
+  notifyTimerServiceWorker({ type: "SCHEDULE_ALARM", endTime, title, body, source });
 }
 
-export function fireSwAlarm(title: string, body: string): void {
-  notifyTimerServiceWorker({ type: "POMODORO_ALARM", title, body });
+export function fireSwAlarm(title: string, body: string, source: "pomodoro" | "binaural" = "pomodoro"): void {
+  notifyTimerServiceWorker({ type: "POMODORO_ALARM", title, body, source });
 }
 
 export function stopSwAlarm(): void {

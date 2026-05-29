@@ -57,6 +57,18 @@ async function showAlarmNotification(title, body) {
   });
 }
 
+async function notifyClientsAlarm(title, body, source) {
+  const clients = await self.clients.matchAll({ type: "window", includeUncontrolled: true });
+  clients.forEach(client => {
+    client.postMessage({ type: "ALARM_TRIGGER", title, body, source: source || "pomodoro" });
+  });
+}
+
+async function triggerAlarm(title, body, source) {
+  await showAlarmNotification(title, body);
+  await notifyClientsAlarm(title, body, source);
+}
+
 self.addEventListener("message", event => {
   const data = event.data;
   if (!data || !data.type) return;
@@ -73,20 +85,23 @@ self.addEventListener("message", event => {
   }
 
   if (data.type === "POMODORO_ALARM") {
-    event.waitUntil(showAlarmNotification(data.title || "タイマー", data.body || "時間です"));
+    event.waitUntil(triggerAlarm(data.title || "タイマー", data.body || "時間です", data.source));
     return;
   }
 
   if (data.type === "SCHEDULE_ALARM" && data.endTime) {
     if (alarmTimeoutId) clearTimeout(alarmTimeoutId);
     const delay = data.endTime - Date.now();
+    const title = data.title || "タイマー";
+    const body = data.body || "時間です";
+    const source = data.source || "pomodoro";
     if (delay <= 0) {
-      event.waitUntil(showAlarmNotification(data.title || "タイマー", data.body || "時間です"));
+      event.waitUntil(triggerAlarm(title, body, source));
       return;
     }
-    if (delay < 2 * 60 * 60 * 1000) {
+    if (delay < 4 * 60 * 60 * 1000) {
       alarmTimeoutId = setTimeout(() => {
-        showAlarmNotification(data.title || "タイマー", data.body || "時間です");
+        triggerAlarm(title, body, source);
       }, delay);
     }
   }

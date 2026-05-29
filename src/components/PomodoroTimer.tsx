@@ -14,6 +14,10 @@ import {
   type PomodoroSettings,
 } from "@/src/lib/pomodoro";
 import {
+  ALARM_TRIGGER_EVENT,
+  type AlarmTriggerDetail,
+} from "@/src/lib/alarmCoordinator";
+import {
   fireSwAlarm,
   requestNotificationPermission,
   scheduleSwAlarm,
@@ -58,6 +62,7 @@ export default function PomodoroTimer({
   const setNumberRef = useRef(setNumber);
   const isRunningRef = useRef(isRunning);
   const pendingContinueRef = useRef(false);
+  const completingRef = useRef(false);
   const startPomodoroRef = useRef<() => Promise<void>>(async () => {});
 
   phaseRef.current = phase;
@@ -89,7 +94,7 @@ export default function PomodoroTimer({
       }
       const engine = new BinauralAudioEngine();
       engineRef.current = engine;
-      await engine.start(preset, ambientId);
+      await engine.start(preset, ambientId, { fadeInSec: 4 });
       engine.setMasterVolume(masterVolume);
       engine.setBinauralVolume(binauralVolume);
       engine.setAmbientVolume(ambientVolume);
@@ -108,13 +113,15 @@ export default function PomodoroTimer({
     }
   }, []);
 
-  const startAlarm = useCallback((title: string, body: string) => {
+  const startAlarm = useCallback((title: string, body: string, skipSwNotify = false) => {
     if (alarmRef.current?.isActive()) return;
     setIsAlarmRinging(true);
     const alarm = new AlarmEngine();
     alarmRef.current = alarm;
     alarm.start();
-    fireSwAlarm(title, body);
+    if (!skipSwNotify) {
+      fireSwAlarm(title, body, "pomodoro");
+    }
   }, []);
 
   const prepareNextPhase = useCallback((nextPhase: PomodoroPhase, nextSetNumber: number, nextCompleted: number) => {
@@ -125,10 +132,13 @@ export default function PomodoroTimer({
     setRemainingSec(dur);
   }, []);
 
-  const handlePhaseComplete = useCallback(() => {
+  const handlePhaseComplete = useCallback((skipSwNotify = false) => {
+    if (completingRef.current || !isRunningRef.current) return;
+    completingRef.current = true;
     clearTick();
     stopBinaural();
     setIsRunning(false);
+    stopSwAlarm();
 
     const currentPhase = phaseRef.current;
     const s = settingsRef.current;
@@ -137,7 +147,7 @@ export default function PomodoroTimer({
 
     if (currentPhase === "work") {
       const newCompleted = completed + 1;
-      startAlarm("作業終了！", `第${currentSet}セットが完了しました。休憩に入りましょう。`);
+      startAlarm("作業終了！", `第${currentSet}セットが完了しました。休憩に入りましょう。`, skipSwNotify);
       if (newCompleted >= s.longBreakInterval) {
         prepareNextPhase("longBreak", currentSet, 0);
       } else {
@@ -146,7 +156,8 @@ export default function PomodoroTimer({
     } else {
       startAlarm(
         currentPhase === "longBreak" ? "長い休憩終了！" : "休憩終了！",
-        "次の作業セットを始めましょう。"
+        "次の作業セットを始めましょう。",
+        skipSwNotify
       );
       if (currentPhase === "longBreak") {
         prepareNextPhase("work", 1, 0);
@@ -156,6 +167,9 @@ export default function PomodoroTimer({
     }
 
     pendingContinueRef.current = true;
+    setTimeout(() => {
+      completingRef.current = false;
+    }, 1500);
   }, [clearTick, prepareNextPhase, startAlarm, stopBinaural]);
 
   const startPomodoro = useCallback(async () => {
@@ -165,7 +179,8 @@ export default function PomodoroTimer({
     scheduleSwAlarm(
       endAtRef.current,
       `🍅 ${phaseLabel(phase)}終了`,
-      `第${setNumber}セット · ${phaseLabel(phase)}`
+      `第${setNumber}セット · ${phaseLabel(phase)}`,
+      "pomodoro"
     );
     setIsRunning(true);
     await startBinauralForPhase(phase);
@@ -221,6 +236,16 @@ export default function PomodoroTimer({
       stopAlarm();
     };
   }, [clearTick, stopBinaural, stopAlarm]);
+
+  useEffect(() => {
+    const onSwAlarm = (event: Event) => {
+      const detail = (event as CustomEvent<AlarmTriggerDetail>).detail;
+      if (detail.source !== "pomodoro" || !isRunningRef.current) return;
+      handlePhaseComplete(true);
+    };
+    window.addEventListener(ALARM_TRIGGER_EVENT, onSwAlarm);
+    return () => window.removeEventListener(ALARM_TRIGGER_EVENT, onSwAlarm);
+  }, [handlePhaseComplete]);
 
   return (
     <div>
