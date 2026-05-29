@@ -52,7 +52,16 @@ type GoalCategory = "睡眠" | "食事" | "運動" | "塩清療法" | "その他
 type GoalItem = { id: string; text: string; category: GoalCategory; achieved: boolean };
 type GoalList = { items: GoalItem[]; periodKey: string };
 type PeriodGoal = { text: string; category: GoalCategory; achieved: boolean; periodKey: string };
-type DeadlineGoal = { id: string; text: string; category: GoalCategory; deadline: string; achieved: boolean };
+type DeadlineGoalType = "習慣" | "期限目標";
+type DeadlineGoal = {
+  id: string;
+  text: string;
+  category: GoalCategory;
+  deadline: string;
+  goalType: DeadlineGoalType;
+  achieved: boolean;
+  achievedDayKey?: string;
+};
 type GoalsData = { daily: GoalList; weekly: GoalList; monthly: GoalList; deadlineGoals: DeadlineGoal[] };
 type GoalPeriod = "daily" | "weekly" | "monthly";
 type ScheduleItem = { id: string; time: string; label: string; sub: string };
@@ -66,6 +75,7 @@ type ChatReply = {
 };
 type ScheduleSuggestion = ScheduleUpdate & { id: string };
 const GOAL_CATEGORIES: GoalCategory[] = ["睡眠", "食事", "運動", "塩清療法", "その他"];
+const DEADLINE_GOAL_TYPES: DeadlineGoalType[] = ["習慣", "期限目標"];
 function getDayKey(d = new Date()) { return d.toISOString().slice(0, 10); }
 function getWeekKey(d = new Date()) {
   const x = new Date(d); const day = x.getDay();
@@ -125,12 +135,30 @@ function normalizeGoals(data: unknown): GoalsData {
     weekly: migrateGoalList(d.weekly, getWeekKey()),
     monthly: migrateGoalList(d.monthly, getMonthKey()),
     deadlineGoals: Array.isArray(d.deadlineGoals)
-      ? d.deadlineGoals.map(g => ({
-          ...g,
-          deadline: g?.deadline ? sanitizeDeadlineValue(String(g.deadline)) : defaultDeadlineDate(),
-        }))
+      ? d.deadlineGoals.map(g => normalizeDeadlineGoal(g))
       : [],
   };
+}
+function normalizeDeadlineGoal(g: unknown): DeadlineGoal {
+  const raw = g && typeof g === "object" ? (g as Partial<DeadlineGoal>) : {};
+  const goalType: DeadlineGoalType = raw.goalType === "習慣" ? "習慣" : "期限目標";
+  const today = getDayKey();
+  const base = {
+    id: raw.id ?? `${Date.now()}-${Math.random().toString(36).slice(2, 9)}`,
+    text: raw.text ?? "",
+    category: (raw.category ?? "その他") as GoalCategory,
+    deadline: raw.deadline ? sanitizeDeadlineValue(String(raw.deadline)) : defaultDeadlineDate(),
+    goalType,
+  };
+  if (goalType === "習慣") {
+    const achievedToday = raw.achievedDayKey === today;
+    return { ...base, achieved: achievedToday, achievedDayKey: achievedToday ? today : undefined };
+  }
+  return { ...base, achieved: !!raw.achieved, achievedDayKey: undefined };
+}
+function isDeadlineGoalChecked(g: DeadlineGoal): boolean {
+  if (g.goalType === "習慣") return g.achievedDayKey === getDayKey();
+  return g.achieved;
 }
 function calcListRate(list: GoalList | null | undefined) {
   const items = list?.items ?? [];
@@ -139,21 +167,34 @@ function calcListRate(list: GoalList | null | undefined) {
 }
 function calcDeadlineRate(gs: DeadlineGoal[] | null | undefined) {
   const goals = gs ?? [];
-  return goals.length ? Math.round((goals.filter(g => g.achieved).length / goals.length) * 100) : 0;
+  if (!goals.length) return 0;
+  return Math.round((goals.filter(isDeadlineGoalChecked).length / goals.length) * 100);
 }
 function calcOverallRate(data: GoalsData) {
   const all = [
     ...(data.daily?.items ?? []),
     ...(data.weekly?.items ?? []),
     ...(data.monthly?.items ?? []),
-    ...(data.deadlineGoals ?? []),
+    ...(data.deadlineGoals ?? []).map(g => ({ achieved: isDeadlineGoalChecked(g) })),
   ];
   if (!all.length) return 0;
   return Math.round((all.filter(g => g.achieved).length / all.length) * 100);
 }
-function newDeadlineGoal(): DeadlineGoal {
+function newDeadlineGoal(goalType: DeadlineGoalType = "期限目標"): DeadlineGoal {
   const d = new Date(); d.setDate(d.getDate() + 7);
-  return { id: `${Date.now()}-${Math.random().toString(36).slice(2, 9)}`, text: "", category: "その他", deadline: d.toISOString().slice(0, 10), achieved: false };
+  return {
+    id: `${Date.now()}-${Math.random().toString(36).slice(2, 9)}`,
+    text: "",
+    category: "その他",
+    deadline: d.toISOString().slice(0, 10),
+    goalType,
+    achieved: false,
+  };
+}
+function goalTypeBadgeStyle(goalType: DeadlineGoalType): CSSProperties {
+  return goalType === "習慣"
+    ? { fontSize: 9, color: "#4a6741", background: "#e8f0e4", borderRadius: 8, padding: "1px 6px", marginRight: 4 }
+    : { fontSize: 9, color: "#8b5a2b", background: "#fdf0e4", borderRadius: 8, padding: "1px 6px", marginRight: 4 };
 }
 function sortByTime(items: ScheduleItem[]) {
   return [...items].sort((a, b) => a.time.localeCompare(b.time));
@@ -299,13 +340,14 @@ function DeadlineTextInput({
   );
 }
 
-function parseAiDeadlineReply(reply: string): { text: string; category: GoalCategory; deadline: string } {
+function parseAiDeadlineReply(reply: string): { text: string; category: GoalCategory; deadline: string; goalType: DeadlineGoalType } {
   const parsed = parseAiGoalReply(reply);
   const dateMatch = reply.match(/(\d{4}-\d{2}-\d{2})/);
   const deadline = dateMatch?.[1] ?? defaultDeadlineDate();
   const lines = reply.replace(/【.+?】/, "").trim().split("\n").filter(Boolean);
   const text = (lines.find(l => !/^\d{4}-\d{2}-\d{2}$/.test(l.trim())) ?? parsed.text).slice(0, 60);
-  return { text, category: parsed.category, deadline };
+  const goalType: DeadlineGoalType = /毎日|習慣|日々|継続/.test(reply) ? "習慣" : "期限目標";
+  return { text, category: parsed.category, deadline, goalType };
 }
 
 function normalizeScheduleTime(time: string): string {
@@ -883,6 +925,30 @@ function CategorySelect({
   );
 }
 
+function GoalTypeSelect({
+  value,
+  onChange,
+}: {
+  value: DeadlineGoalType;
+  onChange: (t: DeadlineGoalType) => void;
+}) {
+  return (
+    <div style={{ marginBottom: 10 }}>
+      <div style={{ fontSize: 11, color: "#3d3228", opacity: 0.6, marginBottom: 6 }}>種別</div>
+      <div style={{ display: "flex", gap: 6 }}>
+        {DEADLINE_GOAL_TYPES.map(type => (
+          <ChipButton key={type} selected={value === type} onClick={() => onChange(type)}>
+            {type}
+          </ChipButton>
+        ))}
+      </div>
+      <div style={{ fontSize: 10, color: "#9a8b7a", marginTop: 6, lineHeight: 1.5 }}>
+        {value === "習慣" ? "毎日チェック（翌日リセット）" : "期限までに1回達成"}
+      </div>
+    </div>
+  );
+}
+
 function PeriodGoalCard({
   title,
   resetHint,
@@ -1200,12 +1266,15 @@ function HomeDeadlineGoalsSection({
   goals,
   inputText,
   inputCategory,
+  inputGoalType,
   inputDeadline,
   onInputTextChange,
   onInputCategoryChange,
+  onInputGoalTypeChange,
   onInputDeadlineChange,
   onAdd,
   onUpdateGoal,
+  onToggleAchieved,
   onRemoveGoal,
   onAiSuggest,
   isSuggesting,
@@ -1215,16 +1284,19 @@ function HomeDeadlineGoalsSection({
   goals: DeadlineGoal[];
   inputText: string;
   inputCategory: GoalCategory;
+  inputGoalType: DeadlineGoalType;
   inputDeadline: string;
   onInputTextChange: (v: string) => void;
   onInputCategoryChange: (c: GoalCategory) => void;
+  onInputGoalTypeChange: (t: DeadlineGoalType) => void;
   onInputDeadlineChange: (d: string) => void;
   onAdd: () => void;
   onUpdateGoal: (id: string, patch: Partial<DeadlineGoal>) => void;
+  onToggleAchieved: (id: string, checked: boolean) => void;
   onRemoveGoal: (id: string) => void;
   onAiSuggest: () => void;
   isSuggesting: boolean;
-  aiSuggestion: { text: string; category: GoalCategory; deadline: string } | null;
+  aiSuggestion: { text: string; category: GoalCategory; deadline: string; goalType?: DeadlineGoalType } | null;
   onAdoptAi: () => void;
 }) {
   const [showAll, setShowAll] = useState(false);
@@ -1237,6 +1309,8 @@ function HomeDeadlineGoalsSection({
   const renderGoalCard = (g: DeadlineGoal) => {
     const days = daysUntilDeadline(g.deadline);
     const remainColor = daysRemainingColor(days);
+    const checked = isDeadlineGoalChecked(g);
+    const isHabit = g.goalType === "習慣";
     return (
       <div
         key={g.id}
@@ -1246,24 +1320,25 @@ function HomeDeadlineGoalsSection({
           gap: 8,
           padding: "10px 12px",
           marginBottom: 6,
-          background: g.achieved ? "#ede5d4" : "#f5f0e8",
+          background: checked ? "#ede5d4" : "#f5f0e8",
           borderRadius: 8,
-          opacity: g.achieved ? 0.7 : 1,
+          opacity: checked ? 0.7 : 1,
           border: "1px solid rgba(60,40,20,0.06)",
         }}
       >
         <input
           type="checkbox"
-          checked={g.achieved}
-          onChange={e => onUpdateGoal(g.id, { achieved: e.target.checked })}
+          checked={checked}
+          onChange={e => onToggleAchieved(g.id, e.target.checked)}
           style={{ width: 16, height: 16, accentColor: "#c17f4a", flexShrink: 0, marginTop: 2 }}
         />
         <div style={{ flex: 1, minWidth: 0 }}>
           <div style={{ marginBottom: 4 }}>
+            <span style={goalTypeBadgeStyle(g.goalType)}>{g.goalType}</span>
             <span style={{ fontSize: 9, color: "#c17f4a", background: "#fdf0e4", borderRadius: 8, padding: "1px 6px", marginRight: 4 }}>
               {g.category}
             </span>
-            <span style={{ fontSize: 13, color: g.achieved ? "#9a8b7a" : "#3d3228", textDecoration: g.achieved ? "line-through" : "none" }}>
+            <span style={{ fontSize: 13, color: checked ? "#9a8b7a" : "#3d3228", textDecoration: checked && !isHabit ? "line-through" : "none" }}>
               {g.text}
             </span>
           </div>
@@ -1286,7 +1361,7 @@ function HomeDeadlineGoalsSection({
               </button>
             )}
             <span style={{ fontSize: 10, fontWeight: "bold", color: remainColor }}>
-              あと{days}日
+              {isHabit ? (checked ? "今日達成" : "あと" + days + "日") : `あと${days}日`}
             </span>
           </div>
         </div>
@@ -1309,6 +1384,7 @@ function HomeDeadlineGoalsSection({
       </div>
 
       <CategorySelect value={inputCategory} onChange={onInputCategoryChange} />
+      <GoalTypeSelect value={inputGoalType} onChange={onInputGoalTypeChange} />
       <input
         type="text"
         placeholder="自分で目標を入力..."
@@ -1397,6 +1473,9 @@ function HomeDeadlineGoalsSection({
           <span style={{ fontSize: 9, color: "#c17f4a", background: "#fdf0e4", borderRadius: 8, padding: "1px 6px", marginRight: 4 }}>
             {aiSuggestion.category}
           </span>
+          {aiSuggestion.goalType && (
+            <span style={goalTypeBadgeStyle(aiSuggestion.goalType)}>{aiSuggestion.goalType}</span>
+          )}
           {aiSuggestion.text}
           <div style={{ fontSize: 10, color: "#3d3228", marginTop: 4 }}>
             期限: {formatDeadlineJa(aiSuggestion.deadline)}
@@ -1532,8 +1611,14 @@ export default function TuyukusaApp() {
   const [dailyCategory, setDailyCategory] = useState<GoalCategory>("その他");
   const [deadlineInput, setDeadlineInput] = useState("");
   const [deadlineCategory, setDeadlineCategory] = useState<GoalCategory>("その他");
+  const [deadlineGoalType, setDeadlineGoalType] = useState<DeadlineGoalType>("期限目標");
   const [deadlineDate, setDeadlineDate] = useState(defaultDeadlineDate());
-  const [aiDeadlineSuggestion, setAiDeadlineSuggestion] = useState<{ text: string; category: GoalCategory; deadline: string } | null>(null);
+  const [aiDeadlineSuggestion, setAiDeadlineSuggestion] = useState<{
+    text: string;
+    category: GoalCategory;
+    deadline: string;
+    goalType: DeadlineGoalType;
+  } | null>(null);
   const [weeklyInput, setWeeklyInput] = useState("");
   const [weeklyCategory, setWeeklyCategory] = useState<GoalCategory>("その他");
   const [monthlyInput, setMonthlyInput] = useState("");
@@ -1634,7 +1719,12 @@ export default function TuyukusaApp() {
     }));
   };
 
-  const addDeadlineGoalEntry = (text: string, category: GoalCategory, deadline: string) => {
+  const addDeadlineGoalEntry = (
+    text: string,
+    category: GoalCategory,
+    deadline: string,
+    goalType: DeadlineGoalType = "期限目標"
+  ) => {
     setGoals(prev => ({
       ...normalizeGoals(prev),
       deadlineGoals: [...(prev.deadlineGoals ?? []), {
@@ -1642,7 +1732,9 @@ export default function TuyukusaApp() {
         text,
         category,
         deadline,
+        goalType,
         achieved: false,
+        achievedDayKey: undefined,
       }],
     }));
   };
@@ -1663,6 +1755,7 @@ ${buildHealthSummary(healthForm)}`;
         text: "毎日22時30分までに就寝する",
         category: "睡眠",
         deadline: defaultDeadlineDate(14),
+        goalType: "習慣",
       });
     } finally {
       setSuggestingPeriod(null);
@@ -1671,7 +1764,12 @@ ${buildHealthSummary(healthForm)}`;
 
   const adoptAiDeadlineGoal = () => {
     if (!aiDeadlineSuggestion?.text) return;
-    addDeadlineGoalEntry(aiDeadlineSuggestion.text, aiDeadlineSuggestion.category, aiDeadlineSuggestion.deadline);
+    addDeadlineGoalEntry(
+      aiDeadlineSuggestion.text,
+      aiDeadlineSuggestion.category,
+      aiDeadlineSuggestion.deadline,
+      aiDeadlineSuggestion.goalType ?? "期限目標"
+    );
     setAiDeadlineSuggestion(null);
   };
 
@@ -1775,14 +1873,29 @@ ${buildHealthSummary(healthForm)}`;
   const updateDeadlineGoal = (id: string, patch: Partial<DeadlineGoal>) => {
     setGoals(prev => ({
       ...normalizeGoals(prev),
-      deadlineGoals: (prev.deadlineGoals ?? []).map(g => (g.id === id ? { ...g, ...patch } : g)),
+      deadlineGoals: (prev.deadlineGoals ?? []).map(g => (g.id === id ? normalizeDeadlineGoal({ ...g, ...patch }) : g)),
+    }));
+  };
+
+  const toggleDeadlineGoalAchieved = (id: string, checked: boolean) => {
+    setGoals(prev => ({
+      ...normalizeGoals(prev),
+      deadlineGoals: (prev.deadlineGoals ?? []).map(g => {
+        if (g.id !== id) return g;
+        if (g.goalType === "習慣") {
+          return checked
+            ? { ...g, achieved: true, achievedDayKey: getDayKey() }
+            : { ...g, achieved: false, achievedDayKey: undefined };
+        }
+        return { ...g, achieved: checked, achievedDayKey: undefined };
+      }),
     }));
   };
 
   const addDeadlineGoal = () => {
     setGoals(prev => ({
       ...normalizeGoals(prev),
-      deadlineGoals: [...(prev.deadlineGoals ?? []), newDeadlineGoal()],
+      deadlineGoals: [...(prev.deadlineGoals ?? []), newDeadlineGoal("期限目標")],
     }));
   };
 
@@ -1949,16 +2062,19 @@ ${buildHealthSummary(healthForm)}`;
                   goals={goals.deadlineGoals ?? []}
                   inputText={deadlineInput}
                   inputCategory={deadlineCategory}
+                  inputGoalType={deadlineGoalType}
                   inputDeadline={deadlineDate}
                   onInputTextChange={setDeadlineInput}
                   onInputCategoryChange={setDeadlineCategory}
+                  onInputGoalTypeChange={setDeadlineGoalType}
                   onInputDeadlineChange={setDeadlineDate}
                   onAdd={() => {
                     if (!deadlineInput.trim()) return;
-                    addDeadlineGoalEntry(deadlineInput.trim(), deadlineCategory, deadlineDate);
+                    addDeadlineGoalEntry(deadlineInput.trim(), deadlineCategory, deadlineDate, deadlineGoalType);
                     setDeadlineInput("");
                   }}
                   onUpdateGoal={updateDeadlineGoal}
+                  onToggleAchieved={toggleDeadlineGoalAchieved}
                   onRemoveGoal={removeDeadlineGoal}
                   onAiSuggest={suggestDeadlineGoal}
                   isSuggesting={isSuggestingDeadline}
@@ -2187,8 +2303,11 @@ ${buildHealthSummary(healthForm)}`;
                 <RateBadge rate={calcDeadlineRate(goals.deadlineGoals ?? [])} />
               </div>
 
-              {(goals.deadlineGoals ?? []).map(g => (
+              {(goals.deadlineGoals ?? []).map(g => {
+                const checked = isDeadlineGoalChecked(g);
+                return (
                 <div key={g.id} style={{ background: "#f5f0e8", borderRadius: 10, padding: 12, marginBottom: 8, border: "1px solid rgba(60,40,20,0.08)" }}>
+                  <GoalTypeSelect value={g.goalType} onChange={goalType => updateDeadlineGoal(g.id, { goalType })} />
                   <CategorySelect value={g.category} onChange={category => updateDeadlineGoal(g.id, { category })} />
                   <input
                     type="text"
@@ -2204,14 +2323,14 @@ ${buildHealthSummary(healthForm)}`;
                     style={{ ...inputStyle, marginBottom: 8 }}
                   />
                   <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                    <label style={{ display: "flex", alignItems: "center", gap: 8, cursor: "pointer", fontSize: 13, color: g.achieved ? "#4a6741" : "#3d3228" }}>
+                    <label style={{ display: "flex", alignItems: "center", gap: 8, cursor: "pointer", fontSize: 13, color: checked ? "#4a6741" : "#3d3228" }}>
                       <input
                         type="checkbox"
-                        checked={g.achieved}
-                        onChange={e => updateDeadlineGoal(g.id, { achieved: e.target.checked })}
+                        checked={checked}
+                        onChange={e => toggleDeadlineGoalAchieved(g.id, e.target.checked)}
                         style={{ width: 18, height: 18, accentColor: "#c17f4a" }}
                       />
-                      達成した
+                      {g.goalType === "習慣" ? "今日達成した" : "達成した"}
                     </label>
                     <button
                       type="button"
@@ -2222,7 +2341,7 @@ ${buildHealthSummary(healthForm)}`;
                     </button>
                   </div>
                 </div>
-              ))}
+              );})}
 
               <button
                 type="button"
