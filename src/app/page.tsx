@@ -2242,7 +2242,7 @@ export default function TuyukusaApp() {
         prev.dayKey === dayKey ? prev : createFreshSchedule(dayKey, scheduleTemplatesRef.current)
       );
       setGoogleCalendar(prev => {
-        if (!prev.connected || !prev.email || prev.lastSyncDayKey === dayKey) return prev;
+        if (!prev.connected || !prev.icalUrl || prev.lastSyncDayKey === dayKey) return prev;
         return { ...prev, lastSyncDayKey: undefined };
       });
     };
