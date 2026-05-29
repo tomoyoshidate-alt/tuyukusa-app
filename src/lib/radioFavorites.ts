@@ -12,8 +12,15 @@ export type RadioSettings = {
   activeFavoriteId: string | null;
 };
 
-export const TSUYUKUSA_RADIO_URL = "https://podcasters.spotify.com/pod/show/tsuyuraji";
+/** Spotify catalog show ID (podcasters slug tsuyuraji does not work in embed). */
+export const TSUYUKUSA_RADIO_SHOW_ID = "1NyJRLlG2bkfIW4VCAJJFX";
+export const TSUYUKUSA_RADIO_URL = `https://open.spotify.com/show/${TSUYUKUSA_RADIO_SHOW_ID}`;
+export const TSUYUKUSA_RADIO_EMBED_URL = `https://open.spotify.com/embed/show/${TSUYUKUSA_RADIO_SHOW_ID}`;
 export const TSUYUKUSA_RADIO_TITLE = "つゆくさラジオ";
+
+const PODCASTERS_SHOW_IDS: Record<string, string> = {
+  tsuyuraji: TSUYUKUSA_RADIO_SHOW_ID,
+};
 
 export const INITIAL_RADIO_SETTINGS: RadioSettings = {
   favorites: [],
@@ -46,8 +53,10 @@ export function toEmbedUrl(url: string): string | null {
     }
     if (parsed.hostname.includes("podcasters.spotify.com")) {
       const match = parsed.pathname.match(/\/pod\/show\/([^/]+)/);
-      if (match?.[1]) {
-        return `https://open.spotify.com/embed/show/${match[1]}`;
+      const slug = match?.[1];
+      if (slug) {
+        const showId = PODCASTERS_SHOW_IDS[slug] ?? slug;
+        return `https://open.spotify.com/embed/show/${showId}`;
       }
     }
     if (parsed.hostname.includes("podcasts.apple.com")) {

@@ -44,6 +44,7 @@ import {
   normalizeRadioSettings,
   type RadioSettings,
 } from "@/src/lib/radioFavorites";
+import { pickTimeGreeting } from "@/src/lib/timeGreeting";
 import {
   buildUserKnowledgeContext,
   INITIAL_CHAT_KNOWLEDGE,
@@ -3085,7 +3086,7 @@ ${buildHealthSummary(healthForm)}`;
       case "diagnosis":
         return (
           <div style={{ background: "linear-gradient(160deg, #1a1410, #2d2218)", color: "#f5f0e8", padding: "28px 20px", marginTop: 16 }}>
-            <div style={{ fontSize: 12, opacity: 0.6, marginBottom: 4 }}>おはようございます</div>
+            <div style={{ fontSize: 12, opacity: 0.6, marginBottom: 4 }}>{pickTimeGreeting()}</div>
             <div style={{ fontSize: 22, fontWeight: "bold", marginBottom: 16 }}>{getDisplayName(userProfile)}</div>
             <div style={{ display: "inline-block", background: "rgba(193,127,74,0.2)", border: "1px solid rgba(193,127,74,0.3)", borderRadius: 20, padding: "6px 14px", fontSize: 13, color: "#e8a86a", marginBottom: 16 }}>
               今日の診断：{MOCK_SCHEDULE.diagnosis}

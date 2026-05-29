@@ -6,6 +6,7 @@ import {
   toEmbedUrl,
   TSUYUKUSA_RADIO_TITLE,
   TSUYUKUSA_RADIO_URL,
+  TSUYUKUSA_RADIO_EMBED_URL,
   type MediaFavorite,
   type RadioSettings,
 } from "@/src/lib/radioFavorites";
@@ -32,7 +33,8 @@ export default function TsuyukusaRadio({
     radioSettings.favorites.find(f => f.id === radioSettings.activeFavoriteId)?.url ?? TSUYUKUSA_RADIO_URL;
   const activeTitle =
     radioSettings.favorites.find(f => f.id === radioSettings.activeFavoriteId)?.title ?? TSUYUKUSA_RADIO_TITLE;
-  const embedUrl = toEmbedUrl(activeUrl);
+  const embedUrl = radioSettings.activeFavoriteId ? toEmbedUrl(activeUrl) : TSUYUKUSA_RADIO_EMBED_URL;
+  const openUrl = activeUrl;
 
   const addFavorite = () => {
     const url = newUrl.trim();
@@ -71,16 +73,38 @@ export default function TsuyukusaRadio({
       </div>
 
       {embedUrl ? (
-        <iframe
-          src={embedUrl}
-          title={activeTitle}
-          allow="autoplay; clipboard-write; encrypted-media; fullscreen; picture-in-picture"
-          loading="lazy"
-          style={{ width: "100%", height: 152, border: "none", borderRadius: 10, background: "#1a1410" }}
-        />
+        <>
+          <iframe
+            src={embedUrl}
+            title={activeTitle}
+            allow="autoplay; clipboard-write; encrypted-media; fullscreen; picture-in-picture"
+            loading="lazy"
+            style={{ width: "100%", height: 152, border: "none", borderRadius: 10, background: "#1a1410" }}
+          />
+          <a
+            href={openUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            style={{
+              display: "block",
+              marginTop: 8,
+              padding: "8px 12px",
+              borderRadius: 8,
+              border: "1.5px solid rgba(60,40,20,0.12)",
+              background: "#f5f0e8",
+              color: "#8b5a2b",
+              textAlign: "center",
+              fontSize: 11,
+              fontWeight: "bold",
+              textDecoration: "none",
+            }}
+          >
+            Spotifyアプリで開く ↗
+          </a>
+        </>
       ) : (
         <a
-          href={activeUrl}
+          href={openUrl}
           target="_blank"
           rel="noopener noreferrer"
           style={{
