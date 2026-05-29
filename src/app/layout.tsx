@@ -1,5 +1,6 @@
 import type { Metadata, Viewport } from "next";
 import { Noto_Sans_JP, Noto_Serif_JP } from "next/font/google";
+import RadioProvider from "@/src/components/RadioProvider";
 import RegisterTimerServiceWorker from "@/src/components/RegisterTimerServiceWorker";
 import "./globals.css";
 
@@ -49,7 +50,7 @@ export default function RootLayout({
     >
       <body className="min-h-full">
         <RegisterTimerServiceWorker />
-        {children}
+        <RadioProvider>{children}</RadioProvider>
       </body>
     </html>
   );

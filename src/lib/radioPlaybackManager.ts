@@ -1,0 +1,174 @@
+import { BackgroundAudioSession, configureMixAudioSession } from "@/src/lib/backgroundAudioSession";
+import {
+  normalizeRadioSettings,
+  toEmbedUrl,
+  TSUYUKUSA_RADIO_EMBED_URL,
+  TSUYUKUSA_RADIO_TITLE,
+  TSUYUKUSA_RADIO_URL,
+  type RadioSettings,
+} from "@/src/lib/radioFavorites";
+
+export type RadioPlaybackSnapshot = {
+  isPlaying: boolean;
+  title: string;
+  embedUrl: string | null;
+  openUrl: string;
+};
+
+type Listener = (snapshot: RadioPlaybackSnapshot) => void;
+
+const PLAYBACK_STORAGE_KEY = "tuyukusa-radio-playback";
+
+type StoredPlayback = {
+  isPlaying: boolean;
+  activeFavoriteId: string | null;
+};
+
+function resolveSource(settings: RadioSettings): Pick<RadioPlaybackSnapshot, "title" | "embedUrl" | "openUrl"> {
+  const fav = settings.favorites.find(f => f.id === settings.activeFavoriteId);
+  const openUrl = fav?.url ?? TSUYUKUSA_RADIO_URL;
+  const title = fav?.title ?? TSUYUKUSA_RADIO_TITLE;
+  const embedUrl = settings.activeFavoriteId ? toEmbedUrl(openUrl) : TSUYUKUSA_RADIO_EMBED_URL;
+  return { title, embedUrl, openUrl };
+}
+
+function readStoredPlayback(): StoredPlayback | null {
+  if (typeof window === "undefined") return null;
+  try {
+    const raw = localStorage.getItem(PLAYBACK_STORAGE_KEY);
+    if (!raw) return null;
+    const d = JSON.parse(raw) as StoredPlayback;
+    if (typeof d.isPlaying !== "boolean") return null;
+    return {
+      isPlaying: d.isPlaying,
+      activeFavoriteId: typeof d.activeFavoriteId === "string" ? d.activeFavoriteId : null,
+    };
+  } catch {
+    return null;
+  }
+}
+
+function writeStoredPlayback(isPlaying: boolean, activeFavoriteId: string | null): void {
+  if (typeof window === "undefined") return;
+  try {
+    localStorage.setItem(
+      PLAYBACK_STORAGE_KEY,
+      JSON.stringify({ isPlaying, activeFavoriteId })
+    );
+  } catch {
+    /* ignore */
+  }
+}
+
+function readRadioSettings(): RadioSettings {
+  if (typeof window === "undefined") return normalizeRadioSettings(null);
+  try {
+    const raw = localStorage.getItem("tuyukusa-radio");
+    return normalizeRadioSettings(raw ? JSON.parse(raw) : null);
+  } catch {
+    return normalizeRadioSettings(null);
+  }
+}
+
+class RadioPlaybackManager {
+  private bgSession = new BackgroundAudioSession();
+  private isPlaying = false;
+  private title = TSUYUKUSA_RADIO_TITLE;
+  private embedUrl: string | null = TSUYUKUSA_RADIO_EMBED_URL;
+  private openUrl = TSUYUKUSA_RADIO_URL;
+  private activeFavoriteId: string | null = null;
+  private listeners = new Set<Listener>();
+  private hydrated = false;
+
+  subscribe(listener: Listener): () => void {
+    this.listeners.add(listener);
+    listener(this.getSnapshot());
+    return () => this.listeners.delete(listener);
+  }
+
+  private emit(): void {
+    this.listeners.forEach(l => l(this.getSnapshot()));
+  }
+
+  getSnapshot(): RadioPlaybackSnapshot {
+    return {
+      isPlaying: this.isPlaying,
+      title: this.title,
+      embedUrl: this.embedUrl,
+      openUrl: this.openUrl,
+    };
+  }
+
+  hydrate(): void {
+    if (this.hydrated || typeof window === "undefined") return;
+    this.hydrated = true;
+
+    const stored = readStoredPlayback();
+    if (!stored?.isPlaying) return;
+
+    const settings = readRadioSettings();
+    const merged: RadioSettings = {
+      ...settings,
+      activeFavoriteId: stored.activeFavoriteId ?? settings.activeFavoriteId,
+    };
+    const source = resolveSource(merged);
+    this.activeFavoriteId = merged.activeFavoriteId;
+    this.title = source.title;
+    this.embedUrl = source.embedUrl;
+    this.openUrl = source.openUrl;
+    this.isPlaying = true;
+
+    configureMixAudioSession();
+    void this.bgSession.start(() => {
+      void this.bgSession.resumeAll();
+    });
+    this.emit();
+  }
+
+  async play(settings: RadioSettings): Promise<void> {
+    const source = resolveSource(settings);
+    this.activeFavoriteId = settings.activeFavoriteId;
+    this.title = source.title;
+    this.embedUrl = source.embedUrl;
+    this.openUrl = source.openUrl;
+    this.isPlaying = true;
+
+    configureMixAudioSession();
+    await this.bgSession.start(() => {
+      void this.bgSession.resumeAll();
+    });
+    writeStoredPlayback(true, this.activeFavoriteId);
+    this.emit();
+  }
+
+  pause(): void {
+    this.isPlaying = false;
+    this.bgSession.stop();
+    writeStoredPlayback(false, this.activeFavoriteId);
+    this.emit();
+  }
+
+  toggle(settings: RadioSettings): void {
+    if (this.isPlaying) {
+      this.pause();
+    } else {
+      void this.play(settings);
+    }
+  }
+
+  updateSource(settings: RadioSettings): void {
+    const source = resolveSource(settings);
+    this.activeFavoriteId = settings.activeFavoriteId;
+    this.title = source.title;
+    this.embedUrl = source.embedUrl;
+    this.openUrl = source.openUrl;
+    if (this.isPlaying) {
+      writeStoredPlayback(true, this.activeFavoriteId);
+    }
+    this.emit();
+  }
+}
+
+export const radioPlaybackManager = new RadioPlaybackManager();
+
+export { resolveSource as resolveRadioSource };

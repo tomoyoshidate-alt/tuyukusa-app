@@ -1,15 +1,15 @@
 "use client";
 
-import { useState, type CSSProperties } from "react";
+import { useEffect, useState, type CSSProperties } from "react";
 import {
   detectMediaPlatform,
   toEmbedUrl,
   TSUYUKUSA_RADIO_TITLE,
   TSUYUKUSA_RADIO_URL,
-  TSUYUKUSA_RADIO_EMBED_URL,
   type MediaFavorite,
   type RadioSettings,
 } from "@/src/lib/radioFavorites";
+import { radioPlaybackManager } from "@/src/lib/radioPlaybackManager";
 
 type Props = {
   radioSettings: RadioSettings;
@@ -28,13 +28,25 @@ export default function TsuyukusaRadio({
 }: Props) {
   const [newTitle, setNewTitle] = useState("");
   const [newUrl, setNewUrl] = useState("");
+  const [playback, setPlayback] = useState(() => radioPlaybackManager.getSnapshot());
+
+  useEffect(() => radioPlaybackManager.subscribe(setPlayback), []);
 
   const activeUrl =
     radioSettings.favorites.find(f => f.id === radioSettings.activeFavoriteId)?.url ?? TSUYUKUSA_RADIO_URL;
   const activeTitle =
     radioSettings.favorites.find(f => f.id === radioSettings.activeFavoriteId)?.title ?? TSUYUKUSA_RADIO_TITLE;
-  const embedUrl = radioSettings.activeFavoriteId ? toEmbedUrl(activeUrl) : TSUYUKUSA_RADIO_EMBED_URL;
+  const embedUrl = radioSettings.activeFavoriteId ? toEmbedUrl(activeUrl) : null;
   const openUrl = activeUrl;
+  const canPlay = embedUrl !== null || !radioSettings.activeFavoriteId;
+  const isPlayingThisSource = playback.isPlaying;
+
+  const handleChange = (next: RadioSettings) => {
+    onChange(next);
+    if (radioPlaybackManager.getSnapshot().isPlaying) {
+      radioPlaybackManager.updateSource(next);
+    }
+  };
 
   const addFavorite = () => {
     const url = newUrl.trim();
@@ -45,7 +57,7 @@ export default function TsuyukusaRadio({
       url,
       platform: detectMediaPlatform(url),
     };
-    onChange({
+    handleChange({
       favorites: [fav, ...radioSettings.favorites],
       activeFavoriteId: fav.id,
     });
@@ -54,7 +66,7 @@ export default function TsuyukusaRadio({
   };
 
   const removeFavorite = (id: string) => {
-    onChange({
+    handleChange({
       favorites: radioSettings.favorites.filter(f => f.id !== id),
       activeFavoriteId: radioSettings.activeFavoriteId === id ? null : radioSettings.activeFavoriteId,
     });
@@ -72,22 +84,37 @@ export default function TsuyukusaRadio({
         )}
       </div>
 
-      {embedUrl ? (
-        <>
-          <iframe
-            src={embedUrl}
-            title={activeTitle}
-            allow="autoplay; clipboard-write; encrypted-media; fullscreen; picture-in-picture"
-            loading="lazy"
-            style={{ width: "100%", height: 152, border: "none", borderRadius: 10, background: "#1a1410" }}
-          />
+      {canPlay ? (
+        <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+          <button
+            type="button"
+            onClick={() => radioPlaybackManager.toggle(radioSettings)}
+            style={{
+              display: "block",
+              padding: "14px",
+              borderRadius: 10,
+              border: "none",
+              background: isPlayingThisSource ? "#4a6741" : "#1a1410",
+              color: isPlayingThisSource ? "#f5f0e8" : "#e8a86a",
+              textAlign: "center",
+              fontSize: 13,
+              fontWeight: "bold",
+              cursor: "pointer",
+            }}
+          >
+            {isPlayingThisSource ? "⏸ 停止" : `▶ ${activeTitle} を再生`}
+          </button>
+          {isPlayingThisSource && (
+            <div style={{ fontSize: 11, color: "#4a6741", textAlign: "center" }}>
+              タブを切り替えても再生は続きます
+            </div>
+          )}
           <a
             href={openUrl}
             target="_blank"
             rel="noopener noreferrer"
             style={{
               display: "block",
-              marginTop: 8,
               padding: "8px 12px",
               borderRadius: 8,
               border: "1.5px solid rgba(60,40,20,0.12)",
@@ -101,7 +128,7 @@ export default function TsuyukusaRadio({
           >
             Spotifyアプリで開く ↗
           </a>
-        </>
+        </div>
       ) : (
         <a
           href={openUrl}
@@ -127,14 +154,14 @@ export default function TsuyukusaRadio({
         <SourceChip
           label="つゆくさラジオ"
           selected={!radioSettings.activeFavoriteId}
-          onClick={() => onChange({ ...radioSettings, activeFavoriteId: null })}
+          onClick={() => handleChange({ ...radioSettings, activeFavoriteId: null })}
         />
         {radioSettings.favorites.map(fav => (
           <SourceChip
             key={fav.id}
             label={fav.title}
             selected={radioSettings.activeFavoriteId === fav.id}
-            onClick={() => onChange({ ...radioSettings, activeFavoriteId: fav.id })}
+            onClick={() => handleChange({ ...radioSettings, activeFavoriteId: fav.id })}
             onRemove={() => removeFavorite(fav.id)}
           />
         ))}
