@@ -16,6 +16,7 @@ import {
 type Props = {
   diagnosis: string;
   onClose: () => void;
+  onExplainRequest: () => void;
 };
 
 function formatRemaining(seconds: number): string {
@@ -24,7 +25,7 @@ function formatRemaining(seconds: number): string {
   return `${m}:${String(s).padStart(2, "0")}`;
 }
 
-export default function BinauralBeatsPanel({ diagnosis, onClose }: Props) {
+export default function BinauralBeatsPanel({ diagnosis, onClose, onExplainRequest }: Props) {
   const recommendedId = getRecommendedBeatId(diagnosis);
   const [selectedBeat, setSelectedBeat] = useState<BinauralBeatId>(recommendedId);
   const [selectedAmbient, setSelectedAmbient] = useState<AmbientSoundId>("rain");
@@ -141,6 +142,26 @@ export default function BinauralBeatsPanel({ diagnosis, onClose }: Props) {
             ×
           </button>
         </div>
+
+        <button
+          type="button"
+          onClick={onExplainRequest}
+          style={{
+            width: "100%",
+            marginBottom: 16,
+            padding: "10px 14px",
+            borderRadius: 10,
+            border: "1.5px solid rgba(60,40,20,0.12)",
+            background: "white",
+            color: "#4a6741",
+            fontSize: 13,
+            fontWeight: "bold",
+            cursor: "pointer",
+            textAlign: "left",
+          }}
+        >
+          🎧 バイノーラルビートとは？
+        </button>
 
         <div
           style={{

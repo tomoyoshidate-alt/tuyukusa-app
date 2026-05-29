@@ -1,5 +1,6 @@
 import Anthropic from '@anthropic-ai/sdk';
 import { NextRequest, NextResponse } from 'next/server';
+import { BINAURAL_BEAT_KNOWLEDGE_PROMPT } from '@/src/lib/binauralKnowledgePrompt';
 
 const client = new Anthropic({
   apiKey: process.env.ANTHROPIC_API_KEY,
@@ -49,7 +50,9 @@ timeはHH:MM形式。labelは短い項目名（10字以内）。subは補足（2
 短く・わかりやすく・親切に答えてください。
 
 【生活リズム相談フロー】
-ユーザーが目標・帰宅・夕食・入浴・起床の時間を伝えた場合は、漢方・養生の観点から具体的な1日のスケジュールを提案し、SCHEDULE_SUGGESTIONS形式で返してください。`;
+ユーザーが目標・帰宅・夕食・入浴・起床の時間を伝えた場合は、漢方・養生の観点から具体的な1日のスケジュールを提案し、SCHEDULE_SUGGESTIONS形式で返してください。
+
+${BINAURAL_BEAT_KNOWLEDGE_PROMPT}`;
 
 type ScheduleUpdate = { time: string; label: string; sub: string };
 

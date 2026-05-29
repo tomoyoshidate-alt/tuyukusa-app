@@ -2062,6 +2062,7 @@ export default function TuyukusaApp() {
   const [chatFlowData, setChatFlowData] = useState<ChatFlowData>({});
   const [chatMessages, setChatMessages] = useState<Message[]>([]);
   const chatHistoryLoadedRef = useRef(false);
+  const [pendingBinauralExplain, setPendingBinauralExplain] = useState(false);
   const [weather, setWeather] = useState<WeatherData | null>(null);
   const [weatherLoading, setWeatherLoading] = useState(true);
   const [suggestingPeriod, setSuggestingPeriod] = useState<GoalPeriod | "deadline" | null>(null);
@@ -2139,6 +2140,44 @@ export default function TuyukusaApp() {
       return next;
     });
   };
+
+  const startBinauralExplainChat = async () => {
+    const question =
+      "バイノーラルビートとは何ですか？仕組み・効果・使い方を教えてください。" +
+      `今日の診断は「${MOCK_SCHEDULE.diagnosis}」です。私に合った音源もおすすめしてください。`;
+    setChatFlowStep("free");
+    recordChatKnowledge(question);
+    const userMessage: Message = { type: "user", text: question };
+    let updatedMessages: Message[] = [];
+    setChatMessages(prev => {
+      updatedMessages = [...prev, userMessage];
+      return updatedMessages;
+    });
+    setIsLoading(true);
+    try {
+      const reply = await fetchChatReply(updatedMessages, envContext, userKnowledgeContext);
+      setChatMessages(prev => [...prev, createAiChatMessage(reply.content, reply)]);
+    } catch {
+      setChatMessages(prev => [
+        ...prev,
+        { type: "ai", text: "申し訳ございません。説明の取得に失敗しました。もう一度お試しください。" },
+      ]);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const requestBinauralExplain = () => {
+    setShowBinauralPanel(false);
+    setPendingBinauralExplain(true);
+    setTab("chat");
+  };
+
+  useEffect(() => {
+    if (!pendingBinauralExplain || tab !== "chat" || !chatHistoryLoadedRef.current) return;
+    setPendingBinauralExplain(false);
+    void startBinauralExplainChat();
+  }, [pendingBinauralExplain, tab]);
 
   useEffect(() => {
     if (!storageReady || userProfile.nameConfigured || firstLaunchRef.current) return;
@@ -4067,6 +4106,7 @@ ${buildHealthSummary(healthForm)}`;
         <BinauralBeatsPanel
           diagnosis={MOCK_SCHEDULE.diagnosis}
           onClose={() => setShowBinauralPanel(false)}
+          onExplainRequest={requestBinauralExplain}
         />
       )}
 
