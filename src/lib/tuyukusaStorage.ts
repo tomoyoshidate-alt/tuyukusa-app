@@ -6,6 +6,7 @@ export const TUYUKUSA_STORAGE_KEYS = [
   "tuyukusa-ai-goals",
   "tuyukusa-schedule",
   "tuyukusa-home-display",
+  "tuyukusa-user-profile",
 ] as const;
 
 let migrationRan = false;
@@ -71,12 +72,21 @@ function isAiSuggestionsStorageValid(data: unknown): boolean {
   return data === null || (!!data && typeof data === "object");
 }
 
+function isUserProfileStorageValid(data: unknown): boolean {
+  if (!data || typeof data !== "object") return false;
+  const d = data as Record<string, unknown>;
+  if ("name" in d && d.name !== undefined && typeof d.name !== "string") return false;
+  if ("nameConfigured" in d && d.nameConfigured !== undefined && typeof d.nameConfigured !== "boolean") return false;
+  return true;
+}
+
 function isStoredDataValid(): boolean {
   const validators: Record<(typeof TUYUKUSA_STORAGE_KEYS)[number], (data: unknown) => boolean> = {
     "tuyukusa-goals": isGoalsStorageValid,
     "tuyukusa-ai-goals": isAiSuggestionsStorageValid,
     "tuyukusa-schedule": isScheduleStorageValid,
     "tuyukusa-home-display": isHomeDisplayStorageValid,
+    "tuyukusa-user-profile": isUserProfileStorageValid,
   };
 
   for (const key of TUYUKUSA_STORAGE_KEYS) {

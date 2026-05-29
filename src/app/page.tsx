@@ -643,6 +643,28 @@ const DEFAULT_HOME_DISPLAY: HomeDisplaySettings = {
   schedule: true,
 };
 
+const DEFAULT_USER_NAME = "つゆくさ太郎";
+
+type UserProfile = {
+  name: string;
+  nameConfigured: boolean;
+};
+
+const INITIAL_USER_PROFILE: UserProfile = {
+  name: DEFAULT_USER_NAME,
+  nameConfigured: false,
+};
+
+function normalizeUserProfile(data: unknown): UserProfile {
+  if (!data || typeof data !== "object") return INITIAL_USER_PROFILE;
+  const d = data as Partial<UserProfile>;
+  const name = typeof d.name === "string" && d.name.trim() ? d.name.trim() : DEFAULT_USER_NAME;
+  return {
+    name,
+    nameConfigured: !!d.nameConfigured,
+  };
+}
+
 const HOME_DISPLAY_OPTIONS: { key: keyof HomeDisplaySettings; label: string }[] = [
   { key: "weatherChart", label: "天気・気温グラフ" },
   { key: "humidityChart", label: "湿度グラフ" },
@@ -1604,6 +1626,11 @@ export default function TuyukusaApp() {
     DEFAULT_HOME_DISPLAY,
     normalizeHomeDisplay
   );
+  const [userProfile, setUserProfile, userProfileHydrated] = useLocalStorage<UserProfile>(
+    "tuyukusa-user-profile",
+    INITIAL_USER_PROFILE,
+    normalizeUserProfile
+  );
   const [weather, setWeather] = useState<WeatherData | null>(null);
   const [weatherLoading, setWeatherLoading] = useState(true);
   const [suggestingPeriod, setSuggestingPeriod] = useState<GoalPeriod | "deadline" | null>(null);
@@ -1626,11 +1653,22 @@ export default function TuyukusaApp() {
   const [saveMessage, setSaveMessage] = useState("");
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const autoSuggestRef = useRef(false);
+  const firstLaunchRef = useRef(false);
   const envContext = buildEnvironmentContext(weather);
 
   const timelineItems = sortByTime([...BASE_SCHEDULE_ITEMS, ...(schedule.customItems ?? [])]);
   const storageReady =
-    goalsHydrated && scheduleHydrated && homeDisplayHydrated && aiSuggestionsHydrated;
+    goalsHydrated &&
+    scheduleHydrated &&
+    homeDisplayHydrated &&
+    aiSuggestionsHydrated &&
+    userProfileHydrated;
+
+  useEffect(() => {
+    if (!storageReady || userProfile.nameConfigured || firstLaunchRef.current) return;
+    firstLaunchRef.current = true;
+    setTab("settings");
+  }, [storageReady, userProfile.nameConfigured]);
 
   useEffect(() => {
     if (goalsHydrated) setGoals(prev => normalizeGoals(prev));
@@ -2087,7 +2125,7 @@ ${buildHealthSummary(healthForm)}`;
             {homeDisplay.diagnosis && (
             <div style={{ background: "linear-gradient(160deg, #1a1410, #2d2218)", color: "#f5f0e8", padding: "28px 20px", marginTop: 16 }}>
               <div style={{ fontSize: 12, opacity: 0.6, marginBottom: 4 }}>おはようございます</div>
-              <div style={{ fontSize: 22, fontWeight: "bold", marginBottom: 16 }}>田中 様</div>
+              <div style={{ fontSize: 22, fontWeight: "bold", marginBottom: 16 }}>{userProfile.name} 様</div>
               <div style={{ display: "inline-block", background: "rgba(193,127,74,0.2)", border: "1px solid rgba(193,127,74,0.3)", borderRadius: 20, padding: "6px 14px", fontSize: 13, color: "#e8a86a", marginBottom: 16 }}>
                 今日の診断：{MOCK_SCHEDULE.diagnosis}
               </div>
@@ -2226,6 +2264,30 @@ ${buildHealthSummary(healthForm)}`;
         {/* 設定 */}
         {tab === "settings" && (
           <div style={{ padding: 16 }}>
+            <div style={{ fontSize: 15, fontWeight: "bold", color: "#3d3228", marginBottom: 4 }}>👤 プロフィール</div>
+            <div style={{ fontSize: 11, color: "#3d3228", opacity: 0.6, marginBottom: 12 }}>
+              ホーム画面の挨拶に表示されるお名前です
+            </div>
+            <div style={{ ...cardStyle, marginBottom: 12 }}>
+              <div style={fieldLabelStyle}>お名前</div>
+              <input
+                type="text"
+                placeholder={DEFAULT_USER_NAME}
+                value={userProfile.name}
+                onChange={e => setUserProfile(prev => ({ ...prev, name: e.target.value }))}
+                onBlur={() => {
+                  const trimmed = userProfile.name.trim() || DEFAULT_USER_NAME;
+                  setUserProfile(prev => ({ ...prev, name: trimmed, nameConfigured: true }));
+                }}
+                style={inputStyle}
+              />
+              {!userProfile.nameConfigured && (
+                <div style={{ fontSize: 11, color: "#c17f4a", marginTop: 8, lineHeight: 1.5 }}>
+                  初回設定です。お名前を入力して保存してください。
+                </div>
+              )}
+            </div>
+
             <div style={{ fontSize: 15, fontWeight: "bold", color: "#3d3228", marginBottom: 4 }}>🏠 ホーム表示設定</div>
             <div style={{ fontSize: 11, color: "#3d3228", opacity: 0.6, marginBottom: 12 }}>
               ホーム画面に表示する項目を選べます
