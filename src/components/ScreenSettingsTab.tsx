@@ -2,13 +2,12 @@
 
 import { useCallback, useEffect, useState, type CSSProperties } from "react";
 import {
-  HOME_SECTION_LABELS,
   HOME_SECTION_TOGGLE_OPTIONS,
   HOME_WEATHER_TOGGLE_OPTIONS,
   type HomeDisplaySettings,
-  type HomeSectionId,
 } from "@/src/lib/homeDisplay";
 import HealthKitBridge from "@/src/components/HealthKitBridge";
+import SectionOrderList from "@/src/components/SectionOrderList";
 import {
   findNearestRegionId,
   REGION_OPTIONS,
@@ -43,7 +42,6 @@ export default function ScreenSettingsTab({
   onHomeDisplayChange,
   healthData,
 }: Props) {
-  const [dragIndex, setDragIndex] = useState<number | null>(null);
   const [geoStatus, setGeoStatus] = useState<"idle" | "loading" | "ok" | "error">("idle");
 
   const detectLocation = useCallback(() => {
@@ -68,13 +66,9 @@ export default function ScreenSettingsTab({
     detectLocation();
   }, [locationSettings.autoDetected, detectLocation]);
 
-  const moveSection = useCallback(
-    (from: number, to: number) => {
-      if (from === to || from < 0 || to < 0) return;
-      const order = [...homeDisplay.sectionOrder];
-      const [item] = order.splice(from, 1);
-      order.splice(to, 0, item);
-      onHomeDisplayChange({ ...homeDisplay, sectionOrder: order });
+  const handleSectionReorder = useCallback(
+    (sectionOrder: HomeDisplaySettings["sectionOrder"]) => {
+      onHomeDisplayChange({ ...homeDisplay, sectionOrder });
     },
     [homeDisplay, onHomeDisplayChange]
   );
@@ -166,34 +160,10 @@ export default function ScreenSettingsTab({
         ドラッグ＆ドロップでホーム画面の表示順を変更できます
       </div>
       <div style={cardStyle}>
-        {homeDisplay.sectionOrder.map((sectionId, index) => (
-          <div
-            key={sectionId}
-            draggable
-            onDragStart={() => setDragIndex(index)}
-            onDragOver={e => e.preventDefault()}
-            onDrop={() => {
-              if (dragIndex !== null) moveSection(dragIndex, index);
-              setDragIndex(null);
-            }}
-            onDragEnd={() => setDragIndex(null)}
-            style={{
-              display: "flex",
-              alignItems: "center",
-              gap: 10,
-              padding: "10px 8px",
-              marginBottom: 4,
-              borderRadius: 8,
-              background: dragIndex === index ? "#fdf0e4" : "#f5f0e8",
-              border: "1px solid rgba(60,40,20,0.08)",
-              cursor: "grab",
-            }}
-          >
-            <span style={{ fontSize: 16, opacity: 0.5 }}>⠿</span>
-            <span style={{ fontSize: 13, color: "#3d3228", flex: 1 }}>{HOME_SECTION_LABELS[sectionId]}</span>
-            <span style={{ fontSize: 10, color: "#9a8b7a" }}>{index + 1}</span>
-          </div>
-        ))}
+        <SectionOrderList
+          sectionOrder={homeDisplay.sectionOrder}
+          onReorder={handleSectionReorder}
+        />
       </div>
     </div>
   );
