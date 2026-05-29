@@ -17,6 +17,7 @@ import {
 } from "@/src/lib/binauralPlaybackManager";
 import { requestNotificationPermission } from "@/src/lib/timerServiceWorker";
 import PomodoroTimer from "@/src/components/PomodoroTimer";
+import BinauralExplainPage from "@/src/components/BinauralExplainPage";
 
 type PanelMode = "beats" | "pomodoro";
 
@@ -29,13 +30,13 @@ function formatRemaining(seconds: number): string {
 type Props = {
   diagnosis: string;
   onClose: () => void;
-  onExplainRequest: () => void;
   initialPanelMode?: PanelMode;
 };
 
-export default function BinauralBeatsPanel({ diagnosis, onClose, onExplainRequest, initialPanelMode = "beats" }: Props) {
+export default function BinauralBeatsPanel({ diagnosis, onClose, initialPanelMode = "beats" }: Props) {
   const recommendedId = getRecommendedBeatId(diagnosis);
   const [panelMode, setPanelMode] = useState<PanelMode>(initialPanelMode);
+  const [showExplain, setShowExplain] = useState(false);
 
   useEffect(() => {
     setPanelMode(initialPanelMode);
@@ -109,6 +110,7 @@ export default function BinauralBeatsPanel({ diagnosis, onClose, onExplainReques
   const recommended = getBeatPreset(recommendedId);
 
   return (
+    <>
     <div
       style={{
         position: "fixed",
@@ -163,7 +165,7 @@ export default function BinauralBeatsPanel({ diagnosis, onClose, onExplainReques
         <>
         <button
           type="button"
-          onClick={onExplainRequest}
+          onClick={() => setShowExplain(true)}
           style={{
             width: "100%",
             marginBottom: 16,
@@ -350,6 +352,17 @@ export default function BinauralBeatsPanel({ diagnosis, onClose, onExplainReques
         )}
       </div>
     </div>
+
+    {showExplain && (
+      <BinauralExplainPage
+        onClose={() => setShowExplain(false)}
+        onTryBB={() => {
+          setShowExplain(false);
+          setPanelMode("beats");
+        }}
+      />
+    )}
+    </>
   );
 }
 
