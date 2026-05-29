@@ -67,7 +67,8 @@ type GoalPeriod = "daily" | "weekly" | "monthly";
 type ScheduleItem = { id: string; time: string; label: string; sub: string };
 type ScheduleUpdate = { time: string; label: string; sub: string };
 type ScheduleAlert = { time: string; message: string; type: string };
-type ScheduleState = { dayKey: string; customItems: ScheduleItem[]; alerts: ScheduleAlert[] };
+type ScheduleState = { dayKey: string; items: ScheduleItem[]; alerts: ScheduleAlert[] };
+type ScheduleEditDraft = { mode: "edit" | "add"; item: ScheduleItem };
 type ChatReply = {
   content: string;
   scheduleUpdate?: ScheduleUpdate | null;
@@ -198,6 +199,50 @@ function goalTypeBadgeStyle(goalType: DeadlineGoalType): CSSProperties {
 }
 function sortByTime(items: ScheduleItem[]) {
   return [...items].sort((a, b) => a.time.localeCompare(b.time));
+}
+
+function newScheduleItemId() {
+  return `item-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
+}
+
+function normalizeScheduleItem(data: unknown): ScheduleItem | null {
+  if (!data || typeof data !== "object") return null;
+  const d = data as Partial<ScheduleItem>;
+  if (typeof d.time !== "string" || typeof d.label !== "string") return null;
+  return {
+    id: typeof d.id === "string" && d.id ? d.id : newScheduleItemId(),
+    time: normalizeScheduleTime(d.time),
+    label: d.label.trim(),
+    sub: typeof d.sub === "string" ? d.sub.trim() : "",
+  };
+}
+
+function scheduleAlertFromItem(item: ScheduleItem): ScheduleAlert {
+  return {
+    time: item.time,
+    message: `${item.label}の時間です。${item.sub || ""}`,
+    type: item.id.startsWith("custom-") || item.id.startsWith("item-") ? "custom" : item.id,
+  };
+}
+
+function syncScheduleAlerts(items: ScheduleItem[]): ScheduleAlert[] {
+  return sortByTime(items).map(scheduleAlertFromItem);
+}
+
+function createFreshSchedule(dayKey = getDayKey()): ScheduleState {
+  const items = BASE_SCHEDULE_ITEMS.map(i => ({ ...i }));
+  return { dayKey, items, alerts: syncScheduleAlerts(items) };
+}
+
+function mergeLegacyScheduleItems(customItems: ScheduleItem[]): ScheduleItem[] {
+  const customByTime = new Map(customItems.map(i => [i.time, i]));
+  const baseIds = new Set(BASE_SCHEDULE_ITEMS.map(i => i.id));
+  const merged = BASE_SCHEDULE_ITEMS.map(base => {
+    const override = customByTime.get(base.time);
+    return override ? { ...base, ...override, id: base.id } : { ...base };
+  });
+  const extras = customItems.filter(i => !baseIds.has(i.id) && !BASE_SCHEDULE_ITEMS.some(b => b.time === i.time));
+  return sortByTime([...merged, ...extras]);
 }
 function parseAiGoalReply(reply: string): { text: string; category: GoalCategory } {
   const catMatch = reply.match(/【(.+?)】/);
@@ -692,28 +737,31 @@ const BASE_SCHEDULE_ITEMS: ScheduleItem[] = [
   { id: "sleep", time: "22:30", label: "就寝", sub: "就寝前：自然塩3gを白湯で" },
 ];
 
-const INITIAL_SCHEDULE: ScheduleState = {
-  dayKey: getDayKey(),
-  customItems: [],
-  alerts: [
-    { time: "06:00", message: "起床の時間です。朝の塩湯3gをどうぞ", type: "wake" },
-    { time: "09:00", message: "朝食の時間です。糖質・お米中心で", type: "meal" },
-    { time: "16:00", message: "夕食の時間です。塩・タンパク質・海産物中心で", type: "meal" },
-    { time: "20:45", message: "入浴の時間です。38〜39度・30分以内で", type: "bath" },
-    { time: "22:00", message: "就寝前の塩湯3gを飲んで22:30までに就寝を", type: "sleep" },
-  ],
-};
+const INITIAL_SCHEDULE: ScheduleState = createFreshSchedule();
 
 function normalizeSchedule(data: unknown): ScheduleState {
-  const fallback = { ...INITIAL_SCHEDULE, dayKey: getDayKey() };
+  const dayKey = getDayKey();
+  const fallback = createFreshSchedule(dayKey);
   if (!data || typeof data !== "object") return fallback;
-  const d = data as Partial<ScheduleState>;
-  if (d.dayKey !== getDayKey()) return fallback;
-  return {
-    dayKey: d.dayKey,
-    customItems: Array.isArray(d.customItems) ? d.customItems : [],
-    alerts: Array.isArray(d.alerts) ? d.alerts : fallback.alerts,
-  };
+  const d = data as Partial<ScheduleState & { customItems?: ScheduleItem[] }>;
+  if (d.dayKey !== dayKey) return fallback;
+
+  let items: ScheduleItem[];
+  if (Array.isArray(d.items) && d.items.length > 0) {
+    items = sortByTime(
+      d.items.map(normalizeScheduleItem).filter((i): i is ScheduleItem => i !== null)
+    );
+  } else if (Array.isArray(d.customItems)) {
+    const custom = d.customItems
+      .map(normalizeScheduleItem)
+      .filter((i): i is ScheduleItem => i !== null);
+    items = mergeLegacyScheduleItems(custom);
+  } else {
+    items = fallback.items;
+  }
+
+  if (!items.length) items = fallback.items;
+  return { dayKey, items, alerts: syncScheduleAlerts(items) };
 }
 
 function normalizeHomeDisplay(data: unknown): HomeDisplaySettings {
@@ -730,6 +778,135 @@ function normalizeAiSuggestions(data: unknown): Record<GoalPeriod, AiSuggestedGo
     weekly: d.weekly ?? null,
     monthly: d.monthly ?? null,
   };
+}
+
+function ScheduleEditModal({
+  draft,
+  onChange,
+  onSave,
+  onDelete,
+  onClose,
+}: {
+  draft: ScheduleEditDraft;
+  onChange: (item: ScheduleItem) => void;
+  onSave: () => void;
+  onDelete?: () => void;
+  onClose: () => void;
+}) {
+  const { mode, item } = draft;
+  const canSave = item.label.trim().length > 0 && /^\d{1,2}:\d{2}$/.test(item.time);
+
+  return (
+    <div
+      role="presentation"
+      onClick={onClose}
+      style={{
+        position: "fixed",
+        inset: 0,
+        background: "rgba(26,20,16,0.45)",
+        zIndex: 100,
+        display: "flex",
+        alignItems: "flex-end",
+        justifyContent: "center",
+      }}
+    >
+      <div
+        role="dialog"
+        aria-modal="true"
+        onClick={e => e.stopPropagation()}
+        style={{
+          width: "100%",
+          maxWidth: 480,
+          background: "#f5f0e8",
+          borderRadius: "16px 16px 0 0",
+          padding: "20px 16px 28px",
+          boxShadow: "0 -4px 24px rgba(26,20,16,0.15)",
+        }}
+      >
+        <div style={{ fontSize: 16, fontWeight: "bold", color: "#3d3228", marginBottom: 16 }}>
+          {mode === "add" ? "スケジュールを追加" : "スケジュールを編集"}
+        </div>
+        <div style={fieldLabelStyle}>時間</div>
+        <input
+          type="time"
+          value={item.time}
+          onChange={e => onChange({ ...item, time: e.target.value })}
+          style={{ ...inputStyle, marginBottom: 12 }}
+        />
+        <div style={fieldLabelStyle}>内容</div>
+        <input
+          type="text"
+          placeholder="例：朝食"
+          value={item.label}
+          onChange={e => onChange({ ...item, label: e.target.value })}
+          style={{ ...inputStyle, marginBottom: 12 }}
+        />
+        <div style={fieldLabelStyle}>メモ（任意）</div>
+        <input
+          type="text"
+          placeholder="例：糖質・お米中心で"
+          value={item.sub}
+          onChange={e => onChange({ ...item, sub: e.target.value })}
+          style={{ ...inputStyle, marginBottom: 16 }}
+        />
+        <div style={{ display: "flex", gap: 8 }}>
+          {mode === "edit" && onDelete && (
+            <button
+              type="button"
+              onClick={onDelete}
+              style={{
+                flex: 1,
+                padding: "12px",
+                borderRadius: 10,
+                border: "1.5px solid #c44a4a",
+                background: "white",
+                color: "#c44a4a",
+                fontSize: 14,
+                fontWeight: "bold",
+                cursor: "pointer",
+              }}
+            >
+              削除
+            </button>
+          )}
+          <button
+            type="button"
+            onClick={onClose}
+            style={{
+              flex: 1,
+              padding: "12px",
+              borderRadius: 10,
+              border: "1.5px solid rgba(60,40,20,0.12)",
+              background: "white",
+              color: "#3d3228",
+              fontSize: 14,
+              cursor: "pointer",
+            }}
+          >
+            キャンセル
+          </button>
+          <button
+            type="button"
+            disabled={!canSave}
+            onClick={onSave}
+            style={{
+              flex: 1,
+              padding: "12px",
+              borderRadius: 10,
+              border: "none",
+              background: canSave ? "#1a1410" : "#9a8b7a",
+              color: "#f5f0e8",
+              fontSize: 14,
+              fontWeight: "bold",
+              cursor: canSave ? "pointer" : "default",
+            }}
+          >
+            保存
+          </button>
+        </div>
+      </div>
+    </div>
+  );
 }
 
 function ClientFormattedDate() {
@@ -1651,12 +1828,13 @@ export default function TuyukusaApp() {
   const [monthlyInput, setMonthlyInput] = useState("");
   const [monthlyCategory, setMonthlyCategory] = useState<GoalCategory>("その他");
   const [saveMessage, setSaveMessage] = useState("");
+  const [scheduleEdit, setScheduleEdit] = useState<ScheduleEditDraft | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const autoSuggestRef = useRef(false);
   const firstLaunchRef = useRef(false);
   const envContext = buildEnvironmentContext(weather);
 
-  const timelineItems = sortByTime([...BASE_SCHEDULE_ITEMS, ...(schedule.customItems ?? [])]);
+  const timelineItems = sortByTime(schedule.items ?? []);
   const storageReady =
     goalsHydrated &&
     scheduleHydrated &&
@@ -1823,22 +2001,70 @@ ${buildHealthSummary(healthForm)}`;
   const applyScheduleUpdate = (update: ScheduleUpdate) => {
     setSchedule(prev => {
       const dayKey = getDayKey();
-      const base = prev.dayKey === dayKey ? prev : { ...INITIAL_SCHEDULE, dayKey };
-      const newItem: ScheduleItem = {
-        id: `custom-${Date.now()}`,
-        time: normalizeScheduleTime(update.time),
-        label: update.label,
-        sub: update.sub || "",
-      };
-      return {
-        dayKey,
-        customItems: [...(base.customItems ?? []).filter(i => i.time !== update.time || i.label !== update.label), newItem],
-        alerts: [
-          ...(base.alerts ?? []).filter(a => a.time !== update.time),
-          { time: newItem.time, message: `${update.label}の時間です。${update.sub || ""}`, type: "custom" },
-        ],
-      };
+      const base = prev.dayKey === dayKey ? prev : createFreshSchedule(dayKey);
+      const time = normalizeScheduleTime(update.time);
+      const existingIdx = base.items.findIndex(i => i.time === time && i.label === update.label);
+      const newItem: ScheduleItem =
+        existingIdx >= 0
+          ? { ...base.items[existingIdx], sub: update.sub || "" }
+          : {
+              id: `custom-${Date.now()}`,
+              time,
+              label: update.label,
+              sub: update.sub || "",
+            };
+      const items =
+        existingIdx >= 0
+          ? base.items.map((i, idx) => (idx === existingIdx ? newItem : i))
+          : sortByTime([...base.items, newItem]);
+      return { dayKey, items, alerts: syncScheduleAlerts(items) };
     });
+  };
+
+  const upsertScheduleItem = (item: ScheduleItem) => {
+    setSchedule(prev => {
+      const dayKey = getDayKey();
+      const base = prev.dayKey === dayKey ? prev : createFreshSchedule(dayKey);
+      const normalized = normalizeScheduleItem(item);
+      if (!normalized) return base;
+      const exists = base.items.some(i => i.id === normalized.id);
+      const items = sortByTime(
+        exists
+          ? base.items.map(i => (i.id === normalized.id ? normalized : i))
+          : [...base.items, normalized]
+      );
+      return { dayKey, items, alerts: syncScheduleAlerts(items) };
+    });
+  };
+
+  const removeScheduleItem = (id: string) => {
+    setSchedule(prev => {
+      const dayKey = getDayKey();
+      const base = prev.dayKey === dayKey ? prev : createFreshSchedule(dayKey);
+      const items = base.items.filter(i => i.id !== id);
+      return { dayKey, items, alerts: syncScheduleAlerts(items) };
+    });
+  };
+
+  const saveScheduleEdit = () => {
+    if (!scheduleEdit) return;
+    const { mode, item } = scheduleEdit;
+    if (!item.label.trim() || !/^\d{1,2}:\d{2}$/.test(item.time)) return;
+    const toSave: ScheduleItem = {
+      ...item,
+      id: mode === "add" || !item.id ? newScheduleItemId() : item.id,
+      time: normalizeScheduleTime(item.time),
+      label: item.label.trim(),
+      sub: item.sub.trim(),
+    };
+    upsertScheduleItem(toSave);
+    setScheduleEdit(null);
+  };
+
+  const deleteScheduleEdit = () => {
+    if (!scheduleEdit || scheduleEdit.mode !== "edit" || !scheduleEdit.item.id) return;
+    removeScheduleItem(scheduleEdit.item.id);
+    setScheduleEdit(null);
   };
 
   const addSuggestionToSchedule = (messageIndex: number, suggestionId: string) => {
@@ -2137,19 +2363,64 @@ ${buildHealthSummary(healthForm)}`;
 
             {homeDisplay.schedule && (
             <>
-            <div style={{ padding: "20px 20px 8px", fontSize: 15, fontWeight: "bold", color: "#3d3228" }}>📅 今日のスケジュール</div>
-            
+            <div style={{ padding: "20px 20px 8px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+              <div style={{ fontSize: 15, fontWeight: "bold", color: "#3d3228" }}>📅 今日のスケジュール</div>
+              <button
+                type="button"
+                onClick={() =>
+                  setScheduleEdit({
+                    mode: "add",
+                    item: { id: "", time: "12:00", label: "", sub: "" },
+                  })
+                }
+                style={{
+                  background: "#fdf0e4",
+                  border: "1.5px solid #c17f4a",
+                  borderRadius: 16,
+                  padding: "4px 12px",
+                  fontSize: 12,
+                  color: "#8b5a2b",
+                  cursor: "pointer",
+                  fontWeight: "bold",
+                }}
+              >
+                ＋ 追加
+              </button>
+            </div>
+
             {timelineItems.map((item) => (
-              <div key={item.id} style={{ margin: "0 20px 8px", background: "white", borderRadius: 12, padding: "12px 14px", border: item.id.startsWith("custom") ? "1.5px solid #c17f4a" : "1px solid rgba(60,40,20,0.1)" }}>
+              <button
+                key={item.id}
+                type="button"
+                onClick={() => setScheduleEdit({ mode: "edit", item: { ...item } })}
+                style={{
+                  display: "block",
+                  width: "calc(100% - 40px)",
+                  margin: "0 20px 8px",
+                  background: "white",
+                  borderRadius: 12,
+                  padding: "12px 14px",
+                  border: item.id.startsWith("custom-") || item.id.startsWith("item-")
+                    ? "1.5px solid #c17f4a"
+                    : "1px solid rgba(60,40,20,0.1)",
+                  cursor: "pointer",
+                  textAlign: "left",
+                }}
+              >
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
                   <div style={{ fontSize: 11, color: "#4a6741", fontWeight: "bold", marginBottom: 2 }}>{item.label}</div>
-                  {item.id.startsWith("custom") && (
-                    <span style={{ fontSize: 9, color: "#c17f4a", background: "#fdf0e4", borderRadius: 8, padding: "2px 6px" }}>AI追加</span>
+                  {(item.id.startsWith("custom-") || item.id.startsWith("item-")) && (
+                    <span style={{ fontSize: 9, color: "#c17f4a", background: "#fdf0e4", borderRadius: 8, padding: "2px 6px" }}>
+                      {item.id.startsWith("custom-") ? "AI追加" : "追加"}
+                    </span>
                   )}
                 </div>
                 <div style={{ fontSize: 18, fontWeight: "bold", color: "#1a1410" }}>{item.time}</div>
-                <div style={{ fontSize: 11, color: "#3d3228", opacity: 0.7 }}>{item.sub}</div>
-              </div>
+                {item.sub && (
+                  <div style={{ fontSize: 11, color: "#3d3228", opacity: 0.7 }}>{item.sub}</div>
+                )}
+                <div style={{ fontSize: 10, color: "#9a8b7a", marginTop: 6 }}>タップして編集</div>
+              </button>
             ))}
             </>
             )}
@@ -2931,6 +3202,16 @@ ${buildHealthSummary(healthForm)}`;
         )}
 
       </div>
+
+      {scheduleEdit && (
+        <ScheduleEditModal
+          draft={scheduleEdit}
+          onChange={item => setScheduleEdit(prev => (prev ? { ...prev, item } : null))}
+          onSave={saveScheduleEdit}
+          onDelete={scheduleEdit.mode === "edit" ? deleteScheduleEdit : undefined}
+          onClose={() => setScheduleEdit(null)}
+        />
+      )}
 
       {/* ボトムナビ */}
       <div style={{ background: "#1a1410", display: "flex", borderTop: "1px solid rgba(255,255,255,0.08)" }}>

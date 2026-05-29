@@ -59,6 +59,7 @@ function isScheduleStorageValid(data: unknown): boolean {
   if (!data || typeof data !== "object") return false;
   const d = data as Record<string, unknown>;
   if (typeof d.dayKey !== "string") return false;
+  if ("items" in d && d.items !== undefined && !Array.isArray(d.items)) return false;
   if ("customItems" in d && d.customItems !== undefined && !Array.isArray(d.customItems)) return false;
   if ("alerts" in d && d.alerts !== undefined && !Array.isArray(d.alerts)) return false;
   return true;
