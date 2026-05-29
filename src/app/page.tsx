@@ -59,7 +59,12 @@ type ScheduleItem = { id: string; time: string; label: string; sub: string };
 type ScheduleUpdate = { time: string; label: string; sub: string };
 type ScheduleAlert = { time: string; message: string; type: string };
 type ScheduleState = { dayKey: string; customItems: ScheduleItem[]; alerts: ScheduleAlert[] };
-type ChatReply = { content: string; scheduleUpdate?: ScheduleUpdate | null };
+type ChatReply = {
+  content: string;
+  scheduleUpdate?: ScheduleUpdate | null;
+  scheduleSuggestions?: ScheduleUpdate[];
+};
+type ScheduleSuggestion = ScheduleUpdate & { id: string };
 const GOAL_CATEGORIES: GoalCategory[] = ["睡眠", "食事", "運動", "塩清療法", "その他"];
 function getDayKey(d = new Date()) { return d.toISOString().slice(0, 10); }
 function getWeekKey(d = new Date()) {
@@ -303,6 +308,101 @@ function parseAiDeadlineReply(reply: string): { text: string; category: GoalCate
   return { text, category: parsed.category, deadline };
 }
 
+function normalizeScheduleTime(time: string): string {
+  const m = time.match(/^(\d{1,2}):(\d{2})$/);
+  if (!m) return time;
+  return `${m[1].padStart(2, "0")}:${m[2]}`;
+}
+
+function parseTimeFromAdvice(text: string): string | null {
+  if (/就寝前|寝る前|眠る前/.test(text)) return "22:00";
+  if (/起床|起きたら/.test(text) && !/\d{1,2}\s*時/.test(text)) return "06:00";
+  if (/朝食|朝の食事/.test(text) && !/\d{1,2}\s*時/.test(text)) return "09:00";
+  if (/夕食|晩ごはん|晩御飯/.test(text) && !/\d{1,2}\s*時/.test(text)) return "16:00";
+
+  const hm = text.match(/(\d{1,2})\s*[時:：]\s*(\d{1,2})?/);
+  if (hm) {
+    return `${hm[1].padStart(2, "0")}:${(hm[2] ?? "00").padStart(2, "0")}`;
+  }
+
+  const after = text.match(/(\d{1,2})\s*時以降/);
+  if (after) return `${after[1].padStart(2, "0")}:00`;
+
+  return null;
+}
+
+function parseLabelFromAdvice(text: string): string {
+  if (/塩湯|塩清|自然塩/.test(text)) return "塩湯";
+  if (/食事|糖質|カロリー|間食/.test(text)) return "食事";
+  if (/就寝|睡眠|寝る/.test(text)) return "就寝";
+  if (/入浴|風呂/.test(text)) return "入浴";
+  if (/運動|ランニング|散歩|ストレッチ/.test(text)) return "運動";
+  if (/起床/.test(text)) return "起床";
+  return "AI提案";
+}
+
+function extractScheduleSuggestionsFromText(text: string): ScheduleUpdate[] {
+  const segments = text.split(/[\n。！？]/).map(s => s.trim()).filter(s => s.length >= 4);
+  const results: ScheduleUpdate[] = [];
+  const seen = new Set<string>();
+
+  for (const seg of segments) {
+    if (!/(\d{1,2}\s*時|就寝前|寝る前|塩湯|食事|糖質|入浴|起床|運動|ランニング|散歩)/.test(seg)) continue;
+    const time = parseTimeFromAdvice(seg);
+    if (!time) continue;
+    const label = parseLabelFromAdvice(seg);
+    const key = `${time}-${label}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    results.push({
+      time,
+      label,
+      sub: seg.length > 36 ? `${seg.slice(0, 36)}…` : seg,
+    });
+  }
+
+  return results;
+}
+
+function buildScheduleSuggestions(
+  content: string,
+  fromApi?: ScheduleUpdate[],
+  legacy?: ScheduleUpdate | null
+): ScheduleSuggestion[] {
+  const merged = [
+    ...(fromApi ?? []),
+    ...(legacy ? [legacy] : []),
+    ...extractScheduleSuggestionsFromText(content),
+  ];
+  const seen = new Set<string>();
+  const unique: ScheduleSuggestion[] = [];
+
+  merged.forEach((item, idx) => {
+    if (!item.time || !item.label) return;
+    const time = normalizeScheduleTime(item.time);
+    const key = `${time}-${item.label}`;
+    if (seen.has(key)) return;
+    seen.add(key);
+    unique.push({
+      time,
+      label: item.label,
+      sub: item.sub ?? "",
+      id: `sched-${Date.now()}-${idx}`,
+    });
+  });
+
+  return unique;
+}
+
+function createAiChatMessage(content: string, reply: ChatReply): Message {
+  const suggestions = buildScheduleSuggestions(content, reply.scheduleSuggestions, reply.scheduleUpdate);
+  return {
+    type: "ai",
+    text: content,
+    scheduleSuggestions: suggestions.length ? suggestions : undefined,
+  };
+}
+
 type Message = {
   type: string;
   text: string;
@@ -310,6 +410,8 @@ type Message = {
   step?: string;
   showSchedule?: boolean;
   multi?: boolean;
+  scheduleSuggestions?: ScheduleSuggestion[];
+  addedScheduleIds?: string[];
 };
 
 type Tab = "home" | "chat" | "history" | "settings";
@@ -1588,7 +1690,7 @@ ${buildHealthSummary(healthForm)}`;
       const base = prev.dayKey === dayKey ? prev : { ...INITIAL_SCHEDULE, dayKey };
       const newItem: ScheduleItem = {
         id: `custom-${Date.now()}`,
-        time: update.time,
+        time: normalizeScheduleTime(update.time),
         label: update.label,
         sub: update.sub || "",
       };
@@ -1597,10 +1699,24 @@ ${buildHealthSummary(healthForm)}`;
         customItems: [...(base.customItems ?? []).filter(i => i.time !== update.time || i.label !== update.label), newItem],
         alerts: [
           ...(base.alerts ?? []).filter(a => a.time !== update.time),
-          { time: update.time, message: `${update.label}の時間です。${update.sub || ""}`, type: "custom" },
+          { time: newItem.time, message: `${update.label}の時間です。${update.sub || ""}`, type: "custom" },
         ],
       };
     });
+  };
+
+  const addSuggestionToSchedule = (messageIndex: number, suggestionId: string) => {
+    const msg = chatMessages[messageIndex];
+    const suggestion = msg.scheduleSuggestions?.find(s => s.id === suggestionId);
+    if (!suggestion || msg.addedScheduleIds?.includes(suggestionId)) return;
+    applyScheduleUpdate(suggestion);
+    setChatMessages(prev =>
+      prev.map((m, idx) =>
+        idx === messageIndex
+          ? { ...m, addedScheduleIds: [...(m.addedScheduleIds ?? []), suggestionId] }
+          : m
+      )
+    );
   };
 
   const suggestGoal = async (period: GoalPeriod) => {
@@ -1698,9 +1814,8 @@ ${buildHealthSummary(healthForm)}`;
     setChatMessages(updatedMessages);
     setIsLoading(true);
     try {
-      const { content, scheduleUpdate } = await fetchChatReply(updatedMessages, envContext);
-      if (scheduleUpdate) applyScheduleUpdate(scheduleUpdate);
-      setChatMessages(prev => [...prev, { type: "ai", text: content }]);
+      const reply = await fetchChatReply(updatedMessages, envContext);
+      setChatMessages(prev => [...prev, createAiChatMessage(reply.content, reply)]);
     } catch {
       setChatMessages(prev => [
         ...prev,
@@ -1714,13 +1829,14 @@ ${buildHealthSummary(healthForm)}`;
   const handleSend = async () => {
     if (!chatInput.trim()) return;
     const text = chatInput.trim();
+    setChatInput("");
+    setIsComposing(false);
     const updatedMessages: Message[] = [...chatMessages, { type: "user", text }];
     setChatMessages(updatedMessages);
     setIsLoading(true);
     try {
-      const { content, scheduleUpdate } = await fetchChatReply(updatedMessages, envContext);
-      if (scheduleUpdate) applyScheduleUpdate(scheduleUpdate);
-      setChatMessages(prev => [...prev, { type: "ai", text: content }]);
+      const reply = await fetchChatReply(updatedMessages, envContext);
+      setChatMessages(prev => [...prev, createAiChatMessage(reply.content, reply)]);
     } catch {
       setChatMessages(prev => [
         ...prev,
@@ -1728,7 +1844,6 @@ ${buildHealthSummary(healthForm)}`;
       ]);
     } finally {
       setIsLoading(false);
-      setChatInput("");
     }
   };
 
@@ -1926,6 +2041,38 @@ ${buildHealthSummary(healthForm)}`;
                           {c}
                         </button>
                       ))}
+                    </div>
+                  )}
+                  {msg.scheduleSuggestions && msg.scheduleSuggestions.length > 0 && (
+                    <div style={{ display: "flex", flexDirection: "column", gap: 6, marginTop: 8, maxWidth: "85%" }}>
+                      {msg.scheduleSuggestions.map(sug => {
+                        const added = msg.addedScheduleIds?.includes(sug.id);
+                        return (
+                          <button
+                            key={sug.id}
+                            type="button"
+                            disabled={added}
+                            onClick={() => addSuggestionToSchedule(i, sug.id)}
+                            style={{
+                              textAlign: "left",
+                              background: added ? "#e8f0e4" : "#fdf0e4",
+                              border: `1.5px solid ${added ? "#6b8f62" : "#c17f4a"}`,
+                              borderRadius: 10,
+                              padding: "8px 12px",
+                              fontSize: 11,
+                              cursor: added ? "default" : "pointer",
+                              color: added ? "#4a6741" : "#8b5a2b",
+                              opacity: added ? 0.85 : 1,
+                            }}
+                          >
+                            <div style={{ fontWeight: "bold", marginBottom: 2 }}>
+                              {added ? "✓ スケジュールに追加済み" : "📅 スケジュールに追加"}
+                            </div>
+                            <div>{sug.time} {sug.label}</div>
+                            {sug.sub && <div style={{ opacity: 0.75, marginTop: 2 }}>{sug.sub}</div>}
+                          </button>
+                        );
+                      })}
                     </div>
                   )}
                 </div>

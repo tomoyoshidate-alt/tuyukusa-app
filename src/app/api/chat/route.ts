@@ -29,11 +29,14 @@ const SYSTEM_PROMPT = `あなたはつゆくさ医院・伊達伯欣院長の医
 - 高湿度・雨の日は湿邪が強まり水滞に注意
 - 気温の急変時は腎・気のケアを意識する
 
-【スケジュール更新】
-ユーザーが「ランニングを追加して」「〇〇時に△△を入れて」などスケジュールへの追加・変更を依頼した場合、
-通常の回答の最後に必ず次の形式で1行追加してください（変更がない場合は追加しない）:
-SCHEDULE_UPDATE:{"time":"06:15","label":"朝のランニング","sub":"30分・軽めのペースで"}
-timeはHH:MM形式。labelは項目名。subは短い補足。
+【スケジュール提案】
+生活リズムに関する具体的なアドバイス（食事・就寝・塩湯・入浴・運動など）を返す場合、
+回答の最後に必ず次の形式でスケジュール候補を1〜3件追加してください（時間が特定できない一般論のみの場合は省略可）:
+SCHEDULE_SUGGESTIONS:[{"time":"18:00","label":"食事を控える","sub":"18時以降は糖質・食事を控えて"},{"time":"22:00","label":"就寝前の塩湯","sub":"自然塩3gを白湯で"}]
+timeはHH:MM形式。labelは短い項目名（10字以内）。subは補足（20字以内）。
+
+ユーザーが「ランニングを追加して」「〇〇時に△△を入れて」など明示的にスケジュール追加を依頼した場合も同形式で返してください。
+旧形式 SCHEDULE_UPDATE:{"time":"06:15","label":"朝のランニング","sub":"30分"} も使用可ですが、SCHEDULE_SUGGESTIONS を優先してください。
 
 【参考資料（伊達院長ナレッジ）】
 - https://drive.google.com/file/d/1s-C7zfUzQwAcDnKeLb2-nfLMhTagfQHy/view?usp=drive_link
@@ -47,17 +50,56 @@ timeはHH:MM形式。labelは項目名。subは短い補足。
 
 type ScheduleUpdate = { time: string; label: string; sub: string };
 
-function parseScheduleUpdate(text: string): { content: string; scheduleUpdate?: ScheduleUpdate } {
-  const match = text.match(/SCHEDULE_UPDATE:(\{[^}]+\})/);
-  if (!match) return { content: text.trim() };
-  try {
-    const scheduleUpdate = JSON.parse(match[1]) as ScheduleUpdate;
-    const content = text.replace(/\n?SCHEDULE_UPDATE:\{[^}]+\}/, '').trim();
-    if (scheduleUpdate.time && scheduleUpdate.label) {
-      return { content, scheduleUpdate };
+function normalizeScheduleTime(time: string): string {
+  const m = time.match(/^(\d{1,2}):(\d{2})$/);
+  if (!m) return time;
+  return `${m[1].padStart(2, "0")}:${m[2]}`;
+}
+
+function parseScheduleMeta(text: string): { content: string; scheduleSuggestions: ScheduleUpdate[] } {
+  let content = text.trim();
+  const suggestions: ScheduleUpdate[] = [];
+
+  const suggestionsIdx = content.lastIndexOf("SCHEDULE_SUGGESTIONS:");
+  if (suggestionsIdx >= 0) {
+    const jsonPart = content.slice(suggestionsIdx + "SCHEDULE_SUGGESTIONS:".length).trim();
+    try {
+      const parsed = JSON.parse(jsonPart) as ScheduleUpdate[];
+      if (Array.isArray(parsed)) {
+        for (const item of parsed) {
+          if (item?.time && item?.label) {
+            suggestions.push({
+              time: normalizeScheduleTime(item.time),
+              label: item.label,
+              sub: item.sub ?? "",
+            });
+          }
+        }
+      }
+      content = content.slice(0, suggestionsIdx).trim();
+    } catch {
+      /* ignore */
     }
-  } catch { /* ignore */ }
-  return { content: text.replace(/\n?SCHEDULE_UPDATE:\{[^}]+\}/, '').trim() };
+  }
+
+  const singleMatch = content.match(/SCHEDULE_UPDATE:(\{[^}]+\})/);
+  if (singleMatch) {
+    try {
+      const single = JSON.parse(singleMatch[1]) as ScheduleUpdate;
+      if (single.time && single.label) {
+        suggestions.push({
+          time: normalizeScheduleTime(single.time),
+          label: single.label,
+          sub: single.sub ?? "",
+        });
+      }
+      content = content.replace(/\n?SCHEDULE_UPDATE:\{[^}]+\}/, "").trim();
+    } catch {
+      content = content.replace(/\n?SCHEDULE_UPDATE:\{[^}]+\}/, "").trim();
+    }
+  }
+
+  return { content, scheduleSuggestions: suggestions };
 }
 
 export async function POST(request: NextRequest) {
@@ -75,7 +117,11 @@ export async function POST(request: NextRequest) {
   });
 
   const raw = response.content[0].type === 'text' ? response.content[0].text : '';
-  const { content, scheduleUpdate } = parseScheduleUpdate(raw);
+  const { content, scheduleSuggestions } = parseScheduleMeta(raw);
 
-  return NextResponse.json({ content, scheduleUpdate: scheduleUpdate ?? null });
+  return NextResponse.json({
+    content,
+    scheduleSuggestions,
+    scheduleUpdate: scheduleSuggestions[0] ?? null,
+  });
 }
