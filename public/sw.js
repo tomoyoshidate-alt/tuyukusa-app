@@ -1,6 +1,6 @@
-const CACHE = "tuyukusa-app-v1";
+const CACHE = "tuyukusa-app-v2";
 const ALARM_CACHE_KEY = "scheduled-alarm-v1";
-const OFFLINE_URLS = ["/", "/manifest.json", "/icons/icon-192.svg", "/icons/icon-512.svg"];
+const OFFLINE_URLS = ["/", "/manifest.json", "/icons/icon-192.svg", "/icons/icon-512.svg", "/silent.mp3"];
 
 let alarmTimeoutId = null;
 
@@ -73,7 +73,7 @@ self.addEventListener("fetch", event => {
   event.respondWith(
     fetch(request)
       .then(response => {
-        if (response.ok && (url.pathname === "/" || url.pathname.startsWith("/icons/") || url.pathname === "/manifest.json")) {
+        if (response.ok && (url.pathname === "/" || url.pathname.startsWith("/icons/") || url.pathname === "/manifest.json" || url.pathname === "/silent.mp3")) {
           const clone = response.clone();
           caches.open(CACHE).then(cache => cache.put(request, clone));
         }

@@ -1,7 +1,10 @@
 'use client';
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { BackgroundAudioSession, configureMixAudioSession } from "@/src/lib/backgroundAudioSession";
+import {
+  configurePlaybackAudioSession,
+  sharedBackgroundAudioSession,
+} from "@/src/lib/backgroundAudioSession";
 import { AlarmEngine } from "@/src/lib/alarmEngine";
 import { BinauralAudioEngine } from "@/src/lib/binauralAudioEngine";
 import { getBeatPreset } from "@/src/lib/binauralBeats";
@@ -58,7 +61,9 @@ export default function PomodoroTimer({
   const endAtRef = useRef(0);
   const tickRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const engineRef = useRef<BinauralAudioEngine | null>(null);
-  const bgSessionRef = useRef(new BackgroundAudioSession());
+  const ctxUnregisterRef = useRef<(() => void) | null>(null);
+  const bgAcquiredRef = useRef(false);
+  const bgResumeHandlerRef = useRef<() => void>(() => {});
   const alarmRef = useRef<AlarmEngine | null>(null);
   const phaseRef = useRef(phase);
   const settingsRef = useRef(settings);
@@ -85,7 +90,12 @@ export default function PomodoroTimer({
   const stopBinaural = useCallback(() => {
     engineRef.current?.stop();
     engineRef.current = null;
-    bgSessionRef.current.stop();
+    ctxUnregisterRef.current?.();
+    ctxUnregisterRef.current = null;
+    if (bgAcquiredRef.current) {
+      sharedBackgroundAudioSession.release(bgResumeHandlerRef.current);
+      bgAcquiredRef.current = false;
+    }
   }, []);
 
   const startBinauralForPhase = useCallback(
@@ -97,19 +107,29 @@ export default function PomodoroTimer({
         engineRef.current.updatePreset(preset);
         return;
       }
-      configureMixAudioSession();
+      configurePlaybackAudioSession();
       const engine = new BinauralAudioEngine();
       engineRef.current = engine;
+      bgResumeHandlerRef.current = () => {
+        void engine.resumeIfSuspended();
+        void engine.resumeAfterInterrupt();
+      };
       await engine.start(preset, ambientId, { fadeInSec: 4 });
       engine.setMasterVolume(masterVolume);
       engine.setBinauralVolume(binauralVolume);
       engine.setAmbientVolume(ambientVolume);
-      await bgSessionRef.current.start(() => {
-        void engine.resumeIfSuspended();
-        void engine.resumeAfterInterrupt();
-      });
+      if (!bgAcquiredRef.current) {
+        await sharedBackgroundAudioSession.acquire(bgResumeHandlerRef.current);
+        bgAcquiredRef.current = true;
+      }
+      const ctx = engine.getAudioContext();
+      if (ctx) {
+        ctxUnregisterRef.current?.();
+        ctxUnregisterRef.current = sharedBackgroundAudioSession.registerAudioContext(ctx);
+        sharedBackgroundAudioSession.bindAudioContext(ctx);
+      }
       engine.bindContextStateHandler(
-        () => bgSessionRef.current.pauseForCall(),
+        () => sharedBackgroundAudioSession.pauseForCall(),
         () => {
           void engine.resumeAfterInterrupt();
         }

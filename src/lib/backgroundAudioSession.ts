@@ -1,9 +1,6 @@
 import { SilentAudioKeeper } from "@/src/lib/silentAudioKeeper";
 
-type AudioContextStateHandler = {
-  onInterrupt: () => void;
-  onResume: () => void;
-};
+type ResumeCallback = () => void;
 
 declare global {
   interface Navigator {
@@ -13,70 +10,122 @@ declare global {
   }
 }
 
-/** Configure mix-friendly audio session (ambient = mix with other apps). */
-export function configureMixAudioSession(): void {
+/** Playback session – required for iOS background / screen-off audio. */
+export function configurePlaybackAudioSession(): void {
   if (typeof navigator === "undefined") return;
   try {
     if (navigator.audioSession) {
-      navigator.audioSession.type = "ambient";
+      navigator.audioSession.type = "playback";
     }
   } catch {
     /* not supported */
   }
 }
 
-export class BackgroundAudioSession {
+/** @deprecated Use configurePlaybackAudioSession */
+export function configureMixAudioSession(): void {
+  configurePlaybackAudioSession();
+}
+
+/**
+ * Shared background audio session (ref-counted).
+ * BB and radio share one silent-audio loop + visibility / wake-lock handlers.
+ */
+class BackgroundAudioSession {
   private silentKeeper = new SilentAudioKeeper();
-  private visibilityBound = false;
   private wakeLock: WakeLockSentinel | null = null;
   private wasPausedByCall = false;
-  private active = false;
-  private onVisibleResume: (() => void) | null = null;
-  private ctxStateCleanup: (() => void) | null = null;
+  private refCount = 0;
+  private resumeCallbacks = new Set<ResumeCallback>();
+  private audioContexts = new Set<AudioContext>();
+  private ctxHandlerCleanups = new Map<AudioContext, () => void>();
+  private globalHandlersBound = false;
 
-  async start(onVisibleResume: () => void): Promise<void> {
-    this.active = true;
-    this.onVisibleResume = onVisibleResume;
-    configureMixAudioSession();
-    await this.silentKeeper.start();
-    this.bindVisibilityHandler();
-    await this.acquireWakeLock();
+  async acquire(onVisibleResume: ResumeCallback): Promise<void> {
+    this.resumeCallbacks.add(onVisibleResume);
+    this.refCount += 1;
+
+    if (this.refCount === 1) {
+      configurePlaybackAudioSession();
+      this.bindGlobalHandlers();
+      await this.silentKeeper.start();
+      await this.acquireWakeLock();
+      await this.resumeAllAudioContexts();
+    } else {
+      configurePlaybackAudioSession();
+      await this.silentKeeper.resume();
+    }
   }
 
+  release(onVisibleResume: ResumeCallback): void {
+    this.resumeCallbacks.delete(onVisibleResume);
+    this.refCount = Math.max(0, this.refCount - 1);
+    if (this.refCount === 0) {
+      this.teardown();
+    }
+  }
+
+  /** @deprecated Prefer acquire/release */
+  async start(onVisibleResume: ResumeCallback): Promise<void> {
+    await this.acquire(onVisibleResume);
+  }
+
+  /** @deprecated Prefer acquire/release */
   stop(): void {
-    this.active = false;
-    this.onVisibleResume = null;
-    this.wasPausedByCall = false;
-    this.ctxStateCleanup?.();
-    this.ctxStateCleanup = null;
-    this.silentKeeper.stop();
-    void this.releaseWakeLock();
+    this.resumeCallbacks.clear();
+    this.refCount = 0;
+    this.teardown();
+  }
+
+  registerAudioContext(ctx: AudioContext): () => void {
+    this.audioContexts.add(ctx);
+    return () => this.audioContexts.delete(ctx);
   }
 
   bindAudioContext(ctx: AudioContext): void {
-    this.ctxStateCleanup?.();
+    if (this.ctxHandlerCleanups.has(ctx)) return;
     const handler = () => {
-      if (!this.active) return;
+      if (this.refCount === 0) return;
       const state = ctx.state as string;
       if (state === "interrupted") {
         this.handleCallInterrupt();
-      } else if (state === "running" && this.wasPausedByCall) {
+      } else if (ctx.state === "running" && this.wasPausedByCall) {
         void this.handleCallResume();
       }
     };
     ctx.addEventListener("statechange", handler);
-    this.ctxStateCleanup = () => ctx.removeEventListener("statechange", handler);
+    this.ctxHandlerCleanups.set(ctx, () => ctx.removeEventListener("statechange", handler));
   }
 
   async resumeAll(): Promise<void> {
-    configureMixAudioSession();
+    configurePlaybackAudioSession();
     await this.silentKeeper.resume();
-    this.onVisibleResume?.();
+    await this.resumeAllAudioContexts();
+    this.resumeCallbacks.forEach(cb => {
+      try {
+        cb();
+      } catch {
+        /* ignore */
+      }
+    });
     await this.acquireWakeLock();
   }
 
   pauseForCall(): void {
     this.silentKeeper.pause();
+  }
+
+  private async resumeAllAudioContexts(): Promise<void> {
+    for (const ctx of this.audioContexts) {
+      const state = ctx.state as string;
+      if (state === "suspended" || state === "interrupted") {
+        try {
+          await ctx.resume();
+        } catch {
+          /* ignore */
+        }
+      }
+    }
   }
 
   private handleCallInterrupt(): void {
@@ -88,17 +137,15 @@ export class BackgroundAudioSession {
   private async handleCallResume(): Promise<void> {
     if (!this.wasPausedByCall) return;
     this.wasPausedByCall = false;
-    configureMixAudioSession();
-    await this.silentKeeper.resume();
-    this.onVisibleResume?.();
+    await this.resumeAll();
   }
 
-  private bindVisibilityHandler(): void {
-    if (this.visibilityBound || typeof document === "undefined") return;
-    this.visibilityBound = true;
+  private bindGlobalHandlers(): void {
+    if (this.globalHandlersBound || typeof document === "undefined") return;
+    this.globalHandlersBound = true;
 
     document.addEventListener("visibilitychange", () => {
-      if (!this.active) return;
+      if (this.refCount === 0) return;
       if (document.visibilityState === "visible") {
         void this.resumeAll();
       } else {
@@ -107,24 +154,36 @@ export class BackgroundAudioSession {
     });
 
     window.addEventListener("focus", () => {
-      if (this.active) void this.resumeAll();
+      if (this.refCount > 0) void this.resumeAll();
+    });
+
+    window.addEventListener("pageshow", event => {
+      if (this.refCount > 0 && event.persisted) void this.resumeAll();
     });
 
     document.addEventListener("resume", () => {
-      if (this.active) void this.resumeAll();
+      if (this.refCount > 0) void this.resumeAll();
     });
+
+    if ("wakeLock" in navigator) {
+      document.addEventListener("visibilitychange", () => {
+        if (this.refCount > 0 && document.visibilityState === "visible") {
+          void this.acquireWakeLock();
+        }
+      });
+    }
   }
 
   private async acquireWakeLock(): Promise<void> {
     if (typeof navigator === "undefined" || !("wakeLock" in navigator)) return;
     try {
-      if (this.wakeLock) return;
+      if (this.wakeLock && !this.wakeLock.released) return;
       this.wakeLock = await navigator.wakeLock.request("screen");
       this.wakeLock.addEventListener("release", () => {
         this.wakeLock = null;
       });
     } catch {
-      /* ignore */
+      /* ignore – unsupported or tab not visible */
     }
   }
 
@@ -136,11 +195,24 @@ export class BackgroundAudioSession {
     }
     this.wakeLock = null;
   }
+
+  private teardown(): void {
+    this.wasPausedByCall = false;
+    this.ctxHandlerCleanups.forEach(cleanup => cleanup());
+    this.ctxHandlerCleanups.clear();
+    this.audioContexts.clear();
+    this.silentKeeper.stop();
+    void this.releaseWakeLock();
+  }
 }
+
+export const sharedBackgroundAudioSession = new BackgroundAudioSession();
+
+export class BackgroundAudioSessionLegacy extends BackgroundAudioSession {}
 
 export function bindAudioContextInterrupt(
   ctx: AudioContext,
-  handlers: AudioContextStateHandler
+  handlers: { onInterrupt: () => void; onResume: () => void }
 ): () => void {
   let pausedByCall = false;
   const handler = () => {

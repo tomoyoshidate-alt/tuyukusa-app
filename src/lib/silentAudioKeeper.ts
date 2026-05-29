@@ -1,33 +1,59 @@
-/** Minimal silent WAV (~100ms) – keeps iOS AVAudioSession alive when looped. */
-const SILENT_WAV =
-  "data:audio/wav;base64,UklGRigAAABXQVZFZm10IBAAAAABAAEARKwAAIhYAQACABAAZGF0YQQAAAAAAA==";
+/** Public silent MP3 loop – keeps iOS AVAudioSession alive in background. */
+export const SILENT_AUDIO_URL = "/silent.mp3";
+
+const HIDDEN_AUDIO_ID = "tuyukusa-silent-audio";
+
+function getOrCreateAudioElement(): HTMLAudioElement {
+  if (typeof document === "undefined") {
+    throw new Error("document unavailable");
+  }
+  let audio = document.getElementById(HIDDEN_AUDIO_ID) as HTMLAudioElement | null;
+  if (audio) return audio;
+
+  audio = document.createElement("audio");
+  audio.id = HIDDEN_AUDIO_ID;
+  audio.src = SILENT_AUDIO_URL;
+  audio.loop = true;
+  audio.volume = 0.001;
+  audio.preload = "auto";
+  audio.setAttribute("playsinline", "true");
+  audio.setAttribute("webkit-playsinline", "true");
+  audio.setAttribute("x-webkit-airplay", "deny");
+  Object.assign(audio.style, {
+    position: "fixed",
+    width: "1px",
+    height: "1px",
+    opacity: "0.001",
+    pointerEvents: "none",
+    left: "-9999px",
+    top: "-9999px",
+  });
+  document.body.appendChild(audio);
+  return audio;
+}
 
 /**
- * iOS silent-audio trick: loop near-silent HTML audio so Web Audio keeps running
- * while the screen is locked or the app is in the background.
+ * Loop silent HTML audio so Web Audio / embed playback survives screen lock on iOS PWA.
+ * Must be started from a user gesture (play button tap).
  */
 export class SilentAudioKeeper {
   private audio: HTMLAudioElement | null = null;
 
   async start(): Promise<void> {
     if (typeof window === "undefined") return;
-    if (this.audio) {
-      await this.resume();
-      return;
-    }
 
-    const audio = new Audio(SILENT_WAV);
-    audio.loop = true;
-    audio.volume = 0.01;
-    audio.preload = "auto";
-    audio.setAttribute("playsinline", "true");
-    audio.setAttribute("webkit-playsinline", "true");
+    const audio = getOrCreateAudioElement();
+    this.audio = audio;
+
+    if (!audio.src.includes(SILENT_AUDIO_URL)) {
+      audio.src = SILENT_AUDIO_URL;
+      audio.load();
+    }
 
     try {
       await audio.play();
-      this.audio = audio;
     } catch {
-      /* May fail without user gesture; retried on visibility resume */
+      /* Retried on visibility resume after user gesture */
     }
   }
 
@@ -40,6 +66,7 @@ export class SilentAudioKeeper {
   }
 
   async resume(): Promise<void> {
+    if (typeof window === "undefined") return;
     if (!this.audio) {
       await this.start();
       return;
@@ -55,8 +82,7 @@ export class SilentAudioKeeper {
     if (!this.audio) return;
     try {
       this.audio.pause();
-      this.audio.removeAttribute("src");
-      this.audio.load();
+      this.audio.currentTime = 0;
     } catch {
       /* ignore */
     }

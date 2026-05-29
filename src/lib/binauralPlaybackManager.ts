@@ -1,5 +1,8 @@
 import { AlarmEngine } from "@/src/lib/alarmEngine";
-import { BackgroundAudioSession, configureMixAudioSession } from "@/src/lib/backgroundAudioSession";
+import {
+  configurePlaybackAudioSession,
+  sharedBackgroundAudioSession,
+} from "@/src/lib/backgroundAudioSession";
 import { BinauralAudioEngine } from "@/src/lib/binauralAudioEngine";
 import type { AmbientSoundId, BinauralBeatPreset } from "@/src/lib/binauralBeats";
 import {
@@ -30,10 +33,14 @@ class BinauralPlaybackManager {
   private preset: BinauralBeatPreset | null = null;
   private ambientId: AmbientSoundId = "rain";
   private volumes = { master: 0.7, binaural: 0.45, ambient: 0.35 };
-  private bgSession = new BackgroundAudioSession();
   private alarmRef: AlarmEngine | null = null;
   private isAlarmRinging = false;
   private listeners = new Set<Listener>();
+  private ctxUnregister: (() => void) | null = null;
+  private readonly bgResumeHandler = (): void => {
+    void this.engine?.resumeIfSuspended();
+    void this.engine?.resumeAfterInterrupt();
+  };
 
   subscribe(listener: Listener): () => void {
     this.listeners.add(listener);
@@ -83,15 +90,14 @@ class BinauralPlaybackManager {
     engine.setBinauralVolume(volumes.binaural);
     engine.setAmbientVolume(volumes.ambient);
 
-    configureMixAudioSession();
-    await this.bgSession.start(() => {
-      void this.engine?.resumeIfSuspended();
-      void this.engine?.resumeAfterInterrupt();
-    });
+    configurePlaybackAudioSession();
+    await sharedBackgroundAudioSession.acquire(this.bgResumeHandler);
     const ctx = engine.getAudioContext();
     if (ctx) {
+      this.ctxUnregister = sharedBackgroundAudioSession.registerAudioContext(ctx);
+      sharedBackgroundAudioSession.bindAudioContext(ctx);
       engine.bindContextStateHandler(
-        () => this.bgSession.pauseForCall(),
+        () => sharedBackgroundAudioSession.pauseForCall(),
         () => {
           void this.engine?.resumeAfterInterrupt();
         }
@@ -121,7 +127,7 @@ class BinauralPlaybackManager {
         }
       }
       void this.engine?.resumeIfSuspended();
-      void this.bgSession.resumeAll();
+      void sharedBackgroundAudioSession.resumeAll();
       this.emit();
     }, 500);
 
@@ -135,7 +141,7 @@ class BinauralPlaybackManager {
     this.endAtRef = 0;
     this.stopAlarm();
     stopSwAlarm();
-    this.bgSession.stop();
+    this.releaseBackgroundSession();
     this.clearMediaSession();
     if (!options?.silent) this.emit();
   }
@@ -172,7 +178,7 @@ class BinauralPlaybackManager {
   resumeAudio(): void {
     void this.engine?.resumeIfSuspended();
     void this.engine?.resumeAfterInterrupt();
-    void this.bgSession.resumeAll();
+    void sharedBackgroundAudioSession.resumeAll();
   }
 
   stopAlarm(): void {
@@ -201,7 +207,7 @@ class BinauralPlaybackManager {
     this.engine?.stop();
     this.engine = null;
     this.endAtRef = 0;
-    this.bgSession.stop();
+    this.releaseBackgroundSession();
     this.clearMediaSession();
     this.startAlarm(title, body, { skipSwNotify: true });
   }
@@ -216,6 +222,12 @@ class BinauralPlaybackManager {
       clearInterval(this.tickRef);
       this.tickRef = null;
     }
+  }
+
+  private releaseBackgroundSession(): void {
+    this.ctxUnregister?.();
+    this.ctxUnregister = null;
+    sharedBackgroundAudioSession.release(this.bgResumeHandler);
   }
 
   private setupMediaSession(preset: BinauralBeatPreset): void {

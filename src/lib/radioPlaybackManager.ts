@@ -1,4 +1,7 @@
-import { BackgroundAudioSession, configureMixAudioSession } from "@/src/lib/backgroundAudioSession";
+import {
+  configurePlaybackAudioSession,
+  sharedBackgroundAudioSession,
+} from "@/src/lib/backgroundAudioSession";
 import {
   normalizeRadioSettings,
   toEmbedUrl,
@@ -71,7 +74,6 @@ function readRadioSettings(): RadioSettings {
 }
 
 class RadioPlaybackManager {
-  private bgSession = new BackgroundAudioSession();
   private isPlaying = false;
   private title = TSUYUKUSA_RADIO_TITLE;
   private embedUrl: string | null = TSUYUKUSA_RADIO_EMBED_URL;
@@ -79,6 +81,11 @@ class RadioPlaybackManager {
   private activeFavoriteId: string | null = null;
   private listeners = new Set<Listener>();
   private hydrated = false;
+  private bgAcquired = false;
+  private readonly bgResumeHandler = (): void => {
+    void sharedBackgroundAudioSession.resumeAll();
+    this.setupMediaSession();
+  };
 
   subscribe(listener: Listener): () => void {
     this.listeners.add(listener);
@@ -118,10 +125,8 @@ class RadioPlaybackManager {
     this.openUrl = source.openUrl;
     this.isPlaying = true;
 
-    configureMixAudioSession();
-    void this.bgSession.start(() => {
-      void this.bgSession.resumeAll();
-    });
+    configurePlaybackAudioSession();
+    void this.acquireBackgroundSession();
     this.emit();
   }
 
@@ -133,17 +138,16 @@ class RadioPlaybackManager {
     this.openUrl = source.openUrl;
     this.isPlaying = true;
 
-    configureMixAudioSession();
-    await this.bgSession.start(() => {
-      void this.bgSession.resumeAll();
-    });
+    configurePlaybackAudioSession();
+    await this.acquireBackgroundSession();
     writeStoredPlayback(true, this.activeFavoriteId);
     this.emit();
   }
 
   pause(): void {
     this.isPlaying = false;
-    this.bgSession.stop();
+    this.releaseBackgroundSession();
+    this.clearMediaSession();
     writeStoredPlayback(false, this.activeFavoriteId);
     this.emit();
   }
@@ -164,8 +168,50 @@ class RadioPlaybackManager {
     this.openUrl = source.openUrl;
     if (this.isPlaying) {
       writeStoredPlayback(true, this.activeFavoriteId);
+      this.setupMediaSession();
     }
     this.emit();
+  }
+
+  private async acquireBackgroundSession(): Promise<void> {
+    if (this.bgAcquired) {
+      await sharedBackgroundAudioSession.resumeAll();
+      this.setupMediaSession();
+      return;
+    }
+    await sharedBackgroundAudioSession.acquire(this.bgResumeHandler);
+    this.bgAcquired = true;
+    this.setupMediaSession();
+  }
+
+  private releaseBackgroundSession(): void {
+    if (!this.bgAcquired) return;
+    sharedBackgroundAudioSession.release(this.bgResumeHandler);
+    this.bgAcquired = false;
+  }
+
+  private setupMediaSession(): void {
+    if (typeof navigator === "undefined" || !("mediaSession" in navigator)) return;
+    try {
+      navigator.mediaSession.metadata = new MediaMetadata({
+        title: this.title,
+        artist: "つゆくさラジオ",
+        album: "つゆくさアプリ",
+      });
+      navigator.mediaSession.playbackState = "playing";
+    } catch {
+      /* ignore */
+    }
+  }
+
+  private clearMediaSession(): void {
+    if (typeof navigator === "undefined" || !("mediaSession" in navigator)) return;
+    try {
+      navigator.mediaSession.playbackState = "none";
+      navigator.mediaSession.metadata = null;
+    } catch {
+      /* ignore */
+    }
   }
 }
 
