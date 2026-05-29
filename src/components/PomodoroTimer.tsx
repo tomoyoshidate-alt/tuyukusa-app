@@ -1,6 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import { BackgroundAudioSession, configureMixAudioSession } from "@/src/lib/backgroundAudioSession";
 import { AlarmEngine } from "@/src/lib/alarmEngine";
 import { BinauralAudioEngine } from "@/src/lib/binauralAudioEngine";
 import { getBeatPreset } from "@/src/lib/binauralBeats";
@@ -57,6 +58,7 @@ export default function PomodoroTimer({
   const endAtRef = useRef(0);
   const tickRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const engineRef = useRef<BinauralAudioEngine | null>(null);
+  const bgSessionRef = useRef(new BackgroundAudioSession());
   const alarmRef = useRef<AlarmEngine | null>(null);
   const phaseRef = useRef(phase);
   const settingsRef = useRef(settings);
@@ -83,6 +85,7 @@ export default function PomodoroTimer({
   const stopBinaural = useCallback(() => {
     engineRef.current?.stop();
     engineRef.current = null;
+    bgSessionRef.current.stop();
   }, []);
 
   const startBinauralForPhase = useCallback(
@@ -94,12 +97,23 @@ export default function PomodoroTimer({
         engineRef.current.updatePreset(preset);
         return;
       }
+      configureMixAudioSession();
       const engine = new BinauralAudioEngine();
       engineRef.current = engine;
       await engine.start(preset, ambientId, { fadeInSec: 4 });
       engine.setMasterVolume(masterVolume);
       engine.setBinauralVolume(binauralVolume);
       engine.setAmbientVolume(ambientVolume);
+      await bgSessionRef.current.start(() => {
+        void engine.resumeIfSuspended();
+        void engine.resumeAfterInterrupt();
+      });
+      engine.bindContextStateHandler(
+        () => bgSessionRef.current.pauseForCall(),
+        () => {
+          void engine.resumeAfterInterrupt();
+        }
+      );
     },
     [linkBinaural, ambientId, masterVolume, binauralVolume, ambientVolume]
   );

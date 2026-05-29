@@ -344,7 +344,7 @@ export default function BinauralBeatsPanel({ diagnosis, onClose, onExplainReques
         </div>
 
         <div style={{ fontSize: 10, color: "#9a8b7a", marginTop: 12, lineHeight: 1.6, textAlign: "center" }}>
-          左右で異なる周波数を聴取し、脳波誘導をサポートします。再生中は画面を閉じても音は続きます（4秒フェードイン）。
+          左右で異なる周波数を聴取し、脳波誘導をサポートします。画面ロック中も再生継続（Mixモード・無音ループ・SWタイマー）。
         </div>
         </>
         )}

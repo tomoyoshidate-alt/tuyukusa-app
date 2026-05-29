@@ -300,6 +300,9 @@ export class BinauralAudioEngine {
   private targetBinaural = 0.45;
   private targetAmbient = 0.35;
   private transitioning = false;
+  private pausedByInterrupt = false;
+  private preInterruptMaster = 0.7;
+  private ctxStateCleanup: (() => void) | null = null;
 
   async start(
     preset: BinauralBeatPreset,
@@ -348,6 +351,10 @@ export class BinauralAudioEngine {
     const { cleanup: ambientCleanup, timers: ambientTimers } = buildAmbient(ctx, ambientGain, ambientId);
     this.currentAmbientId = ambientId;
 
+    this.ctxStateCleanup?.();
+    this.ctxStateCleanup = null;
+    this.pausedByInterrupt = false;
+
     this.nodes = {
       ctx,
       master,
@@ -363,6 +370,9 @@ export class BinauralAudioEngine {
 
   stop(): void {
     if (!this.nodes) return;
+    this.ctxStateCleanup?.();
+    this.ctxStateCleanup = null;
+    this.pausedByInterrupt = false;
     const { ctx, leftOsc, rightOsc, merger, ambientCleanup, ambientTimers } = this.nodes;
     ambientTimers.forEach(t => clearInterval(t));
     ambientCleanup();
@@ -451,9 +461,62 @@ export class BinauralAudioEngine {
 
   async resumeIfSuspended(): Promise<void> {
     if (!this.nodes) return;
-    if (this.nodes.ctx.state === "suspended") {
-      await this.nodes.ctx.resume();
+    const { ctx } = this.nodes;
+    if (ctx.state === "suspended" || (ctx.state as string) === "interrupted") {
+      try {
+        await ctx.resume();
+      } catch {
+        /* ignore */
+      }
     }
+  }
+
+  getAudioContext(): AudioContext | null {
+    return this.nodes?.ctx ?? null;
+  }
+
+  bindContextStateHandler(onInterrupt: () => void, onResume: () => void): void {
+    const ctx = this.getAudioContext();
+    if (!ctx) return;
+    this.ctxStateCleanup?.();
+    let interrupted = false;
+    const handler = () => {
+      const state = ctx.state as string;
+      if (state === "interrupted") {
+        if (!interrupted) {
+          interrupted = true;
+          this.pauseForInterrupt();
+          onInterrupt();
+        }
+      } else if (ctx.state === "running" && interrupted) {
+        interrupted = false;
+        void this.resumeAfterInterrupt();
+        onResume();
+      }
+    };
+    ctx.addEventListener("statechange", handler);
+    this.ctxStateCleanup = () => ctx.removeEventListener("statechange", handler);
+  }
+
+  pauseForInterrupt(): void {
+    if (!this.nodes || this.pausedByInterrupt) return;
+    this.pausedByInterrupt = true;
+    const { ctx, master } = this.nodes;
+    this.preInterruptMaster = master.gain.value;
+    master.gain.setValueAtTime(0, ctx.currentTime);
+    void ctx.suspend();
+  }
+
+  async resumeAfterInterrupt(): Promise<void> {
+    if (!this.nodes || !this.pausedByInterrupt) return;
+    this.pausedByInterrupt = false;
+    const { ctx, master } = this.nodes;
+    try {
+      await ctx.resume();
+    } catch {
+      /* ignore */
+    }
+    master.gain.setValueAtTime(this.preInterruptMaster || this.targetMaster, ctx.currentTime);
   }
 
   updatePreset(preset: BinauralBeatPreset): void {

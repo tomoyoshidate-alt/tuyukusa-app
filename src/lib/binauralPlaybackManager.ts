@@ -1,4 +1,5 @@
 import { AlarmEngine } from "@/src/lib/alarmEngine";
+import { BackgroundAudioSession, configureMixAudioSession } from "@/src/lib/backgroundAudioSession";
 import { BinauralAudioEngine } from "@/src/lib/binauralAudioEngine";
 import type { AmbientSoundId, BinauralBeatPreset } from "@/src/lib/binauralBeats";
 import {
@@ -29,11 +30,10 @@ class BinauralPlaybackManager {
   private preset: BinauralBeatPreset | null = null;
   private ambientId: AmbientSoundId = "rain";
   private volumes = { master: 0.7, binaural: 0.45, ambient: 0.35 };
-  private wakeLock: WakeLockSentinel | null = null;
+  private bgSession = new BackgroundAudioSession();
   private alarmRef: AlarmEngine | null = null;
   private isAlarmRinging = false;
   private listeners = new Set<Listener>();
-  private visibilityBound = false;
 
   subscribe(listener: Listener): () => void {
     this.listeners.add(listener);
@@ -83,8 +83,20 @@ class BinauralPlaybackManager {
     engine.setBinauralVolume(volumes.binaural);
     engine.setAmbientVolume(volumes.ambient);
 
-    this.bindVisibilityHandler();
-    await this.acquireWakeLock();
+    configureMixAudioSession();
+    await this.bgSession.start(() => {
+      void this.engine?.resumeIfSuspended();
+      void this.engine?.resumeAfterInterrupt();
+    });
+    const ctx = engine.getAudioContext();
+    if (ctx) {
+      engine.bindContextStateHandler(
+        () => this.bgSession.pauseForCall(),
+        () => {
+          void this.engine?.resumeAfterInterrupt();
+        }
+      );
+    }
     this.setupMediaSession(preset);
 
     if (timerMinutes) {
@@ -108,7 +120,8 @@ class BinauralPlaybackManager {
           return;
         }
       }
-      this.engine?.resumeIfSuspended();
+      void this.engine?.resumeIfSuspended();
+      void this.bgSession.resumeAll();
       this.emit();
     }, 500);
 
@@ -122,7 +135,7 @@ class BinauralPlaybackManager {
     this.endAtRef = 0;
     this.stopAlarm();
     stopSwAlarm();
-    void this.releaseWakeLock();
+    this.bgSession.stop();
     this.clearMediaSession();
     if (!options?.silent) this.emit();
   }
@@ -157,7 +170,9 @@ class BinauralPlaybackManager {
   }
 
   resumeAudio(): void {
-    this.engine?.resumeIfSuspended();
+    void this.engine?.resumeIfSuspended();
+    void this.engine?.resumeAfterInterrupt();
+    void this.bgSession.resumeAll();
   }
 
   stopAlarm(): void {
@@ -186,7 +201,7 @@ class BinauralPlaybackManager {
     this.engine?.stop();
     this.engine = null;
     this.endAtRef = 0;
-    void this.releaseWakeLock();
+    this.bgSession.stop();
     this.clearMediaSession();
     this.startAlarm(title, body, { skipSwNotify: true });
   }
@@ -201,37 +216,6 @@ class BinauralPlaybackManager {
       clearInterval(this.tickRef);
       this.tickRef = null;
     }
-  }
-
-  private bindVisibilityHandler(): void {
-    if (this.visibilityBound || typeof document === "undefined") return;
-    this.visibilityBound = true;
-    document.addEventListener("visibilitychange", () => {
-      if (document.visibilityState === "visible") {
-        this.engine?.resumeIfSuspended();
-      }
-    });
-  }
-
-  private async acquireWakeLock(): Promise<void> {
-    if (typeof navigator === "undefined" || !("wakeLock" in navigator)) return;
-    try {
-      this.wakeLock = await navigator.wakeLock.request("screen");
-      this.wakeLock.addEventListener("release", () => {
-        this.wakeLock = null;
-      });
-    } catch {
-      /* ignore – not supported or denied */
-    }
-  }
-
-  private async releaseWakeLock(): Promise<void> {
-    try {
-      await this.wakeLock?.release();
-    } catch {
-      /* ignore */
-    }
-    this.wakeLock = null;
   }
 
   private setupMediaSession(preset: BinauralBeatPreset): void {
