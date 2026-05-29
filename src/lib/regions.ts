@@ -24,11 +24,28 @@ export function getRegionById(regionId: string): RegionOption {
 
 export type LocationSettings = {
   regionId: string;
+  autoDetected?: boolean;
 };
 
 export const INITIAL_LOCATION_SETTINGS: LocationSettings = {
   regionId: DEFAULT_REGION_ID,
+  autoDetected: false,
 };
+
+export function findNearestRegionId(lat: number, lon: number): string {
+  let bestId = DEFAULT_REGION_ID;
+  let bestDist = Infinity;
+  for (const region of REGION_OPTIONS) {
+    const dLat = region.lat - lat;
+    const dLon = region.lon - lon;
+    const dist = dLat * dLat + dLon * dLon;
+    if (dist < bestDist) {
+      bestDist = dist;
+      bestId = region.id;
+    }
+  }
+  return bestId;
+}
 
 export function normalizeLocationSettings(data: unknown): LocationSettings {
   if (!data || typeof data !== "object") return INITIAL_LOCATION_SETTINGS;
@@ -37,5 +54,8 @@ export function normalizeLocationSettings(data: unknown): LocationSettings {
     typeof d.regionId === "string" && REGION_OPTIONS.some(r => r.id === d.regionId)
       ? d.regionId
       : DEFAULT_REGION_ID;
-  return { regionId };
+  return {
+    regionId,
+    autoDetected: !!d.autoDetected,
+  };
 }

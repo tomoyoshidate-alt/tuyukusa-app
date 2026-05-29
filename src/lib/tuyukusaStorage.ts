@@ -13,6 +13,7 @@ export const TUYUKUSA_STORAGE_KEYS = [
   "tuyukusa-chat-knowledge",
   "tuyukusa-location",
   "tuyukusa-radio",
+  "tuyukusa-health-data",
 ] as const;
 
 let migrationRan = false;
@@ -99,6 +100,7 @@ function isGoogleCalendarStorageValid(data: unknown): boolean {
   if ("email" in d && d.email !== undefined && typeof d.email !== "string") return false;
   if ("connected" in d && d.connected !== undefined && typeof d.connected !== "boolean") return false;
   if ("lastSyncDayKey" in d && d.lastSyncDayKey !== undefined && typeof d.lastSyncDayKey !== "string") return false;
+  if ("lastSyncAt" in d && d.lastSyncAt !== undefined && typeof d.lastSyncAt !== "number") return false;
   return true;
 }
 
@@ -114,7 +116,12 @@ function isLocationStorageValid(data: unknown): boolean {
   if (!data || typeof data !== "object") return false;
   const d = data as Record<string, unknown>;
   if ("regionId" in d && d.regionId !== undefined && typeof d.regionId !== "string") return false;
+  if ("autoDetected" in d && d.autoDetected !== undefined && typeof d.autoDetected !== "boolean") return false;
   return true;
+}
+
+function isHealthDataStorageValid(data: unknown): boolean {
+  return !!data && typeof data === "object";
 }
 
 function isRadioStorageValid(data: unknown): boolean {
@@ -134,6 +141,7 @@ function isStoredDataValid(): boolean {
     "tuyukusa-chat-knowledge": isChatKnowledgeStorageValid,
     "tuyukusa-location": isLocationStorageValid,
     "tuyukusa-radio": isRadioStorageValid,
+    "tuyukusa-health-data": isHealthDataStorageValid,
   };
 
   for (const key of TUYUKUSA_STORAGE_KEYS) {

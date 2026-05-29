@@ -109,7 +109,7 @@ function parseScheduleMeta(text: string): { content: string; scheduleSuggestions
 }
 
 export async function POST(request: NextRequest) {
-  const { messages, environmentContext, userKnowledgeContext } = await request.json();
+  const { messages, environmentContext, userKnowledgeContext, healthContext } = await request.json();
 
   let system = SYSTEM_PROMPT;
   if (userKnowledgeContext) {
@@ -117,6 +117,9 @@ export async function POST(request: NextRequest) {
   }
   if (environmentContext) {
     system += `\n\n【本日の環境情報（診断・目標提案に活用）】\n${environmentContext}`;
+  }
+  if (healthContext) {
+    system += `\n\n${healthContext}\n\n上記のヘルスケアデータを診断・生活リズム提案に活用してください。`;
   }
 
   const response = await client.messages.create({

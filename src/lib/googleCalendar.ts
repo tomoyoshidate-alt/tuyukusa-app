@@ -11,12 +11,15 @@ export type GoogleCalendarSettings = {
   icalUrl: string;
   connected: boolean;
   lastSyncDayKey?: string;
+  lastSyncAt?: number;
 };
 
 export const INITIAL_GOOGLE_CALENDAR: GoogleCalendarSettings = {
   icalUrl: "",
   connected: false,
 };
+
+export const CALENDAR_SYNC_INTERVAL_MS = 60 * 60 * 1000;
 
 function extractIcsField(block: string, field: string): string {
   const re = new RegExp(`^${field}[^:]*:(.*)$`, "m");
@@ -73,7 +76,9 @@ export function filterEventsForDay(events: CalendarEvent[], dayKey: string): Cal
 export function detectCalendarDayMode(events: CalendarEvent[]): CalendarDayMode {
   for (const event of events) {
     const text = event.summary.toLowerCase();
-    if (/休日|休み|有給|祝|off\b|holiday|vacation|年休|代休/.test(text)) return "holiday";
+    if (/休日|休み|有給|祝|off\b|holiday|vacation|年休|代休|プライベート|private/.test(text)) {
+      return "holiday";
+    }
   }
   for (const event of events) {
     const text = event.summary.toLowerCase();
@@ -176,6 +181,7 @@ export function normalizeGoogleCalendarSettings(data: unknown): GoogleCalendarSe
     icalUrl,
     connected: !!d.connected && !!icalUrl,
     lastSyncDayKey: typeof d.lastSyncDayKey === "string" ? d.lastSyncDayKey : undefined,
+    lastSyncAt: typeof d.lastSyncAt === "number" ? d.lastSyncAt : undefined,
   };
 }
 

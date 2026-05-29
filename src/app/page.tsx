@@ -13,10 +13,25 @@ import dynamic from "next/dynamic";
 import { runTuyukusaStorageMigration } from "@/src/lib/tuyukusaStorage";
 import {
   applyCalendarAdjustments,
+  CALENDAR_SYNC_INTERVAL_MS,
   INITIAL_GOOGLE_CALENDAR,
+  isValidIcalFeedUrl,
   normalizeGoogleCalendarSettings,
   type GoogleCalendarSettings,
 } from "@/src/lib/googleCalendar";
+import {
+  buildHealthContext,
+  formatHealthSummary,
+  INITIAL_HEALTH_DATA,
+  mergeHealthImport,
+  normalizeHealthData,
+  parseHealthFromSearchParams,
+  type HealthData,
+} from "@/src/lib/healthData";
+import AddToHomeScreen from "@/src/components/AddToHomeScreen";
+import HealthKitBridge from "@/src/components/HealthKitBridge";
+import ScreenSettingsTab from "@/src/components/ScreenSettingsTab";
+import TsuyukusaRadio from "@/src/components/TsuyukusaRadio";
 import {
   DEFAULT_HOME_DISPLAY,
   isSectionVisible,
@@ -29,9 +44,6 @@ import {
   normalizeRadioSettings,
   type RadioSettings,
 } from "@/src/lib/radioFavorites";
-import AddToHomeScreen from "@/src/components/AddToHomeScreen";
-import ScreenSettingsTab from "@/src/components/ScreenSettingsTab";
-import TsuyukusaRadio from "@/src/components/TsuyukusaRadio";
 import {
   buildUserKnowledgeContext,
   INITIAL_CHAT_KNOWLEDGE,
@@ -737,9 +749,14 @@ const USER_MANUAL_STEPS = [
     body: "体調や生活リズムを相談すると、つゆくさ理論に基づくアドバイスとスケジュール提案が得られます。提案はワンタップで今日のスケジュールに追加できます。",
   },
   {
+    icon: "❤️",
+    title: "iOSヘルスケア連携",
+    body: "画面設定またはホームの「ヘルスケアデータを送る」からiOSショートカットを起動。睡眠・歩数・心拍数がAI診断に活用されます。",
+  },
+  {
     icon: "📆",
     title: "Googleカレンダー（iCal）",
-    body: "設定タブで非公開のiCalフィードURLを登録。予定名に「仕事」「休日」を含めると、起床・夕食時間などが自動調整されます。一般公開は不要です。",
+    body: "設定タブで非公開のiCalフィードURLを登録。「仕事」「休日」「プライベート」の予定名でスケジュールが自動調整。1時間ごとに自動更新。",
   },
   {
     icon: "🔒",
@@ -1233,7 +1250,8 @@ function buildHealthSummary(form: HealthForm): string {
 async function fetchChatReply(
   messages: Message[],
   environmentContext?: string,
-  userKnowledgeContext?: string
+  userKnowledgeContext?: string,
+  healthContext?: string
 ): Promise<ChatReply> {
   const res = await fetch("/api/chat", {
     method: "POST",
@@ -1242,6 +1260,7 @@ async function fetchChatReply(
       messages: toApiMessages(messages),
       environmentContext,
       userKnowledgeContext,
+      healthContext,
     }),
   });
   if (!res.ok) throw new Error("Chat API request failed");
@@ -2091,6 +2110,12 @@ export default function TuyukusaApp() {
     INITIAL_RADIO_SETTINGS,
     normalizeRadioSettings
   );
+  const [healthData, setHealthData, healthHydrated] = useLocalStorage<HealthData>(
+    "tuyukusa-health-data",
+    INITIAL_HEALTH_DATA,
+    normalizeHealthData
+  );
+  const [healthImportMessage, setHealthImportMessage] = useState("");
   const [calendarMessage, setCalendarMessage] = useState("");
   const [chatFlowStep, setChatFlowStep] = useState<ChatFlowStep>("intro");
   const [chatFlowData, setChatFlowData] = useState<ChatFlowData>({});
@@ -2128,6 +2153,7 @@ export default function TuyukusaApp() {
   scheduleTemplatesRef.current = scheduleTemplates;
   const envContext = buildEnvironmentContext(weather);
   const userKnowledgeContext = buildUserKnowledgeContext(chatKnowledge, userProfile);
+  const healthContext = buildHealthContext(healthData);
 
   const timelineItems = sortByTime(schedule.items ?? []);
   const storageReady =
@@ -2140,7 +2166,8 @@ export default function TuyukusaApp() {
     calendarHydrated &&
     chatKnowledgeHydrated &&
     locationHydrated &&
-    radioHydrated;
+    radioHydrated &&
+    healthHydrated;
 
   useEffect(() => {
     runTuyukusaStorageMigration();
@@ -2190,7 +2217,7 @@ export default function TuyukusaApp() {
     });
     setIsLoading(true);
     try {
-      const reply = await fetchChatReply(updatedMessages, envContext, userKnowledgeContext);
+      const reply = await fetchChatReply(updatedMessages, envContext, userKnowledgeContext, healthContext);
       setChatMessages(prev => [...prev, createAiChatMessage(reply.content, reply)]);
     } catch {
       setChatMessages(prev => [
@@ -2357,7 +2384,7 @@ export default function TuyukusaApp() {
 三行目：期限日（YYYY-MM-DD形式、今日から7〜30日後）
 
 ${buildHealthSummary(healthForm)}`;
-      const { content } = await fetchChatReply([{ type: "user", text: prompt }], envContext, userKnowledgeContext);
+      const { content } = await fetchChatReply([{ type: "user", text: prompt }], envContext, userKnowledgeContext, healthContext);
       setAiDeadlineSuggestion(parseAiDeadlineReply(content));
     } catch {
       setAiDeadlineSuggestion({
@@ -2528,7 +2555,7 @@ ${buildHealthSummary(healthForm)}`;
         );
         return { dayKey, items: adjusted, alerts: syncScheduleAlerts(adjusted) };
       });
-      setGoogleCalendar(prev => ({ ...prev, icalUrl, connected: true, lastSyncDayKey: dayKey }));
+      setGoogleCalendar(prev => ({ ...prev, icalUrl, connected: true, lastSyncDayKey: dayKey, lastSyncAt: Date.now() }));
       return true;
     } catch (err) {
       setCalendarMessage(err instanceof Error ? err.message : "カレンダーの取得に失敗しました");
@@ -2557,15 +2584,38 @@ ${buildHealthSummary(healthForm)}`;
   useEffect(() => {
     if (!scheduleHydrated || !calendarHydrated) return;
     if (!googleCalendar.connected || !googleCalendar.icalUrl) return;
-    if (googleCalendar.lastSyncDayKey === getDayKey()) return;
-    syncGoogleCalendar();
+    const dayChanged = googleCalendar.lastSyncDayKey !== getDayKey();
+    const hourElapsed =
+      !googleCalendar.lastSyncAt || Date.now() - googleCalendar.lastSyncAt >= CALENDAR_SYNC_INTERVAL_MS;
+    if (dayChanged || hourElapsed) {
+      syncGoogleCalendar();
+    }
   }, [
     scheduleHydrated,
     calendarHydrated,
     googleCalendar.connected,
     googleCalendar.icalUrl,
     googleCalendar.lastSyncDayKey,
+    googleCalendar.lastSyncAt,
   ]);
+
+  useEffect(() => {
+    if (!googleCalendar.connected || !googleCalendar.icalUrl) return;
+    const timer = setInterval(() => {
+      void syncGoogleCalendar();
+    }, CALENDAR_SYNC_INTERVAL_MS);
+    return () => clearInterval(timer);
+  }, [googleCalendar.connected, googleCalendar.icalUrl]);
+
+  useEffect(() => {
+    if (!storageReady) return;
+    const params = new URLSearchParams(window.location.search);
+    const patch = parseHealthFromSearchParams(params);
+    if (!patch) return;
+    setHealthData(prev => mergeHealthImport(prev, patch));
+    setHealthImportMessage("ヘルスケアデータを受信しました");
+    window.history.replaceState({}, "", window.location.pathname);
+  }, [storageReady, setHealthData]);
 
   const addSuggestionToSchedule = (messageIndex: number, suggestionId: string) => {
     const msg = chatMessages[messageIndex];
@@ -2588,7 +2638,7 @@ ${buildHealthSummary(healthForm)}`;
       const prompt = `${labels[period]}の目標を1つだけ提案してください。以下を踏まえ、20字以内の具体的な行動目標にしてください。カテゴリ（睡眠/食事/運動/塩清療法/その他）も一行目に【カテゴリ】の形式で付けてください。
 
 ${buildHealthSummary(healthForm)}`;
-      const { content } = await fetchChatReply([{ type: "user", text: prompt }], envContext, userKnowledgeContext);
+      const { content } = await fetchChatReply([{ type: "user", text: prompt }], envContext, userKnowledgeContext, healthContext);
       const parsed = parseAiGoalReply(content);
       setAiSuggestions(prev => ({
         ...prev,
@@ -2720,7 +2770,7 @@ ${buildHealthSummary(healthForm)}`;
     try {
       const prompt = buildScheduleProposalPrompt(data);
       const flowMessages: Message[] = [...baseMessages, { type: "user", text: prompt }];
-      const reply = await fetchChatReply(flowMessages, envContext, userKnowledgeContext);
+      const reply = await fetchChatReply(flowMessages, envContext, userKnowledgeContext, healthContext);
       setChatMessages(prev => [
         ...prev,
         {
@@ -2780,7 +2830,7 @@ ${buildHealthSummary(healthForm)}`;
       setChatMessages(userMessages);
       setIsLoading(true);
       try {
-        const reply = await fetchChatReply(userMessages, envContext, userKnowledgeContext);
+        const reply = await fetchChatReply(userMessages, envContext, userKnowledgeContext, healthContext);
         setChatMessages(prev => [...prev, createAiChatMessage(reply.content, reply)]);
       } catch {
         setChatMessages(prev => [
@@ -2853,7 +2903,7 @@ ${buildHealthSummary(healthForm)}`;
     setChatMessages(updatedMessages);
     setIsLoading(true);
     try {
-      const reply = await fetchChatReply(updatedMessages, envContext, userKnowledgeContext);
+      const reply = await fetchChatReply(updatedMessages, envContext, userKnowledgeContext, healthContext);
       setChatMessages(prev => [...prev, createAiChatMessage(reply.content, reply)]);
     } catch {
       setChatMessages(prev => [
@@ -2882,7 +2932,7 @@ ${buildHealthSummary(healthForm)}`;
     setChatMessages(updatedMessages);
     setIsLoading(true);
     try {
-      const reply = await fetchChatReply(updatedMessages, envContext, userKnowledgeContext);
+      const reply = await fetchChatReply(updatedMessages, envContext, userKnowledgeContext, healthContext);
       setChatMessages(prev => [...prev, createAiChatMessage(reply.content, reply)]);
     } catch {
       setChatMessages(prev => [
@@ -3051,6 +3101,11 @@ ${buildHealthSummary(healthForm)}`;
             <div style={{ fontSize: 13, lineHeight: 1.8, opacity: 0.8, borderLeft: "2px solid #c17f4a", paddingLeft: 12 }}>
               {MOCK_SCHEDULE.advice}
             </div>
+            {healthData.updatedAt && (
+              <div style={{ fontSize: 11, marginTop: 12, padding: "8px 10px", background: "rgba(74,103,65,0.2)", borderRadius: 8, color: "#c5d8be" }}>
+                ❤️ ヘルスケア: {formatHealthSummary(healthData)}
+              </div>
+            )}
           </div>
         );
       case "schedule":
@@ -3172,6 +3227,12 @@ ${buildHealthSummary(healthForm)}`;
         {tab === "home" && (
           <div>
             <AddToHomeScreen />
+            <HealthKitBridge healthData={healthData} />
+            {healthImportMessage && (
+              <div style={{ margin: "8px 16px 0", padding: "10px 12px", background: "#e8f0e4", borderRadius: 10, fontSize: 12, color: "#4a6741", textAlign: "center" }}>
+                ✓ {healthImportMessage}
+              </div>
+            )}
             {homeDisplay.sectionOrder
               .filter(sectionId => isSectionVisible(homeDisplay, sectionId))
               .map(sectionId => (
@@ -3340,6 +3401,7 @@ ${buildHealthSummary(healthForm)}`;
             onLocationChange={setLocationSettings}
             homeDisplay={homeDisplay}
             onHomeDisplayChange={setHomeDisplay}
+            healthData={healthData}
           />
         )}
 
@@ -3431,8 +3493,22 @@ ${buildHealthSummary(healthForm)}`;
             </div>
 
             <div style={{ fontSize: 15, fontWeight: "bold", color: "#3d3228", marginBottom: 4, paddingTop: 12, borderTop: "1px solid rgba(60,40,20,0.12)", marginTop: 8 }}>📆 Googleカレンダー連携</div>
-            <div style={{ fontSize: 11, color: "#3d3228", opacity: 0.6, marginBottom: 12, lineHeight: 1.5 }}>
-              非公開のiCalフィードURLを使って予定を読み取ります。「仕事」「休日」などの予定に合わせてスケジュールが自動調整されます。
+            <div style={{ ...cardStyle, marginBottom: 12, background: "#fdf8f0", border: "1px solid rgba(193,127,74,0.25)" }}>
+              <div style={{ fontSize: 13, fontWeight: "bold", color: "#3d3228", marginBottom: 8 }}>🔒 安全に連携する方法</div>
+              <div style={{ fontSize: 12, color: "#3d3228", lineHeight: 1.7, marginBottom: 10 }}>
+                Googleカレンダーを一般公開せずに連携できます。
+              </div>
+              <ol style={{ fontSize: 12, color: "#3d3228", lineHeight: 1.8, paddingLeft: 20, margin: "0 0 12px" }}>
+                <li>Googleカレンダーを開く</li>
+                <li>連携したいカレンダー名の横の「⋮」をタップ</li>
+                <li>「設定と共有」を選択</li>
+                <li>画面を一番下までスクロール</li>
+                <li>「カレンダーの統合」の中の「非公開のアドレス（iCal形式）」のURLをコピー</li>
+                <li>下のテキストボックスに貼り付けて「連携する」をタップ</li>
+              </ol>
+              <div style={{ fontSize: 11, color: "#c44a4a", lineHeight: 1.6, padding: "8px 10px", background: "rgba(196,74,74,0.08)", borderRadius: 8 }}>
+                ⚠️ このURLは他人に教えないでください。カレンダーの全予定が見られるURLです。
+              </div>
             </div>
             <div style={{ ...cardStyle, marginBottom: 12 }}>
               <div style={fieldLabelStyle}>iCalフィードURL（非公開アドレス）</div>
@@ -3441,10 +3517,16 @@ ${buildHealthSummary(healthForm)}`;
                 placeholder="https://calendar.google.com/calendar/ical/..."
                 value={googleCalendar.icalUrl}
                 onChange={e => setGoogleCalendar(prev => ({ ...prev, icalUrl: e.target.value, connected: false }))}
+                onBlur={() => {
+                  const url = googleCalendar.icalUrl.trim();
+                  if (url && isValidIcalFeedUrl(url) && !googleCalendar.connected) {
+                    void connectGoogleCalendar();
+                  }
+                }}
                 style={{ ...inputStyle, marginBottom: 10 }}
               />
               <div style={{ fontSize: 10, color: "#9a8b7a", marginBottom: 12, lineHeight: 1.6 }}>
-                Googleカレンダー → 設定 → 対象カレンダー → 「非公開アドレス（iCal形式）」のURLをコピーして貼り付けてください。カレンダーを一般公開する必要はありません。
+                「仕事」「休日」「プライベート」などの予定名に合わせてスケジュールを自動調整。接続後は1時間ごとに自動更新します。
               </div>
               <div style={{ display: "flex", gap: 8 }}>
                 <button
@@ -3462,7 +3544,7 @@ ${buildHealthSummary(healthForm)}`;
                     cursor: "pointer",
                   }}
                 >
-                  {googleCalendar.connected ? "再同期" : "接続する"}
+                  {googleCalendar.connected ? "再同期" : "連携する"}
                 </button>
                 {googleCalendar.connected && (
                   <button
@@ -3485,6 +3567,9 @@ ${buildHealthSummary(healthForm)}`;
               {googleCalendar.connected && (
                 <div style={{ fontSize: 11, color: "#4a6741", marginTop: 10 }}>
                   ✓ 接続済み
+                  {googleCalendar.lastSyncAt
+                    ? ` · 最終更新 ${new Date(googleCalendar.lastSyncAt).toLocaleTimeString("ja-JP", { hour: "2-digit", minute: "2-digit" })}`
+                    : ""}
                 </div>
               )}
               {calendarMessage && (

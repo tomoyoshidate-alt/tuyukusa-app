@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useState, type CSSProperties } from "react";
+import { useCallback, useEffect, useState, type CSSProperties } from "react";
 import {
   HOME_SECTION_LABELS,
   HOME_SECTION_TOGGLE_OPTIONS,
@@ -8,7 +8,13 @@ import {
   type HomeDisplaySettings,
   type HomeSectionId,
 } from "@/src/lib/homeDisplay";
-import { REGION_OPTIONS, type LocationSettings } from "@/src/lib/regions";
+import HealthKitBridge from "@/src/components/HealthKitBridge";
+import {
+  findNearestRegionId,
+  REGION_OPTIONS,
+  type LocationSettings,
+} from "@/src/lib/regions";
+import type { HealthData } from "@/src/lib/healthData";
 
 type UserProfile = {
   name: string;
@@ -24,6 +30,7 @@ type Props = {
   onLocationChange: (next: LocationSettings) => void;
   homeDisplay: HomeDisplaySettings;
   onHomeDisplayChange: (next: HomeDisplaySettings) => void;
+  healthData: HealthData;
 };
 
 export default function ScreenSettingsTab({
@@ -34,8 +41,32 @@ export default function ScreenSettingsTab({
   onLocationChange,
   homeDisplay,
   onHomeDisplayChange,
+  healthData,
 }: Props) {
   const [dragIndex, setDragIndex] = useState<number | null>(null);
+  const [geoStatus, setGeoStatus] = useState<"idle" | "loading" | "ok" | "error">("idle");
+
+  const detectLocation = useCallback(() => {
+    if (!navigator.geolocation) {
+      setGeoStatus("error");
+      return;
+    }
+    setGeoStatus("loading");
+    navigator.geolocation.getCurrentPosition(
+      pos => {
+        const regionId = findNearestRegionId(pos.coords.latitude, pos.coords.longitude);
+        onLocationChange({ regionId, autoDetected: true });
+        setGeoStatus("ok");
+      },
+      () => setGeoStatus("error"),
+      { timeout: 10000, maximumAge: 300000, enableHighAccuracy: false }
+    );
+  }, [onLocationChange]);
+
+  useEffect(() => {
+    if (locationSettings.autoDetected) return;
+    detectLocation();
+  }, [locationSettings.autoDetected, detectLocation]);
 
   const moveSection = useCallback(
     (from: number, to: number) => {
@@ -79,18 +110,37 @@ export default function ScreenSettingsTab({
       </div>
 
       <div style={sectionTitleStyle}>📍 在住地域</div>
+      <div style={{ fontSize: 11, color: "#9a8b7a", marginBottom: 8, lineHeight: 1.5 }}>
+        現在地から最寄りの地域を自動設定します（天気・日の出・日の入りに使用）
+      </div>
       <div style={cardStyle}>
         <div style={labelStyle}>地域を選択</div>
         <select
           value={locationSettings.regionId}
-          onChange={e => onLocationChange({ regionId: e.target.value })}
-          style={{ ...inputStyle, appearance: "auto" }}
+          onChange={e => onLocationChange({ regionId: e.target.value, autoDetected: false })}
+          style={{ ...inputStyle, marginBottom: 10, appearance: "auto" }}
         >
           {REGION_OPTIONS.map(region => (
             <option key={region.id} value={region.id}>{region.label}</option>
           ))}
         </select>
+        <button type="button" onClick={detectLocation} style={geoBtnStyle} disabled={geoStatus === "loading"}>
+          {geoStatus === "loading" ? "位置情報を取得中..." : "📍 現在地から地域を取得"}
+        </button>
+        {geoStatus === "ok" && (
+          <div style={{ fontSize: 11, color: "#4a6741", marginTop: 8 }}>
+            ✓ {REGION_OPTIONS.find(r => r.id === locationSettings.regionId)?.label} を設定しました
+          </div>
+        )}
+        {geoStatus === "error" && (
+          <div style={{ fontSize: 11, color: "#c44a4a", marginTop: 8 }}>
+            位置情報を取得できませんでした。ブラウザの許可を確認してください。
+          </div>
+        )}
       </div>
+
+      <div style={sectionTitleStyle}>❤️ ヘルスケア連携</div>
+      <HealthKitBridge healthData={healthData} compact />
 
       <div style={sectionTitleStyle}>🏠 ホーム画面の表示項目</div>
       <div style={{ fontSize: 11, color: "#9a8b7a", marginBottom: 8 }}>天気グラフ（内訳）</div>
@@ -190,4 +240,16 @@ const inputStyle: CSSProperties = {
   borderRadius: 8,
   padding: "10px 12px",
   fontSize: 14,
+};
+
+const geoBtnStyle: CSSProperties = {
+  width: "100%",
+  padding: "10px",
+  borderRadius: 8,
+  border: "1.5px solid #c17f4a",
+  background: "#fdf0e4",
+  color: "#8b5a2b",
+  fontSize: 12,
+  fontWeight: "bold",
+  cursor: "pointer",
 };
