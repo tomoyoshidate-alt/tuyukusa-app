@@ -75,7 +75,6 @@ export default function TsuyukusaRadio({
     TSUYUKUSA_RADIO_URL;
   const canPlay =
     isShowDefault ||
-    !!activeFavorite ||
     !!radioSettings.activeEpisode?.embedUrl ||
     !!radioSettings.activeEpisode?.audioUrl ||
     (activeFavorite ? toEmbedUrl(activeFavorite.url) !== null : false);
