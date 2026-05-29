@@ -30,8 +30,10 @@ function formatRemaining(seconds: number): string {
   return `${m}:${String(s).padStart(2, "0")}`;
 }
 
+import type { AmbientSoundId } from "@/src/lib/binauralBeats";
+
 type Props = {
-  ambientId: "rain" | "ocean" | "forest" | "fire" | "suikinkutsu";
+  ambientId: AmbientSoundId;
   masterVolume: number;
   binauralVolume: number;
   ambientVolume: number;

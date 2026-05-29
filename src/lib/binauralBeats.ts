@@ -8,7 +8,16 @@ export type BinauralBeatId =
   | "breath-theta"
   | "deep-relax-delta";
 
-export type AmbientSoundId = "rain" | "ocean" | "forest" | "fire" | "suikinkutsu";
+export type AmbientSoundId =
+  | "rain"
+  | "ocean"
+  | "forest"
+  | "fire"
+  | "suikinkutsu"
+  | "uguisu"
+  | "space"
+  | "underwater"
+  | "waterdrops";
 
 export type BinauralBeatPreset = {
   id: BinauralBeatId;
@@ -41,7 +50,11 @@ export const AMBIENT_SOUND_PRESETS: AmbientSoundPreset[] = [
   { id: "ocean", emoji: "🌊", label: "波音" },
   { id: "forest", emoji: "🌳", label: "森の音" },
   { id: "fire", emoji: "🔥", label: "焚き火" },
-  { id: "suikinkutsu", emoji: "💧", label: "水琴窟" },
+  { id: "suikinkutsu", emoji: "🎐", label: "水琴窟" },
+  { id: "uguisu", emoji: "🐦", label: "うぐいす" },
+  { id: "space", emoji: "🌌", label: "宇宙" },
+  { id: "underwater", emoji: "🌊", label: "水中" },
+  { id: "waterdrops", emoji: "💧", label: "水滴" },
 ];
 
 export const TIMER_OPTIONS = [5, 10, 20, 30] as const;

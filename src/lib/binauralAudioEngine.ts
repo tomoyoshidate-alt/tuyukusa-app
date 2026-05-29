@@ -173,6 +173,116 @@ function buildAmbient(
       drop();
       break;
     }
+    case "uguisu": {
+      cleanups.push(
+        connectNoiseLoop(ctx, ambientGain, (_src, filter) => {
+          filter.type = "bandpass";
+          filter.frequency.value = 900;
+          filter.Q.value = 0.4;
+        })
+      );
+      const chirp = () => {
+        const osc = ctx.createOscillator();
+        const g = ctx.createGain();
+        osc.type = "sine";
+        const base = 2600 + Math.random() * 900;
+        osc.frequency.setValueAtTime(base, ctx.currentTime);
+        osc.frequency.linearRampToValueAtTime(base + 500 + Math.random() * 500, ctx.currentTime + 0.12);
+        osc.frequency.exponentialRampToValueAtTime(base * 0.75, ctx.currentTime + 0.55);
+        g.gain.setValueAtTime(0, ctx.currentTime);
+        g.gain.linearRampToValueAtTime(0.022, ctx.currentTime + 0.03);
+        g.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.6);
+        osc.connect(g);
+        g.connect(ambientGain);
+        osc.start();
+        osc.stop(ctx.currentTime + 0.65);
+      };
+      timers.push(setInterval(chirp, 2800 + Math.random() * 3500));
+      chirp();
+      break;
+    }
+    case "space": {
+      cleanups.push(
+        connectNoiseLoop(ctx, ambientGain, (_src, filter) => {
+          filter.type = "lowpass";
+          filter.frequency.value = 180;
+        })
+      );
+      const drone = ctx.createOscillator();
+      const droneGain = ctx.createGain();
+      drone.type = "sine";
+      drone.frequency.value = 52;
+      droneGain.gain.value = 0.028;
+      drone.connect(droneGain);
+      droneGain.connect(ambientGain);
+      drone.start();
+      cleanups.push(() => {
+        drone.stop();
+        drone.disconnect();
+        droneGain.disconnect();
+      });
+      const shimmer = () => {
+        const osc = ctx.createOscillator();
+        const g = ctx.createGain();
+        osc.type = "sine";
+        osc.frequency.value = 700 + Math.random() * 1400;
+        g.gain.setValueAtTime(0, ctx.currentTime);
+        g.gain.linearRampToValueAtTime(0.01, ctx.currentTime + 0.6);
+        g.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 3.5);
+        osc.connect(g);
+        g.connect(ambientGain);
+        osc.start();
+        osc.stop(ctx.currentTime + 3.6);
+      };
+      timers.push(setInterval(shimmer, 3500 + Math.random() * 5500));
+      shimmer();
+      break;
+    }
+    case "underwater": {
+      cleanups.push(
+        connectNoiseLoop(ctx, ambientGain, (_src, filter) => {
+          filter.type = "lowpass";
+          filter.frequency.value = 320;
+          filter.Q.value = 0.9;
+        })
+      );
+      const bubble = () => {
+        const osc = ctx.createOscillator();
+        const g = ctx.createGain();
+        osc.type = "sine";
+        osc.frequency.setValueAtTime(120 + Math.random() * 80, ctx.currentTime);
+        osc.frequency.exponentialRampToValueAtTime(380 + Math.random() * 120, ctx.currentTime + 0.07);
+        g.gain.setValueAtTime(0, ctx.currentTime);
+        g.gain.linearRampToValueAtTime(0.028, ctx.currentTime + 0.015);
+        g.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.18);
+        osc.connect(g);
+        g.connect(ambientGain);
+        osc.start();
+        osc.stop(ctx.currentTime + 0.2);
+      };
+      timers.push(setInterval(bubble, 450 + Math.random() * 1200));
+      bubble();
+      break;
+    }
+    case "waterdrops": {
+      const drop = () => {
+        const osc = ctx.createOscillator();
+        const g = ctx.createGain();
+        osc.type = "sine";
+        osc.frequency.setValueAtTime(1100 + Math.random() * 700, ctx.currentTime);
+        osc.frequency.exponentialRampToValueAtTime(280, ctx.currentTime + 0.35);
+        g.gain.setValueAtTime(0, ctx.currentTime);
+        g.gain.linearRampToValueAtTime(0.038, ctx.currentTime + 0.008);
+        g.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.45);
+        osc.connect(g);
+        g.connect(ambientGain);
+        osc.start();
+        osc.stop(ctx.currentTime + 0.5);
+      };
+      timers.push(setInterval(drop, 700 + Math.random() * 1100));
+      drop();
+      break;
+    }
   }
 
   return {
@@ -181,11 +291,15 @@ function buildAmbient(
   };
 }
 
+const CROSSFADE_SEC = 1.5;
+
 export class BinauralAudioEngine {
   private nodes: EngineNodes | null = null;
+  private currentAmbientId: AmbientSoundId | null = null;
   private targetMaster = 0.7;
   private targetBinaural = 0.45;
   private targetAmbient = 0.35;
+  private transitioning = false;
 
   async start(
     preset: BinauralBeatPreset,
@@ -232,6 +346,7 @@ export class BinauralAudioEngine {
     rightOsc.start();
 
     const { cleanup: ambientCleanup, timers: ambientTimers } = buildAmbient(ctx, ambientGain, ambientId);
+    this.currentAmbientId = ambientId;
 
     this.nodes = {
       ctx,
@@ -260,6 +375,56 @@ export class BinauralAudioEngine {
     merger.disconnect();
     void ctx.close();
     this.nodes = null;
+    this.currentAmbientId = null;
+  }
+
+  isTransitioning(): boolean {
+    return this.transitioning;
+  }
+
+  swapAmbient(ambientId: AmbientSoundId): void {
+    if (!this.nodes || this.currentAmbientId === ambientId) return;
+    const { ctx, ambientGain, ambientCleanup, ambientTimers } = this.nodes;
+    ambientTimers.forEach(t => clearInterval(t));
+    ambientCleanup();
+    const built = buildAmbient(ctx, ambientGain, ambientId);
+    this.nodes.ambientCleanup = built.cleanup;
+    this.nodes.ambientTimers = built.timers;
+    this.currentAmbientId = ambientId;
+  }
+
+  async applyChanges(
+    preset: BinauralBeatPreset,
+    ambientId: AmbientSoundId,
+    options?: { fadeSec?: number }
+  ): Promise<void> {
+    if (!this.nodes) return;
+    const fadeSec = options?.fadeSec ?? CROSSFADE_SEC;
+    this.transitioning = true;
+    const { ctx, master } = this.nodes;
+    const t = ctx.currentTime;
+
+    master.gain.cancelScheduledValues(t);
+    master.gain.setValueAtTime(master.gain.value, t);
+    master.gain.linearRampToValueAtTime(0, t + fadeSec);
+
+    await new Promise<void>(resolve => setTimeout(resolve, fadeSec * 1000));
+
+    if (!this.nodes) {
+      this.transitioning = false;
+      return;
+    }
+
+    this.updatePreset(preset);
+    this.swapAmbient(ambientId);
+
+    const t2 = this.nodes.ctx.currentTime;
+    this.nodes.master.gain.cancelScheduledValues(t2);
+    this.nodes.master.gain.setValueAtTime(0, t2);
+    this.nodes.master.gain.linearRampToValueAtTime(this.targetMaster, t2 + fadeSec);
+
+    await new Promise<void>(resolve => setTimeout(resolve, fadeSec * 1000));
+    this.transitioning = false;
   }
 
   setMasterVolume(value: number): void {

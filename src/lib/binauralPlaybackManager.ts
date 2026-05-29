@@ -10,6 +10,7 @@ import {
 export type BinauralPlaybackSnapshot = {
   isPlaying: boolean;
   isAlarmRinging: boolean;
+  isTransitioning: boolean;
   remainingSec: number;
   timerMinutes: number | null;
   presetId: string;
@@ -51,6 +52,7 @@ class BinauralPlaybackManager {
     return {
       isPlaying: this.engine?.isPlaying() ?? false,
       isAlarmRinging: this.isAlarmRinging,
+      isTransitioning: this.engine?.isTransitioning() ?? false,
       remainingSec,
       timerMinutes: this.timerMinutes,
       presetId: this.preset?.id ?? "",
@@ -129,15 +131,21 @@ class BinauralPlaybackManager {
     this.preset = preset;
     this.engine?.updatePreset(preset);
     this.setupMediaSession(preset);
+    this.emit();
   }
 
-  updateAmbient(ambientId: AmbientSoundId): void {
-    if (this.ambientId === ambientId || !this.preset) return;
-    const remainingMin =
-      this.endAtRef > 0
-        ? Math.max(1, Math.ceil((this.endAtRef - Date.now()) / 60000))
-        : this.timerMinutes;
-    void this.start(this.preset, ambientId, remainingMin, this.volumes);
+  async applyChanges(preset: BinauralBeatPreset, ambientId: AmbientSoundId): Promise<void> {
+    if (!this.engine?.isPlaying()) return;
+    this.preset = preset;
+    this.ambientId = ambientId;
+    await this.engine.applyChanges(preset, ambientId);
+    this.setupMediaSession(preset);
+    this.emit();
+  }
+
+  hasPendingChanges(presetId: string, ambientId: AmbientSoundId): boolean {
+    if (!this.engine?.isPlaying()) return false;
+    return this.preset?.id !== presetId || this.ambientId !== ambientId;
   }
 
   setVolumes(volumes: { master: number; binaural: number; ambient: number }): void {

@@ -49,13 +49,25 @@ export default function BinauralBeatsPanel({ diagnosis, onClose, onExplainReques
   const [playback, setPlayback] = useState<BinauralPlaybackSnapshot>(() =>
     binauralPlaybackManager.getSnapshot()
   );
+  const [isApplying, setIsApplying] = useState(false);
 
   useEffect(() => {
     return binauralPlaybackManager.subscribe(setPlayback);
   }, []);
 
+  useEffect(() => {
+    const snap = binauralPlaybackManager.getSnapshot();
+    if (snap.isPlaying && snap.presetId) {
+      setSelectedBeat(snap.presetId as BinauralBeatId);
+      setSelectedAmbient(snap.ambientId);
+    }
+  }, []);
+
   const isPlaying = playback.isPlaying;
   const remainingSec = playback.remainingSec;
+  const hasPendingChanges =
+    isPlaying &&
+    (playback.presetId !== selectedBeat || playback.ambientId !== selectedAmbient);
 
   const stopPlayback = useCallback(() => {
     binauralPlaybackManager.stopAlarm();
@@ -72,6 +84,19 @@ export default function BinauralBeatsPanel({ diagnosis, onClose, onExplainReques
     });
   }, [selectedBeat, selectedAmbient, timerMinutes, masterVolume, binauralVolume, ambientVolume]);
 
+  const applyChanges = useCallback(async () => {
+    if (!hasPendingChanges || isApplying) return;
+    setIsApplying(true);
+    try {
+      await binauralPlaybackManager.applyChanges(
+        getBeatPreset(selectedBeat),
+        selectedAmbient
+      );
+    } finally {
+      setIsApplying(false);
+    }
+  }, [hasPendingChanges, isApplying, selectedBeat, selectedAmbient]);
+
   useEffect(() => {
     if (!isPlaying) return;
     binauralPlaybackManager.setVolumes({
@@ -80,16 +105,6 @@ export default function BinauralBeatsPanel({ diagnosis, onClose, onExplainReques
       ambient: ambientVolume,
     });
   }, [masterVolume, binauralVolume, ambientVolume, isPlaying]);
-
-  useEffect(() => {
-    if (!isPlaying) return;
-    binauralPlaybackManager.updatePreset(getBeatPreset(selectedBeat));
-  }, [selectedBeat, isPlaying]);
-
-  useEffect(() => {
-    if (!isPlaying) return;
-    binauralPlaybackManager.updateAmbient(selectedAmbient);
-  }, [selectedAmbient, isPlaying]);
 
   const recommended = getBeatPreset(recommendedId);
 
@@ -231,7 +246,7 @@ export default function BinauralBeatsPanel({ diagnosis, onClose, onExplainReques
           })}
         </div>
 
-        <SectionTitle>背景音（5種類）</SectionTitle>
+        <SectionTitle>背景音（9種類）</SectionTitle>
         <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginBottom: 16 }}>
           {AMBIENT_SOUND_PRESETS.map(preset => {
             const selected = selectedAmbient === preset.id;
@@ -273,6 +288,35 @@ export default function BinauralBeatsPanel({ diagnosis, onClose, onExplainReques
         <VolumeSlider label="全体" value={masterVolume} onChange={setMasterVolume} />
         <VolumeSlider label="バイノーラル" value={binauralVolume} onChange={setBinauralVolume} />
         <VolumeSlider label="背景音" value={ambientVolume} onChange={setAmbientVolume} />
+
+        {isPlaying && hasPendingChanges && (
+          <button
+            type="button"
+            onClick={() => void applyChanges()}
+            disabled={isApplying || playback.isTransitioning}
+            style={{
+              width: "100%",
+              marginTop: 12,
+              padding: "12px 14px",
+              borderRadius: 10,
+              border: "2px solid #c17f4a",
+              background: "#fdf0e4",
+              color: "#8b5a2b",
+              fontSize: 14,
+              fontWeight: "bold",
+              cursor: isApplying || playback.isTransitioning ? "wait" : "pointer",
+              opacity: isApplying || playback.isTransitioning ? 0.7 : 1,
+            }}
+          >
+            {isApplying || playback.isTransitioning ? "切り替え中..." : "🔄 変更適応"}
+          </button>
+        )}
+
+        {isPlaying && hasPendingChanges && (
+          <div style={{ fontSize: 10, color: "#8b7355", marginTop: 6, textAlign: "center", lineHeight: 1.5 }}>
+            BBの種類や背景音を変更しました。「変更適応」でフェード切り替えできます。
+          </div>
+        )}
 
         <div style={{ marginTop: 20, display: "flex", gap: 10, alignItems: "center" }}>
           <button
