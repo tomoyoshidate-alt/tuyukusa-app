@@ -1439,6 +1439,7 @@ function PeriodGoalCard({
   onAiSuggest,
   aiSuggestion,
   onAdoptAi,
+  hideCategories = false,
 }: {
   title: string;
   resetHint: string;
@@ -1453,13 +1454,14 @@ function PeriodGoalCard({
   onAiSuggest?: () => void;
   aiSuggestion?: AiSuggestedGoal | null;
   onAdoptAi?: () => void;
+  hideCategories?: boolean;
 }) {
   const [inputText, setInputText] = useState("");
   const [inputCategory, setInputCategory] = useState<GoalCategory>("その他");
 
   const handleAdd = () => {
     if (!inputText.trim()) return;
-    onAddItem(inputText.trim(), inputCategory);
+    onAddItem(inputText.trim(), hideCategories ? "その他" : inputCategory);
     setInputText("");
   };
 
@@ -1480,7 +1482,9 @@ function PeriodGoalCard({
           未入力でもOK。自由に追加するか、AIに提案してもらえます。
         </div>
       )}
-      <CategorySelect value={inputCategory} onChange={setInputCategory} />
+      {!hideCategories && (
+        <CategorySelect value={inputCategory} onChange={setInputCategory} />
+      )}
       <div style={{ display: "flex", gap: 8, marginBottom: 10 }}>
         <input
           type="text"
@@ -1529,9 +1533,11 @@ function PeriodGoalCard({
             style={{ width: 16, height: 16, accentColor: "#c17f4a", flexShrink: 0 }}
           />
           <div style={{ flex: 1, minWidth: 0 }}>
-            <span style={{ fontSize: 9, color: "#c17f4a", background: "#fdf0e4", borderRadius: 8, padding: "1px 6px", marginRight: 4 }}>
-              {item.category}
-            </span>
+            {!hideCategories && (
+              <span style={{ fontSize: 9, color: "#c17f4a", background: "#fdf0e4", borderRadius: 8, padding: "1px 6px", marginRight: 4 }}>
+                {item.category}
+              </span>
+            )}
             <span style={{ fontSize: 13, color: "#3d3228", textDecoration: item.achieved ? "line-through" : "none" }}>
               {item.text}
             </span>
@@ -1570,9 +1576,11 @@ function PeriodGoalCard({
       {aiSuggestion?.text && onAdoptAi && (
         <div style={{ marginTop: 10, padding: 10, background: "#e8f0e4", borderRadius: 8, fontSize: 12 }}>
           <div style={{ fontSize: 10, color: "#4a6741", marginBottom: 4 }}>AI提案</div>
-          <span style={{ fontSize: 9, color: "#c17f4a", background: "#fdf0e4", borderRadius: 8, padding: "1px 6px", marginRight: 4 }}>
-            {aiSuggestion.category}
-          </span>
+          {!hideCategories && (
+            <span style={{ fontSize: 9, color: "#c17f4a", background: "#fdf0e4", borderRadius: 8, padding: "1px 6px", marginRight: 4 }}>
+              {aiSuggestion.category}
+            </span>
+          )}
           {aiSuggestion.text}
           <div style={{ display: "flex", gap: 6, marginTop: 8 }}>
             <button type="button" onClick={onAdoptAi} style={{ flex: 1, padding: "6px", borderRadius: 6, border: "none", background: "#1a1410", color: "#f5f0e8", fontSize: 11, cursor: "pointer" }}>
@@ -1597,9 +1605,7 @@ function HomeGoalSection({
   onToggleCollapse,
   collapsible,
   inputText,
-  inputCategory,
   onInputTextChange,
-  onInputCategoryChange,
   onAdd,
   onUpdateItem,
   onRemoveItem,
@@ -1607,6 +1613,9 @@ function HomeGoalSection({
   isSuggesting,
   aiSuggestion,
   onAdoptAi,
+  hideCategories = false,
+  inputCategory = "その他",
+  onInputCategoryChange,
 }: {
   title: string;
   goalList: GoalList;
@@ -1614,9 +1623,7 @@ function HomeGoalSection({
   onToggleCollapse?: () => void;
   collapsible?: boolean;
   inputText: string;
-  inputCategory: GoalCategory;
   onInputTextChange: (v: string) => void;
-  onInputCategoryChange: (c: GoalCategory) => void;
   onAdd: () => void;
   onUpdateItem: (id: string, patch: Partial<GoalItem>) => void;
   onRemoveItem: (id: string) => void;
@@ -1624,6 +1631,9 @@ function HomeGoalSection({
   isSuggesting: boolean;
   aiSuggestion: AiSuggestedGoal | null;
   onAdoptAi: () => void;
+  hideCategories?: boolean;
+  inputCategory?: GoalCategory;
+  onInputCategoryChange?: (c: GoalCategory) => void;
 }) {
   const rate = calcListRate(goalList);
   return (
@@ -1652,7 +1662,9 @@ function HomeGoalSection({
       </button>
       {!collapsed && (
         <>
-          <CategorySelect value={inputCategory} onChange={onInputCategoryChange} />
+          {!hideCategories && onInputCategoryChange && (
+            <CategorySelect value={inputCategory} onChange={onInputCategoryChange} />
+          )}
           <div style={{ display: "flex", gap: 8, marginBottom: 10 }}>
             <input
               type="text"
@@ -1691,7 +1703,9 @@ function HomeGoalSection({
                 style={{ width: 16, height: 16, accentColor: "#c17f4a", flexShrink: 0 }}
               />
               <div style={{ flex: 1, minWidth: 0 }}>
-                <span style={{ fontSize: 9, color: "#c17f4a", background: "#fdf0e4", borderRadius: 8, padding: "1px 6px", marginRight: 4 }}>{item.category}</span>
+                {!hideCategories && (
+                  <span style={{ fontSize: 9, color: "#c17f4a", background: "#fdf0e4", borderRadius: 8, padding: "1px 6px", marginRight: 4 }}>{item.category}</span>
+                )}
                 <span style={{ fontSize: 13, color: "#3d3228", textDecoration: item.achieved ? "line-through" : "none" }}>{item.text}</span>
               </div>
               <button type="button" onClick={() => onRemoveItem(item.id)} style={{ background: "none", border: "none", color: "#9a8b7a", fontSize: 16, cursor: "pointer", padding: "0 4px" }}>×</button>
@@ -1720,7 +1734,9 @@ function HomeGoalSection({
           {aiSuggestion?.text && (
             <div style={{ marginTop: 10, padding: 10, background: "#e8f0e4", borderRadius: 8, fontSize: 12 }}>
               <div style={{ fontSize: 10, color: "#4a6741", marginBottom: 4 }}>AI提案</div>
-              <span style={{ fontSize: 9, color: "#c17f4a", background: "#fdf0e4", borderRadius: 8, padding: "1px 6px", marginRight: 4 }}>{aiSuggestion.category}</span>
+              {!hideCategories && (
+                <span style={{ fontSize: 9, color: "#c17f4a", background: "#fdf0e4", borderRadius: 8, padding: "1px 6px", marginRight: 4 }}>{aiSuggestion.category}</span>
+              )}
               {aiSuggestion.text}
               <div style={{ display: "flex", gap: 6, marginTop: 8 }}>
                 <button type="button" onClick={onAdoptAi} style={{ flex: 1, padding: "6px", borderRadius: 6, border: "none", background: "#1a1410", color: "#f5f0e8", fontSize: 11, cursor: "pointer" }}>
@@ -1741,11 +1757,9 @@ function HomeGoalSection({
 function HomeDeadlineGoalsSection({
   goals,
   inputText,
-  inputCategory,
   inputGoalType,
   inputDeadline,
   onInputTextChange,
-  onInputCategoryChange,
   onInputGoalTypeChange,
   onInputDeadlineChange,
   onAdd,
@@ -1759,11 +1773,9 @@ function HomeDeadlineGoalsSection({
 }: {
   goals: DeadlineGoal[];
   inputText: string;
-  inputCategory: GoalCategory;
   inputGoalType: DeadlineGoalType;
   inputDeadline: string;
   onInputTextChange: (v: string) => void;
-  onInputCategoryChange: (c: GoalCategory) => void;
   onInputGoalTypeChange: (t: DeadlineGoalType) => void;
   onInputDeadlineChange: (d: string) => void;
   onAdd: () => void;
@@ -1772,7 +1784,7 @@ function HomeDeadlineGoalsSection({
   onRemoveGoal: (id: string) => void;
   onAiSuggest: () => void;
   isSuggesting: boolean;
-  aiSuggestion: { text: string; category: GoalCategory; deadline: string; goalType?: DeadlineGoalType } | null;
+  aiSuggestion: { text: string; deadline: string; goalType?: DeadlineGoalType } | null;
   onAdoptAi: () => void;
 }) {
   const [showAll, setShowAll] = useState(false);
@@ -1811,9 +1823,6 @@ function HomeDeadlineGoalsSection({
         <div style={{ flex: 1, minWidth: 0 }}>
           <div style={{ marginBottom: 4 }}>
             <span style={goalTypeBadgeStyle(g.goalType)}>{g.goalType}</span>
-            <span style={{ fontSize: 9, color: "#c17f4a", background: "#fdf0e4", borderRadius: 8, padding: "1px 6px", marginRight: 4 }}>
-              {g.category}
-            </span>
             <span style={{ fontSize: 13, color: checked ? "#9a8b7a" : "#3d3228", textDecoration: checked && !isHabit ? "line-through" : "none" }}>
               {g.text}
             </span>
@@ -1855,11 +1864,10 @@ function HomeDeadlineGoalsSection({
   return (
     <div style={{ margin: "12px 16px 0", background: "white", borderRadius: 12, padding: "14px 16px", border: "1px solid rgba(60,40,20,0.1)" }}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
-        <div style={{ fontSize: 13, fontWeight: "bold", color: "#4a6741" }}>📅 今週の目標</div>
+        <div style={{ fontSize: 13, fontWeight: "bold", color: "#4a6741" }}>📅 期限付き目標</div>
         {activeGoals.length > 0 && <RateBadge rate={rate} />}
       </div>
 
-      <CategorySelect value={inputCategory} onChange={onInputCategoryChange} />
       <GoalTypeSelect value={inputGoalType} onChange={onInputGoalTypeChange} />
       <input
         type="text"
@@ -1946,9 +1954,6 @@ function HomeDeadlineGoalsSection({
       {aiSuggestion?.text && (
         <div style={{ marginTop: 10, padding: 10, background: "#e8f0e4", borderRadius: 8, fontSize: 12 }}>
           <div style={{ fontSize: 10, color: "#4a6741", marginBottom: 4 }}>AI提案</div>
-          <span style={{ fontSize: 9, color: "#c17f4a", background: "#fdf0e4", borderRadius: 8, padding: "1px 6px", marginRight: 4 }}>
-            {aiSuggestion.category}
-          </span>
           {aiSuggestion.goalType && (
             <span style={goalTypeBadgeStyle(aiSuggestion.goalType)}>{aiSuggestion.goalType}</span>
           )}
@@ -2125,19 +2130,14 @@ export default function TuyukusaApp() {
   const [weatherLoading, setWeatherLoading] = useState(true);
   const [suggestingPeriod, setSuggestingPeriod] = useState<GoalPeriod | "deadline" | null>(null);
   const [dailyInput, setDailyInput] = useState("");
-  const [dailyCategory, setDailyCategory] = useState<GoalCategory>("その他");
   const [deadlineInput, setDeadlineInput] = useState("");
-  const [deadlineCategory, setDeadlineCategory] = useState<GoalCategory>("その他");
   const [deadlineGoalType, setDeadlineGoalType] = useState<DeadlineGoalType>("期限目標");
   const [deadlineDate, setDeadlineDate] = useState(defaultDeadlineDate());
   const [aiDeadlineSuggestion, setAiDeadlineSuggestion] = useState<{
     text: string;
-    category: GoalCategory;
     deadline: string;
     goalType: DeadlineGoalType;
   } | null>(null);
-  const [weeklyInput, setWeeklyInput] = useState("");
-  const [weeklyCategory, setWeeklyCategory] = useState<GoalCategory>("その他");
   const [monthlyInput, setMonthlyInput] = useState("");
   const [monthlyCategory, setMonthlyCategory] = useState<GoalCategory>("その他");
   const [saveMessage, setSaveMessage] = useState("");
@@ -2316,8 +2316,24 @@ export default function TuyukusaApp() {
 
   useEffect(() => {
     if (!locationHydrated) return;
-    const region = getRegionById(locationSettings.regionId);
-    fetchWeather(region.lat, region.lon);
+
+    const loadWeather = (lat: number, lon: number) => {
+      fetchWeather(lat, lon);
+    };
+
+    if (typeof navigator !== "undefined" && navigator.geolocation) {
+      navigator.geolocation.getCurrentPosition(
+        pos => loadWeather(pos.coords.latitude, pos.coords.longitude),
+        () => {
+          const region = getRegionById(locationSettings.regionId);
+          loadWeather(region.lat, region.lon);
+        },
+        { enableHighAccuracy: false, timeout: 10000, maximumAge: 300000 }
+      );
+    } else {
+      const region = getRegionById(locationSettings.regionId);
+      loadWeather(region.lat, region.lon);
+    }
   }, [locationHydrated, locationSettings.regionId]);
 
   const periodKey = (p: GoalPeriod) =>
@@ -2379,9 +2395,8 @@ export default function TuyukusaApp() {
     setSuggestingPeriod("deadline");
     try {
       const prompt = `期限付き目標を1つ提案してください。以下を踏まえ、20字以内の具体的な行動目標にしてください。
-一行目：【カテゴリ】（睡眠/食事/運動/塩清療法/その他）
-二行目：目標テキスト
-三行目：期限日（YYYY-MM-DD形式、今日から7〜30日後）
+一行目：目標テキスト
+二行目：期限日（YYYY-MM-DD形式、今日から7〜30日後）
 
 ${buildHealthSummary(healthForm)}`;
       const { content } = await fetchChatReply([{ type: "user", text: prompt }], envContext, userKnowledgeContext, healthContext);
@@ -2389,7 +2404,6 @@ ${buildHealthSummary(healthForm)}`;
     } catch {
       setAiDeadlineSuggestion({
         text: "毎日22時30分までに就寝する",
-        category: "睡眠",
         deadline: defaultDeadlineDate(14),
         goalType: "習慣",
       });
@@ -2402,7 +2416,7 @@ ${buildHealthSummary(healthForm)}`;
     if (!aiDeadlineSuggestion?.text) return;
     addDeadlineGoalEntry(
       aiDeadlineSuggestion.text,
-      aiDeadlineSuggestion.category,
+      "その他",
       aiDeadlineSuggestion.deadline,
       aiDeadlineSuggestion.goalType ?? "期限目標"
     );
@@ -2635,7 +2649,11 @@ ${buildHealthSummary(healthForm)}`;
     const labels = { daily: "今日", weekly: "今週", monthly: "今月" };
     setSuggestingPeriod(period);
     try {
-      const prompt = `${labels[period]}の目標を1つだけ提案してください。以下を踏まえ、20字以内の具体的な行動目標にしてください。カテゴリ（睡眠/食事/運動/塩清療法/その他）も一行目に【カテゴリ】の形式で付けてください。
+      const categoryLine =
+        period === "daily"
+          ? "20字以内の具体的な行動目標を1行だけ返してください。"
+          : "20字以内の具体的な行動目標にしてください。カテゴリ（睡眠/食事/運動/塩清療法/その他）も一行目に【カテゴリ】の形式で付けてください。";
+      const prompt = `${labels[period]}の目標を1つだけ提案してください。以下を踏まえ、${categoryLine}
 
 ${buildHealthSummary(healthForm)}`;
       const { content } = await fetchChatReply([{ type: "user", text: prompt }], envContext, userKnowledgeContext, healthContext);
@@ -2649,7 +2667,7 @@ ${buildHealthSummary(healthForm)}`;
         ...prev,
         [period]: {
           text: period === "daily" ? "就寝前に塩湯3gを飲む" : "早寝早起きを心がける",
-          category: period === "daily" ? "塩清療法" : "睡眠",
+          category: "その他",
           periodKey: periodKey(period),
         },
       }));
@@ -2995,75 +3013,49 @@ ${buildHealthSummary(healthForm)}`;
         );
       case "dailyGoal":
         return (
-          <>
-            <HomeGoalSection
-              title="🎯 今日の目標"
-              goalList={goals.daily}
-              collapsed={false}
-              collapsible={false}
-              inputText={dailyInput}
-              inputCategory={dailyCategory}
-              onInputTextChange={setDailyInput}
-              onInputCategoryChange={setDailyCategory}
-              onAdd={() => {
-                if (!dailyInput.trim()) return;
-                addGoalItem("daily", dailyInput.trim(), dailyCategory);
-                setDailyInput("");
-              }}
-              onUpdateItem={(id, patch) => updateGoalItem("daily", id, patch)}
-              onRemoveItem={id => removeGoalItem("daily", id)}
-              onAiSuggest={() => suggestGoal("daily")}
-              isSuggesting={suggestingPeriod === "daily"}
-              aiSuggestion={aiSuggestions.daily?.periodKey === getDayKey() ? aiSuggestions.daily : null}
-              onAdoptAi={() => adoptAiGoal("daily")}
-            />
-            <HomeDeadlineGoalsSection
-              goals={goals.deadlineGoals ?? []}
-              inputText={deadlineInput}
-              inputCategory={deadlineCategory}
-              inputGoalType={deadlineGoalType}
-              inputDeadline={deadlineDate}
-              onInputTextChange={setDeadlineInput}
-              onInputCategoryChange={setDeadlineCategory}
-              onInputGoalTypeChange={setDeadlineGoalType}
-              onInputDeadlineChange={setDeadlineDate}
-              onAdd={() => {
-                if (!deadlineInput.trim()) return;
-                addDeadlineGoalEntry(deadlineInput.trim(), deadlineCategory, deadlineDate, deadlineGoalType);
-                setDeadlineInput("");
-              }}
-              onUpdateGoal={updateDeadlineGoal}
-              onToggleAchieved={toggleDeadlineGoalAchieved}
-              onRemoveGoal={removeDeadlineGoal}
-              onAiSuggest={suggestDeadlineGoal}
-              isSuggesting={isSuggestingDeadline}
-              aiSuggestion={aiDeadlineSuggestion}
-              onAdoptAi={adoptAiDeadlineGoal}
-            />
-          </>
-        );
-      case "weeklyGoal":
-        return (
           <HomeGoalSection
-            title="📅 今週の目標"
-            goalList={goals.weekly}
+            title="🎯 今日の目標"
+            goalList={goals.daily}
             collapsed={false}
             collapsible={false}
-            inputText={weeklyInput}
-            inputCategory={weeklyCategory}
-            onInputTextChange={setWeeklyInput}
-            onInputCategoryChange={setWeeklyCategory}
+            inputText={dailyInput}
+            onInputTextChange={setDailyInput}
             onAdd={() => {
-              if (!weeklyInput.trim()) return;
-              addGoalItem("weekly", weeklyInput.trim(), weeklyCategory);
-              setWeeklyInput("");
+              if (!dailyInput.trim()) return;
+              addGoalItem("daily", dailyInput.trim(), "その他");
+              setDailyInput("");
             }}
-            onUpdateItem={(id, patch) => updateGoalItem("weekly", id, patch)}
-            onRemoveItem={id => removeGoalItem("weekly", id)}
-            onAiSuggest={() => suggestGoal("weekly")}
-            isSuggesting={suggestingPeriod === "weekly"}
-            aiSuggestion={aiSuggestions.weekly?.periodKey === getWeekKey() ? aiSuggestions.weekly : null}
-            onAdoptAi={() => adoptAiGoal("weekly")}
+            onUpdateItem={(id, patch) => updateGoalItem("daily", id, patch)}
+            onRemoveItem={id => removeGoalItem("daily", id)}
+            onAiSuggest={() => suggestGoal("daily")}
+            isSuggesting={suggestingPeriod === "daily"}
+            aiSuggestion={aiSuggestions.daily?.periodKey === getDayKey() ? aiSuggestions.daily : null}
+            onAdoptAi={() => adoptAiGoal("daily")}
+            hideCategories
+          />
+        );
+      case "deadlineGoal":
+        return (
+          <HomeDeadlineGoalsSection
+            goals={goals.deadlineGoals ?? []}
+            inputText={deadlineInput}
+            inputGoalType={deadlineGoalType}
+            inputDeadline={deadlineDate}
+            onInputTextChange={setDeadlineInput}
+            onInputGoalTypeChange={setDeadlineGoalType}
+            onInputDeadlineChange={setDeadlineDate}
+            onAdd={() => {
+              if (!deadlineInput.trim()) return;
+              addDeadlineGoalEntry(deadlineInput.trim(), "その他", deadlineDate, deadlineGoalType);
+              setDeadlineInput("");
+            }}
+            onUpdateGoal={updateDeadlineGoal}
+            onToggleAchieved={toggleDeadlineGoalAchieved}
+            onRemoveGoal={removeDeadlineGoal}
+            onAiSuggest={suggestDeadlineGoal}
+            isSuggesting={isSuggestingDeadline}
+            aiSuggestion={aiDeadlineSuggestion}
+            onAdoptAi={adoptAiDeadlineGoal}
           />
         );
       case "monthlyGoal":
@@ -3094,7 +3086,7 @@ ${buildHealthSummary(healthForm)}`;
         return (
           <div style={{ background: "linear-gradient(160deg, #1a1410, #2d2218)", color: "#f5f0e8", padding: "28px 20px", marginTop: 16 }}>
             <div style={{ fontSize: 12, opacity: 0.6, marginBottom: 4 }}>おはようございます</div>
-            <div style={{ fontSize: 22, fontWeight: "bold", marginBottom: 16 }}>{getDisplayName(userProfile)} 様</div>
+            <div style={{ fontSize: 22, fontWeight: "bold", marginBottom: 16 }}>{getDisplayName(userProfile)}</div>
             <div style={{ display: "inline-block", background: "rgba(193,127,74,0.2)", border: "1px solid rgba(193,127,74,0.3)", borderRadius: 20, padding: "6px 14px", fontSize: 13, color: "#e8a86a", marginBottom: 16 }}>
               今日の診断：{MOCK_SCHEDULE.diagnosis}
             </div>
@@ -3605,25 +3597,11 @@ ${buildHealthSummary(healthForm)}`;
               onRemoveItem={id => removeGoalItem("daily", id)}
               optional
               showAiButton
+              hideCategories
               isSuggesting={suggestingPeriod === "daily"}
               onAiSuggest={() => suggestGoal("daily")}
               aiSuggestion={aiSuggestions.daily?.periodKey === getDayKey() ? aiSuggestions.daily : null}
               onAdoptAi={() => adoptAiGoal("daily")}
-            />
-            <PeriodGoalCard
-              title="今週の目標"
-              resetHint="毎週月曜にリセット・未入力OK"
-              goalList={goals.weekly}
-              rate={calcListRate(goals.weekly)}
-              onAddItem={(text, cat) => addGoalItem("weekly", text, cat)}
-              onUpdateItem={(id, patch) => updateGoalItem("weekly", id, patch)}
-              onRemoveItem={id => removeGoalItem("weekly", id)}
-              optional
-              showAiButton
-              isSuggesting={suggestingPeriod === "weekly"}
-              onAiSuggest={() => suggestGoal("weekly")}
-              aiSuggestion={aiSuggestions.weekly?.periodKey === getWeekKey() ? aiSuggestions.weekly : null}
-              onAdoptAi={() => adoptAiGoal("weekly")}
             />
             <PeriodGoalCard
               title="今月の目標"
@@ -3655,7 +3633,6 @@ ${buildHealthSummary(healthForm)}`;
                 return (
                 <div key={g.id} style={{ background: "#f5f0e8", borderRadius: 10, padding: 12, marginBottom: 8, border: "1px solid rgba(60,40,20,0.08)" }}>
                   <GoalTypeSelect value={g.goalType} onChange={goalType => updateDeadlineGoal(g.id, { goalType })} />
-                  <CategorySelect value={g.category} onChange={category => updateDeadlineGoal(g.id, { category })} />
                   <input
                     type="text"
                     placeholder="目標を入力..."

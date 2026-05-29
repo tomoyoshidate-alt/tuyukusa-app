@@ -10,7 +10,7 @@ export async function GET(request: NextRequest) {
   }
 
   const weatherRes = await fetch(
-    `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&current=temperature_2m,relative_humidity_2m,weather_code,precipitation&hourly=temperature_2m,relative_humidity_2m,weather_code&daily=sunrise,sunset&forecast_days=1&timezone=Asia%2FTokyo`
+    `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&current=temperature_2m,relative_humidity_2m,weather_code,precipitation&hourly=temperature_2m,relative_humidity_2m,weather_code&daily=sunrise,sunset&forecast_days=1&timezone=auto`
   );
   const weather = await weatherRes.json();
 
@@ -43,9 +43,10 @@ export async function GET(request: NextRequest) {
 
 function formatSunTime(iso: string | undefined): string | null {
   if (!iso) return null;
-  const d = new Date(iso);
-  if (Number.isNaN(d.getTime())) return null;
-  return d.toLocaleTimeString("ja-JP", { hour: "2-digit", minute: "2-digit", hour12: false, timeZone: "Asia/Tokyo" });
+  // Open-Meteo returns local times without offset when timezone=auto (e.g. "2024-05-29T04:52")
+  const match = iso.match(/T(\d{2}):(\d{2})/);
+  if (match) return `${match[1]}:${match[2]}`;
+  return null;
 }
 
 function getLunarAge(date: Date): number {

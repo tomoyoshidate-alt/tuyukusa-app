@@ -2,7 +2,7 @@ export type HomeSectionId =
   | "weather"
   | "sunTimes"
   | "dailyGoal"
-  | "weeklyGoal"
+  | "deadlineGoal"
   | "monthlyGoal"
   | "diagnosis"
   | "schedule"
@@ -16,7 +16,7 @@ export type HomeDisplaySettings = {
   moonPhase: boolean;
   sunTimes: boolean;
   dailyGoal: boolean;
-  weeklyGoal: boolean;
+  deadlineGoal: boolean;
   monthlyGoal: boolean;
   diagnosis: boolean;
   schedule: boolean;
@@ -30,7 +30,7 @@ export const DEFAULT_SECTION_ORDER: HomeSectionId[] = [
   "weather",
   "sunTimes",
   "dailyGoal",
-  "weeklyGoal",
+  "deadlineGoal",
   "monthlyGoal",
   "diagnosis",
   "schedule",
@@ -45,7 +45,7 @@ export const DEFAULT_HOME_DISPLAY: HomeDisplaySettings = {
   moonPhase: true,
   sunTimes: true,
   dailyGoal: true,
-  weeklyGoal: false,
+  deadlineGoal: true,
   monthlyGoal: false,
   diagnosis: true,
   schedule: true,
@@ -59,7 +59,7 @@ export const HOME_SECTION_LABELS: Record<HomeSectionId, string> = {
   weather: "天気グラフ",
   sunTimes: "日の出・日の入り",
   dailyGoal: "今日の目標",
-  weeklyGoal: "今週の目標",
+  deadlineGoal: "期限付き目標",
   monthlyGoal: "今月の目標",
   diagnosis: "AI診断",
   schedule: "スケジュール",
@@ -77,7 +77,7 @@ export const HOME_WEATHER_TOGGLE_OPTIONS = [
 export const HOME_SECTION_TOGGLE_OPTIONS: { key: Exclude<HomeSectionId, "weather">; label: string }[] = [
   { key: "sunTimes", label: "日の出・日の入り" },
   { key: "dailyGoal", label: "今日の目標" },
-  { key: "weeklyGoal", label: "今週の目標" },
+  { key: "deadlineGoal", label: "期限付き目標" },
   { key: "monthlyGoal", label: "今月の目標" },
   { key: "diagnosis", label: "AI診断" },
   { key: "schedule", label: "スケジュール" },
@@ -94,8 +94,8 @@ export function isSectionVisible(settings: HomeDisplaySettings, section: HomeSec
       return settings.sunTimes;
     case "dailyGoal":
       return settings.dailyGoal;
-    case "weeklyGoal":
-      return settings.weeklyGoal;
+    case "deadlineGoal":
+      return settings.deadlineGoal;
     case "monthlyGoal":
       return settings.monthlyGoal;
     case "diagnosis":
@@ -113,14 +113,19 @@ export function isSectionVisible(settings: HomeDisplaySettings, section: HomeSec
   }
 }
 
+type LegacyHomeDisplay = Partial<HomeDisplaySettings> & { weeklyGoal?: boolean };
+
 export function normalizeHomeDisplay(data: unknown): HomeDisplaySettings {
   if (!data || typeof data !== "object") return DEFAULT_HOME_DISPLAY;
-  const d = data as Partial<HomeDisplaySettings>;
-  const merged = { ...DEFAULT_HOME_DISPLAY, ...d };
+  const d = data as LegacyHomeDisplay;
+  const deadlineGoal =
+    d.deadlineGoal ?? (typeof d.weeklyGoal === "boolean" ? d.weeklyGoal : DEFAULT_HOME_DISPLAY.deadlineGoal);
+  const merged: HomeDisplaySettings = { ...DEFAULT_HOME_DISPLAY, ...d, deadlineGoal };
   const validIds = new Set<HomeSectionId>(DEFAULT_SECTION_ORDER);
-  const order = Array.isArray(d.sectionOrder)
-    ? d.sectionOrder.filter((id): id is HomeSectionId => validIds.has(id as HomeSectionId))
-    : [];
+  const rawOrder = Array.isArray(d.sectionOrder) ? d.sectionOrder : [];
+  const order = rawOrder
+    .map(id => (id === "weeklyGoal" ? "deadlineGoal" : id))
+    .filter((id): id is HomeSectionId => validIds.has(id as HomeSectionId));
   const missing = DEFAULT_SECTION_ORDER.filter(id => !order.includes(id));
   merged.sectionOrder = [...order, ...missing];
   return merged;
