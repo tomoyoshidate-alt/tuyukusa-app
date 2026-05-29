@@ -124,7 +124,7 @@ export function normalizeHomeDisplay(data: unknown): HomeDisplaySettings {
   const validIds = new Set<HomeSectionId>(DEFAULT_SECTION_ORDER);
   const rawOrder = Array.isArray(d.sectionOrder) ? d.sectionOrder : [];
   const order = rawOrder
-    .map(id => (id === "weeklyGoal" ? "deadlineGoal" : id))
+    .map(id => (String(id) === "weeklyGoal" ? "deadlineGoal" : id))
     .filter((id): id is HomeSectionId => validIds.has(id as HomeSectionId));
   const missing = DEFAULT_SECTION_ORDER.filter(id => !order.includes(id));
   merged.sectionOrder = [...order, ...missing];
