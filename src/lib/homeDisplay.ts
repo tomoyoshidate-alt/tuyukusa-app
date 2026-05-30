@@ -1,6 +1,7 @@
 export type HomeSectionId =
   | "weather"
   | "sunTimes"
+  | "notionTodayTasks"
   | "dailyGoal"
   | "deadlineGoal"
   | "monthlyGoal"
@@ -15,6 +16,7 @@ export type HomeDisplaySettings = {
   humidityChart: boolean;
   moonPhase: boolean;
   sunTimes: boolean;
+  notionTodayTasks: boolean;
   dailyGoal: boolean;
   deadlineGoal: boolean;
   monthlyGoal: boolean;
@@ -29,6 +31,7 @@ export type HomeDisplaySettings = {
 export const DEFAULT_SECTION_ORDER: HomeSectionId[] = [
   "weather",
   "sunTimes",
+  "notionTodayTasks",
   "dailyGoal",
   "deadlineGoal",
   "monthlyGoal",
@@ -44,6 +47,7 @@ export const DEFAULT_HOME_DISPLAY: HomeDisplaySettings = {
   humidityChart: true,
   moonPhase: true,
   sunTimes: true,
+  notionTodayTasks: true,
   dailyGoal: true,
   deadlineGoal: true,
   monthlyGoal: false,
@@ -55,9 +59,50 @@ export const DEFAULT_HOME_DISPLAY: HomeDisplaySettings = {
   sectionOrder: DEFAULT_SECTION_ORDER,
 };
 
+export const HOME_SECTION_I18N_KEYS: Record<HomeSectionId, string> = {
+  weather: "homeSections.weatherChart",
+  sunTimes: "homeSections.sunTimes",
+  notionTodayTasks: "homeSections.notionTodayTasks",
+  dailyGoal: "homeSections.dailyGoal",
+  deadlineGoal: "homeSections.deadlineGoal",
+  monthlyGoal: "homeSections.monthlyGoal",
+  diagnosis: "homeSections.diagnosis",
+  schedule: "homeSections.schedule",
+  radio: "homeSections.radio",
+  binaural: "homeSections.binaural",
+  pomodoro: "homeSections.pomodoro",
+};
+
+export const HOME_WEATHER_I18N_KEYS = {
+  weatherChart: "homeSections.weatherChart",
+  humidityChart: "homeSections.humidityChart",
+  moonPhase: "homeSections.moonPhase",
+} as const;
+
+export const HOME_SECTION_TOGGLE_I18N_KEYS: { key: Exclude<HomeSectionId, "weather">; labelKey: string }[] = [
+  { key: "sunTimes", labelKey: "homeSections.sunTimes" },
+  { key: "notionTodayTasks", labelKey: "homeSections.notionTodayTasks" },
+  { key: "dailyGoal", labelKey: "homeSections.dailyGoal" },
+  { key: "deadlineGoal", labelKey: "homeSections.deadlineGoal" },
+  { key: "monthlyGoal", labelKey: "homeSections.monthlyGoal" },
+  { key: "diagnosis", labelKey: "homeSections.diagnosis" },
+  { key: "schedule", labelKey: "homeSections.schedule" },
+  { key: "radio", labelKey: "homeSections.radio" },
+  { key: "binaural", labelKey: "homeSections.binaural" },
+  { key: "pomodoro", labelKey: "homeSections.pomodoro" },
+];
+
+export const HOME_WEATHER_TOGGLE_I18N_OPTIONS = [
+  { key: "weatherChart" as const, labelKey: "homeSections.weatherChart" },
+  { key: "humidityChart" as const, labelKey: "homeSections.humidityChart" },
+  { key: "moonPhase" as const, labelKey: "homeSections.moonPhase" },
+];
+
+/** @deprecated use HOME_SECTION_I18N_KEYS with i18n */
 export const HOME_SECTION_LABELS: Record<HomeSectionId, string> = {
   weather: "天気グラフ",
   sunTimes: "日の出・日の入り",
+  notionTodayTasks: "今日のタスク（Notion）",
   dailyGoal: "今日の目標",
   deadlineGoal: "期限付き目標",
   monthlyGoal: "今月の目標",
@@ -76,6 +121,7 @@ export const HOME_WEATHER_TOGGLE_OPTIONS = [
 
 export const HOME_SECTION_TOGGLE_OPTIONS: { key: Exclude<HomeSectionId, "weather">; label: string }[] = [
   { key: "sunTimes", label: "日の出・日の入り" },
+  { key: "notionTodayTasks", label: "今日のタスク（Notion）" },
   { key: "dailyGoal", label: "今日の目標" },
   { key: "deadlineGoal", label: "期限付き目標" },
   { key: "monthlyGoal", label: "今月の目標" },
@@ -92,6 +138,8 @@ export function isSectionVisible(settings: HomeDisplaySettings, section: HomeSec
       return settings.weatherChart || settings.humidityChart || settings.moonPhase;
     case "sunTimes":
       return settings.sunTimes;
+    case "notionTodayTasks":
+      return settings.notionTodayTasks;
     case "dailyGoal":
       return settings.dailyGoal;
     case "deadlineGoal":
@@ -127,6 +175,7 @@ export function normalizeHomeDisplay(data: unknown): HomeDisplaySettings {
     .map(id => (String(id) === "weeklyGoal" ? "deadlineGoal" : id))
     .filter((id): id is HomeSectionId => validIds.has(id as HomeSectionId));
   const missing = DEFAULT_SECTION_ORDER.filter(id => !order.includes(id));
+  merged.notionTodayTasks = merged.notionTodayTasks ?? true;
   merged.sectionOrder = [...order, ...missing];
   return merged;
 }

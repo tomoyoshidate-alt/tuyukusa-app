@@ -21,7 +21,8 @@ import {
   verticalListSortingStrategy,
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
-import { HOME_SECTION_LABELS, type HomeSectionId } from "@/src/lib/homeDisplay";
+import { HOME_SECTION_I18N_KEYS, type HomeSectionId } from "@/src/lib/homeDisplay";
+import { useTranslation } from "react-i18next";
 
 type Props = {
   sectionOrder: HomeSectionId[];
@@ -152,6 +153,8 @@ function SectionRowContent({
   handleRef?: (element: HTMLElement | null) => void;
   handleProps?: HTMLAttributes<HTMLButtonElement>;
 }) {
+  const { t } = useTranslation();
+  const label = t(HOME_SECTION_I18N_KEYS[sectionId]);
   return (
     <div
       style={{
@@ -160,9 +163,9 @@ function SectionRowContent({
         gap: 10,
         padding: "10px 10px",
         marginBottom: 6,
-        borderRadius: 10,
-        background: isDragging ? "#fdf0e4" : "#f5f0e8",
-        border: isDragging ? "2px solid #c17f4a" : "1px solid rgba(60,40,20,0.08)",
+        borderRadius: "var(--t-radius-sm)",
+        background: isDragging ? "var(--t-accent-bg)" : "var(--t-input-bg)",
+        border: isDragging ? "2px solid var(--t-accent)" : "1px solid var(--t-border)",
         boxShadow: isOverlay
           ? "0 10px 28px rgba(193,127,74,0.35)"
           : isDragging
@@ -176,7 +179,7 @@ function SectionRowContent({
         type="button"
         ref={handleRef}
         {...handleProps}
-        aria-label={`${HOME_SECTION_LABELS[sectionId]}の順序を変更`}
+        aria-label={label}
         style={{
           display: "flex",
           alignItems: "center",
@@ -185,10 +188,10 @@ function SectionRowContent({
           height: 36,
           margin: 0,
           padding: 0,
-          border: isDragging ? "2px solid #c17f4a" : "1px solid rgba(60,40,20,0.12)",
-          borderRadius: 8,
-          background: isDragging ? "#fff8f0" : "white",
-          color: isDragging ? "#c17f4a" : "#9a8b7a",
+          border: isDragging ? "2px solid var(--t-accent)" : "1px solid var(--t-border)",
+          borderRadius: "var(--t-radius-sm)",
+          background: isDragging ? "var(--t-accent-bg)" : "var(--t-card-bg)",
+          color: isDragging ? "var(--t-accent)" : "var(--t-text-muted)",
           fontSize: 18,
           lineHeight: 1,
           cursor: isOverlay ? "grabbing" : "grab",
@@ -201,15 +204,15 @@ function SectionRowContent({
       >
         ⠿
       </button>
-      <span style={{ fontSize: 13, color: isDragging ? "#8b5a2b" : "#3d3228", flex: 1, fontWeight: isDragging ? "bold" : "normal" }}>
-        {HOME_SECTION_LABELS[sectionId]}
+      <span style={{ fontSize: "var(--t-font-size-base)", color: isDragging ? "var(--t-accent)" : "var(--t-text)", flex: 1, fontWeight: isDragging ? "bold" : "normal" }}>
+        {label}
       </span>
       <span
         style={{
-          fontSize: 10,
-          color: isDragging ? "#c17f4a" : "#9a8b7a",
+          fontSize: "var(--t-font-size-sm)",
+          color: isDragging ? "var(--t-accent)" : "var(--t-text-muted)",
           fontWeight: isDragging ? "bold" : "normal",
-          background: isDragging ? "#fff8f0" : "transparent",
+          background: isDragging ? "var(--t-accent-bg)" : "transparent",
           borderRadius: 10,
           padding: isDragging ? "2px 8px" : 0,
         }}

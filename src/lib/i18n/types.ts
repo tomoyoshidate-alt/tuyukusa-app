@@ -1,0 +1,55 @@
+export type TranslationSchema = {
+  common: {
+    loading: string;
+    save: string;
+    cancel: string;
+    sync: string;
+    syncing: string;
+    add: string;
+    edit: string;
+    delete: string;
+    close: string;
+    confirm: string;
+    appName: string;
+    appSubtitle: string;
+    tapToEdit: string;
+    today: string;
+  };
+  tabs: Record<"home" | "chat" | "sound" | "history" | "display" | "settings", string>;
+  theme: {
+    title: string;
+    description: string;
+    baseColor: string;
+    baseColorHint: string;
+    useCustomColor: string;
+    natural: string;
+    cute: string;
+    philosophical: string;
+    kids: string;
+    senior: string;
+    minimalBw: string;
+    simple: string;
+    gradient: string;
+    dark: string;
+    japanese: string;
+  };
+  language: {
+    title: string;
+    description: string;
+    ja: string;
+    en: string;
+    zh: string;
+    es: string;
+    pt: string;
+    it: string;
+    fr: string;
+  };
+  screenSettings: Record<string, string>;
+  homeSections: Record<string, string>;
+  home: Record<string, string>;
+  notion: Record<string, string>;
+  settings: Record<string, string>;
+  manual: Record<string, { title: string; body: string }>;
+  binaural: Record<string, string>;
+  chat: Record<string, string>;
+};

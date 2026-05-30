@@ -1,12 +1,16 @@
 import {
-  DEFAULT_NOTION_DATABASE_ID,
+  NOTION_DATABASE_IDS,
   formatNotionId,
   mapNotionTypeLabel,
   parseNotionTypeLabel,
+  parseScheduleEventType,
+  type NotionMemo,
+  type NotionScheduleEvent,
   type NotionTask,
   type NotionTaskStatus,
   type NotionTaskType,
   type ParsedVoiceTask,
+  type NotionSyncData,
 } from "@/src/lib/notion";
 
 const NOTION_VERSION = "2022-06-28";
@@ -15,6 +19,7 @@ const DATABASE_TITLE = "つゆくさタスク";
 type DbSchema = {
   titleProp: string;
   statusProp?: string;
+  statusPropType?: "select" | "status";
   typeProp?: string;
   categoryProp?: string;
   dateProp?: string;
@@ -24,6 +29,12 @@ type NotionProperty = {
   id: string;
   type: string;
   name?: string;
+};
+
+export type NotionDatabaseIds = {
+  tasks: string;
+  schedule: string;
+  communication: string;
 };
 
 function notionHeaders(token: string): HeadersInit {
@@ -38,12 +49,29 @@ export function resolveNotionToken(clientKey?: string): string {
   return clientKey?.trim() || process.env.NOTION_API_KEY?.trim() || "";
 }
 
+export function resolveDatabaseIds(settings?: Partial<NotionDatabaseIds>): NotionDatabaseIds {
+  return {
+    tasks: formatNotionId(
+      settings?.tasks?.trim() ||
+        process.env.NOTION_TASK_DATABASE_ID?.trim() ||
+        NOTION_DATABASE_IDS.tasks
+    ),
+    schedule: formatNotionId(
+      settings?.schedule?.trim() ||
+        process.env.NOTION_SCHEDULE_DATABASE_ID?.trim() ||
+        NOTION_DATABASE_IDS.schedule
+    ),
+    communication: formatNotionId(
+      settings?.communication?.trim() ||
+        process.env.NOTION_COMMUNICATION_DATABASE_ID?.trim() ||
+        NOTION_DATABASE_IDS.communication
+    ),
+  };
+}
+
+/** @deprecated use resolveDatabaseIds().tasks */
 export function resolveDatabaseId(clientId?: string): string {
-  const id =
-    clientId?.trim() ||
-    process.env.NOTION_DATABASE_ID?.trim() ||
-    DEFAULT_NOTION_DATABASE_ID;
-  return formatNotionId(id);
+  return resolveDatabaseIds({ tasks: clientId }).tasks;
 }
 
 async function notionFetch(token: string, path: string, init?: RequestInit): Promise<Response> {
@@ -72,14 +100,19 @@ export async function detectDatabaseSchema(token: string, databaseId: string): P
   }
   const data = (await res.json()) as { properties: Record<string, NotionProperty> };
   const props = data.properties ?? {};
-  const titleProp = pickProp(props, ["名前", "Name", "タイトル", "タスク"], "title");
+  const titleProp = pickProp(props, ["名前", "Name", "タイトル", "タスク", "件名"], "title");
   if (!titleProp) throw new Error("タイトルプロパティが見つかりません");
+
+  const statusSelect = pickProp(props, ["ステータス", "Status", "状態"], "select");
+  const statusNative = pickProp(props, ["ステータス", "Status", "状態"], "status");
+
   return {
     titleProp,
-    statusProp: pickProp(props, ["ステータス", "Status", "状態"], "select"),
-    typeProp: pickProp(props, ["種別", "Type", "タイプ"], "select"),
-    categoryProp: pickProp(props, ["カテゴリ", "Category"], "select"),
-    dateProp: pickProp(props, ["期限", "Due", "日付", "Date"], "date"),
+    statusProp: statusSelect ?? statusNative,
+    statusPropType: statusSelect ? "select" : statusNative ? "status" : undefined,
+    typeProp: pickProp(props, ["種別", "Type", "タイプ", "カテゴリ", "Category"], "select"),
+    categoryProp: pickProp(props, ["カテゴリ", "Category", "分類"], "select"),
+    dateProp: pickProp(props, ["期限", "Due", "日付", "Date", "開始", "開始日時"], "date"),
   };
 }
 
@@ -94,6 +127,20 @@ function readSelect(props: Record<string, unknown>, key?: string): string | unde
   return p?.select?.name;
 }
 
+function readStatus(props: Record<string, unknown>, key?: string, type?: DbSchema["statusPropType"]): string | undefined {
+  if (!key) return undefined;
+  if (type === "status") {
+    const p = props[key] as { status?: { name?: string } | null } | undefined;
+    return p?.status?.name;
+  }
+  return readSelect(props, key);
+}
+
+function isDoneStatus(label: string | undefined): boolean {
+  if (!label) return false;
+  return /完了|done|済|closed|archived/i.test(label);
+}
+
 function readDate(props: Record<string, unknown>, key?: string): { date?: string; time?: string } {
   if (!key) return {};
   const p = props[key] as { date?: { start?: string } | null } | undefined;
@@ -106,33 +153,9 @@ function readDate(props: Record<string, unknown>, key?: string): { date?: string
   return { date: start };
 }
 
-function pageToTask(page: Record<string, unknown>, schema: DbSchema): NotionTask | null {
-  const props = page.properties as Record<string, unknown>;
-  const text = readTitle(props, schema.titleProp);
-  if (!text) return null;
-  const statusLabel = readSelect(props, schema.statusProp);
-  const typeLabel = readSelect(props, schema.typeProp);
-  const category = readSelect(props, schema.categoryProp) ?? "その他";
-  const { date, time } = readDate(props, schema.dateProp);
-  const id = page.id as string;
-  const url = page.url as string | undefined;
-  return {
-    id,
-    text,
-    type: parseNotionTypeLabel(typeLabel),
-    category,
-    deadline: date,
-    time,
-    status: statusLabel === "完了" || statusLabel === "done" ? "done" : "pending",
-    notionUrl: url,
-  };
-}
-
-export async function fetchNotionTasks(token: string, databaseId: string): Promise<NotionTask[]> {
-  const schema = await detectDatabaseSchema(token, databaseId);
-  const tasks: NotionTask[] = [];
+async function queryDatabase(token: string, databaseId: string): Promise<Record<string, unknown>[]> {
+  const results: Record<string, unknown>[] = [];
   let cursor: string | undefined;
-
   do {
     const body: Record<string, unknown> = { page_size: 100 };
     if (cursor) body.start_cursor = cursor;
@@ -142,21 +165,143 @@ export async function fetchNotionTasks(token: string, databaseId: string): Promi
     });
     if (!res.ok) {
       const err = await res.text();
-      throw new Error(`タスク取得失敗: ${err}`);
+      throw new Error(`クエリ失敗: ${err}`);
     }
     const data = (await res.json()) as {
       results: Record<string, unknown>[];
       has_more: boolean;
       next_cursor: string | null;
     };
-    for (const page of data.results) {
-      const task = pageToTask(page, schema);
-      if (task) tasks.push(task);
-    }
+    results.push(...data.results);
     cursor = data.has_more ? data.next_cursor ?? undefined : undefined;
   } while (cursor);
+  return results;
+}
 
-  return tasks;
+function pageToTask(page: Record<string, unknown>, schema: DbSchema): NotionTask | null {
+  const props = page.properties as Record<string, unknown>;
+  const text = readTitle(props, schema.titleProp);
+  if (!text) return null;
+  const statusLabel = readStatus(props, schema.statusProp, schema.statusPropType);
+  const typeLabel = readSelect(props, schema.typeProp);
+  const category = readSelect(props, schema.categoryProp) ?? readSelect(props, schema.typeProp) ?? "その他";
+  const { date, time } = readDate(props, schema.dateProp);
+  return {
+    id: page.id as string,
+    text,
+    type: parseNotionTypeLabel(typeLabel),
+    category,
+    deadline: date,
+    time,
+    status: isDoneStatus(statusLabel) ? "done" : "pending",
+    notionUrl: page.url as string | undefined,
+  };
+}
+
+function pageToScheduleEvent(page: Record<string, unknown>, schema: DbSchema): NotionScheduleEvent | null {
+  const props = page.properties as Record<string, unknown>;
+  const title = readTitle(props, schema.titleProp);
+  if (!title) return null;
+  const statusLabel = readStatus(props, schema.statusProp, schema.statusPropType);
+  const typeLabel = readSelect(props, schema.typeProp) ?? readSelect(props, schema.categoryProp);
+  const { date, time } = readDate(props, schema.dateProp);
+  return {
+    id: page.id as string,
+    title,
+    eventType: parseScheduleEventType(typeLabel),
+    date,
+    time,
+    status: isDoneStatus(statusLabel) ? "done" : "pending",
+    notionUrl: page.url as string | undefined,
+  };
+}
+
+function pageToMemo(page: Record<string, unknown>, schema: DbSchema): NotionMemo | null {
+  const props = page.properties as Record<string, unknown>;
+  const title = readTitle(props, schema.titleProp);
+  if (!title) return null;
+  const statusLabel = readStatus(props, schema.statusProp, schema.statusPropType);
+  return {
+    id: page.id as string,
+    title,
+    status: isDoneStatus(statusLabel) ? "done" : "pending",
+    updatedAt: (page.last_edited_time as string | undefined) ?? undefined,
+    notionUrl: page.url as string | undefined,
+  };
+}
+
+export async function fetchNotionTasks(token: string, databaseId: string): Promise<NotionTask[]> {
+  const schema = await detectDatabaseSchema(token, databaseId);
+  const pages = await queryDatabase(token, databaseId);
+  return pages.map(p => pageToTask(p, schema)).filter(Boolean) as NotionTask[];
+}
+
+export async function fetchNotionScheduleEvents(token: string, databaseId: string): Promise<NotionScheduleEvent[]> {
+  const schema = await detectDatabaseSchema(token, databaseId);
+  const pages = await queryDatabase(token, databaseId);
+  return pages.map(p => pageToScheduleEvent(p, schema)).filter(Boolean) as NotionScheduleEvent[];
+}
+
+export async function fetchNotionMemos(token: string, databaseId: string): Promise<NotionMemo[]> {
+  const schema = await detectDatabaseSchema(token, databaseId);
+  const pages = await queryDatabase(token, databaseId);
+  return pages.map(p => pageToMemo(p, schema)).filter(Boolean) as NotionMemo[];
+}
+
+export async function syncAllNotionData(token: string, ids: NotionDatabaseIds): Promise<NotionSyncData> {
+  const [tasks, scheduleEvents, memos] = await Promise.all([
+    fetchNotionTasks(token, ids.tasks),
+    fetchNotionScheduleEvents(token, ids.schedule),
+    fetchNotionMemos(token, ids.communication),
+  ]);
+  return { tasks, scheduleEvents, memos, syncedAt: Date.now() };
+}
+
+function buildStatusProperty(schema: DbSchema, status: NotionTaskStatus): Record<string, unknown> | null {
+  if (!schema.statusProp) return null;
+  const doneNames = ["完了", "Done", "済"];
+  const pendingNames = ["未着手", "未完了", "進行中", "Not started", "To Do"];
+  const name = status === "done" ? doneNames[0] : pendingNames[0];
+  if (schema.statusPropType === "status") {
+    return { [schema.statusProp]: { status: { name } } };
+  }
+  return { [schema.statusProp]: { select: { name } } };
+}
+
+export async function updateNotionPageStatus(
+  token: string,
+  databaseId: string,
+  pageId: string,
+  status: NotionTaskStatus
+): Promise<void> {
+  const schema = await detectDatabaseSchema(token, databaseId);
+  const statusProp = buildStatusProperty(schema, status);
+  if (!statusProp) throw new Error("ステータスプロパティがありません");
+
+  const res = await notionFetch(token, `/pages/${formatNotionId(pageId)}`, {
+    method: "PATCH",
+    body: JSON.stringify({ properties: statusProp }),
+  });
+  if (!res.ok) {
+    const err = await res.text();
+    throw new Error(`ステータス更新失敗: ${err}`);
+  }
+}
+
+export async function updateNotionTaskStatus(
+  token: string,
+  databaseId: string,
+  pageId: string,
+  status: NotionTaskStatus
+): Promise<NotionTask> {
+  await updateNotionPageStatus(token, databaseId, pageId, status);
+  const schema = await detectDatabaseSchema(token, databaseId);
+  const res = await notionFetch(token, `/pages/${formatNotionId(pageId)}`);
+  if (!res.ok) throw new Error("更新後の取得に失敗しました");
+  const page = (await res.json()) as Record<string, unknown>;
+  const updated = pageToTask(page, schema);
+  if (!updated) throw new Error("更新したタスクの解析に失敗しました");
+  return updated;
 }
 
 export async function createNotionTask(
@@ -178,12 +323,8 @@ export async function createNotionTask(
     },
   };
 
-  if (schema.statusProp) {
-    const status = "status" in task && task.status === "done" ? "done" : "pending";
-    properties[schema.statusProp] = {
-      select: { name: status === "done" ? "完了" : "未着手" },
-    };
-  }
+  const statusProp = buildStatusProperty(schema, "status" in task && task.status === "done" ? "done" : "pending");
+  if (statusProp) Object.assign(properties, statusProp);
   if (schema.typeProp) {
     properties[schema.typeProp] = { select: { name: mapNotionTypeLabel(task.type) } };
   }
@@ -212,39 +353,21 @@ export async function createNotionTask(
   return created;
 }
 
-export async function updateNotionTaskStatus(
-  token: string,
-  databaseId: string,
-  pageId: string,
-  status: NotionTaskStatus
-): Promise<NotionTask> {
-  const schema = await detectDatabaseSchema(token, databaseId);
-  if (!schema.statusProp) throw new Error("ステータスプロパティがありません");
-
-  const res = await notionFetch(token, `/pages/${formatNotionId(pageId)}`, {
-    method: "PATCH",
-    body: JSON.stringify({
-      properties: {
-        [schema.statusProp]: { select: { name: status === "done" ? "完了" : "未着手" } },
-      },
-    }),
-  });
-  if (!res.ok) {
-    const err = await res.text();
-    throw new Error(`ステータス更新失敗: ${err}`);
-  }
-  const page = (await res.json()) as Record<string, unknown>;
-  const updated = pageToTask(page, schema);
-  if (!updated) throw new Error("更新したタスクの解析に失敗しました");
-  return updated;
-}
-
 export async function testNotionConnection(token: string, databaseId: string): Promise<{ ok: boolean; title?: string }> {
   const res = await notionFetch(token, `/databases/${formatNotionId(databaseId)}`);
   if (!res.ok) return { ok: false };
   const data = (await res.json()) as { title?: { plain_text?: string }[] };
   const title = data.title?.map(t => t.plain_text).join("") ?? DATABASE_TITLE;
   return { ok: true, title };
+}
+
+export async function testAllNotionConnections(token: string, ids: NotionDatabaseIds): Promise<boolean> {
+  const results = await Promise.all([
+    testNotionConnection(token, ids.tasks),
+    testNotionConnection(token, ids.schedule),
+    testNotionConnection(token, ids.communication),
+  ]);
+  return results.every(r => r.ok);
 }
 
 async function findExistingDatabase(token: string): Promise<string | null> {
@@ -258,9 +381,7 @@ async function findExistingDatabase(token: string): Promise<string | null> {
   });
   if (!res.ok) return null;
   const data = (await res.json()) as { results: { id: string; title?: { plain_text?: string }[] }[] };
-  const hit = data.results.find(r =>
-    r.title?.some(t => t.plain_text?.includes("つゆくさ"))
-  );
+  const hit = data.results.find(r => r.title?.some(t => t.plain_text?.includes("つゆくさ")));
   return hit?.id ?? data.results[0]?.id ?? null;
 }
 
@@ -278,6 +399,10 @@ async function findParentPage(token: string): Promise<string | null> {
 }
 
 export async function setupNotionDatabase(token: string): Promise<{ databaseId: string; created: boolean }> {
+  const ids = resolveDatabaseIds();
+  const existingOk = await testAllNotionConnections(token, ids);
+  if (existingOk) return { databaseId: ids.tasks, created: false };
+
   const existing = await findExistingDatabase(token);
   if (existing) {
     const test = await testNotionConnection(token, existing);
@@ -287,7 +412,7 @@ export async function setupNotionDatabase(token: string): Promise<{ databaseId: 
   const parentPageId = await findParentPage(token);
   if (!parentPageId) {
     throw new Error(
-      "ページが見つかりません。Notionでページを1つ作成し、インテグレーション「つゆくさ」にアクセス権を付与してください。"
+      "ページが見つかりません。Notionでページを1つ作成し、インテグレーションにアクセス権を付与してください。"
     );
   }
 

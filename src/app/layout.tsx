@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from "next";
 import { Noto_Sans_JP, Noto_Serif_JP } from "next/font/google";
 import RadioProvider from "@/src/components/RadioProvider";
 import RegisterTimerServiceWorker from "@/src/components/RegisterTimerServiceWorker";
+import AppProviders from "@/src/components/AppProviders";
 import "./globals.css";
 
 export const dynamic = "force-dynamic";
@@ -50,7 +51,9 @@ export default function RootLayout({
     >
       <body className="min-h-full">
         <RegisterTimerServiceWorker />
-        <RadioProvider>{children}</RadioProvider>
+        <AppProviders>
+          <RadioProvider>{children}</RadioProvider>
+        </AppProviders>
       </body>
     </html>
   );

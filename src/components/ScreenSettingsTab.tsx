@@ -1,19 +1,23 @@
 "use client";
 
 import { useCallback, useEffect, useState, type CSSProperties } from "react";
+import { useTranslation } from "react-i18next";
 import {
-  HOME_SECTION_TOGGLE_OPTIONS,
-  HOME_WEATHER_TOGGLE_OPTIONS,
+  HOME_SECTION_TOGGLE_I18N_KEYS,
+  HOME_WEATHER_TOGGLE_I18N_OPTIONS,
   type HomeDisplaySettings,
 } from "@/src/lib/homeDisplay";
 import HealthKitBridge from "@/src/components/HealthKitBridge";
+import LanguageSettingsPanel from "@/src/components/LanguageSettingsPanel";
 import SectionOrderList from "@/src/components/SectionOrderList";
+import ThemeSettingsPanel from "@/src/components/ThemeSettingsPanel";
 import {
   findNearestRegionId,
   REGION_OPTIONS,
   type LocationSettings,
 } from "@/src/lib/regions";
 import type { HealthData } from "@/src/lib/healthData";
+import { themeCardStyle, themeInputStyle, themeMutedTextStyle, themeSectionTitleStyle } from "@/src/lib/themeStyles";
 
 type UserProfile = {
   name: string;
@@ -42,6 +46,7 @@ export default function ScreenSettingsTab({
   onHomeDisplayChange,
   healthData,
 }: Props) {
+  const { t } = useTranslation();
   const [geoStatus, setGeoStatus] = useState<"idle" | "loading" | "ok" | "error">("idle");
 
   const detectLocation = useCallback(() => {
@@ -75,12 +80,13 @@ export default function ScreenSettingsTab({
 
   return (
     <div style={{ padding: 16 }}>
-      <div style={{ fontSize: 15, fontWeight: "bold", color: "#3d3228", marginBottom: 4 }}>👤 プロフィール設定</div>
-      <div style={{ fontSize: 11, color: "#9a8b7a", marginBottom: 12, lineHeight: 1.5 }}>
-        ホーム画面の挨拶とAI相談での呼び名に使います
-      </div>
-      <div style={cardStyle}>
-        <div style={labelStyle}>お名前</div>
+      <ThemeSettingsPanel />
+      <LanguageSettingsPanel />
+
+      <div style={themeSectionTitleStyle}>👤 {t("screenSettings.profileTitle")}</div>
+      <div style={{ ...themeMutedTextStyle, marginBottom: 12, lineHeight: 1.5 }}>{t("screenSettings.profileHint")}</div>
+      <div style={themeCardStyle}>
+        <div style={labelStyle}>{t("screenSettings.nameLabel")}</div>
         <input
           type="text"
           placeholder={defaultUserName}
@@ -90,76 +96,72 @@ export default function ScreenSettingsTab({
             const trimmed = userProfile.name.trim() || defaultUserName;
             onUserProfileChange({ ...userProfile, name: trimmed, nameConfigured: true });
           }}
-          style={{ ...inputStyle, marginBottom: 12 }}
+          style={{ ...themeInputStyle, marginBottom: 12 }}
         />
-        <div style={labelStyle}>ニックネーム</div>
+        <div style={labelStyle}>{t("screenSettings.nicknameLabel")}</div>
         <input
           type="text"
-          placeholder="例：たろう、太郎さん"
+          placeholder={t("screenSettings.nicknamePlaceholder")}
           value={userProfile.nickname}
           onChange={e => onUserProfileChange({ ...userProfile, nickname: e.target.value })}
           onBlur={() => onUserProfileChange({ ...userProfile, nickname: userProfile.nickname.trim(), nameConfigured: true })}
-          style={inputStyle}
+          style={themeInputStyle}
         />
       </div>
 
-      <div style={sectionTitleStyle}>📍 在住地域</div>
-      <div style={{ fontSize: 11, color: "#9a8b7a", marginBottom: 8, lineHeight: 1.5 }}>
-        現在地から最寄りの地域を自動設定します（天気・日の出・日の入りに使用）
-      </div>
-      <div style={cardStyle}>
-        <div style={labelStyle}>地域を選択</div>
+      <div style={themeSectionTitleStyle}>📍 {t("screenSettings.locationTitle")}</div>
+      <div style={{ ...themeMutedTextStyle, marginBottom: 8, lineHeight: 1.5 }}>{t("screenSettings.locationHint")}</div>
+      <div style={themeCardStyle}>
+        <div style={labelStyle}>{t("screenSettings.regionLabel")}</div>
         <select
           value={locationSettings.regionId}
           onChange={e => onLocationChange({ regionId: e.target.value, autoDetected: false })}
-          style={{ ...inputStyle, marginBottom: 10, appearance: "auto" }}
+          style={{ ...themeInputStyle, marginBottom: 10, appearance: "auto" }}
         >
           {REGION_OPTIONS.map(region => (
             <option key={region.id} value={region.id}>{region.label}</option>
           ))}
         </select>
         <button type="button" onClick={detectLocation} style={geoBtnStyle} disabled={geoStatus === "loading"}>
-          {geoStatus === "loading" ? "位置情報を取得中..." : "📍 現在地から地域を取得"}
+          {geoStatus === "loading" ? t("screenSettings.geoLoading") : t("screenSettings.geoButton")}
         </button>
         {geoStatus === "ok" && (
-          <div style={{ fontSize: 11, color: "#4a6741", marginTop: 8 }}>
-            ✓ {REGION_OPTIONS.find(r => r.id === locationSettings.regionId)?.label} を設定しました
+          <div style={{ fontSize: "var(--t-font-size-sm)", color: "var(--t-success)", marginTop: 8 }}>
+            ✓ {REGION_OPTIONS.find(r => r.id === locationSettings.regionId)?.label} {t("screenSettings.geoOk")}
           </div>
         )}
         {geoStatus === "error" && (
-          <div style={{ fontSize: 11, color: "#c44a4a", marginTop: 8 }}>
-            位置情報を取得できませんでした。ブラウザの許可を確認してください。
+          <div style={{ fontSize: "var(--t-font-size-sm)", color: "var(--t-error)", marginTop: 8 }}>
+            {t("screenSettings.geoError")}
           </div>
         )}
       </div>
 
-      <div style={sectionTitleStyle}>❤️ ヘルスケア連携</div>
+      <div style={themeSectionTitleStyle}>❤️ {t("screenSettings.healthTitle")}</div>
       <HealthKitBridge healthData={healthData} compact />
 
-      <div style={sectionTitleStyle}>🏠 ホーム画面の表示項目</div>
-      <div style={{ fontSize: 11, color: "#9a8b7a", marginBottom: 8 }}>天気グラフ（内訳）</div>
-      {HOME_WEATHER_TOGGLE_OPTIONS.map(opt => (
+      <div style={themeSectionTitleStyle}>🏠 {t("screenSettings.homeDisplayTitle")}</div>
+      <div style={{ ...themeMutedTextStyle, marginBottom: 8 }}>{t("screenSettings.weatherChartGroup")}</div>
+      {HOME_WEATHER_TOGGLE_I18N_OPTIONS.map(opt => (
         <ToggleRow
           key={opt.key}
-          label={opt.label}
+          label={t(opt.labelKey)}
           checked={homeDisplay[opt.key]}
           onChange={v => onHomeDisplayChange({ ...homeDisplay, [opt.key]: v })}
         />
       ))}
-      {HOME_SECTION_TOGGLE_OPTIONS.map(opt => (
+      {HOME_SECTION_TOGGLE_I18N_KEYS.map(opt => (
         <ToggleRow
           key={opt.key}
-          label={opt.label}
+          label={t(opt.labelKey)}
           checked={homeDisplay[opt.key]}
           onChange={v => onHomeDisplayChange({ ...homeDisplay, [opt.key]: v })}
         />
       ))}
 
-      <div style={sectionTitleStyle}>↕️ 表示順の並び替え</div>
-      <div style={{ fontSize: 11, color: "#9a8b7a", marginBottom: 8, lineHeight: 1.5 }}>
-        ⠿ を長押し（約0.15秒）してドラッグすると並び替えできます。スクロールと区別するため、ハンドルを押し続けてから動かしてください。
-      </div>
-      <div style={cardStyle}>
+      <div style={themeSectionTitleStyle}>↕️ {t("screenSettings.orderTitle")}</div>
+      <div style={{ ...themeMutedTextStyle, marginBottom: 8, lineHeight: 1.5 }}>{t("screenSettings.orderHint")}</div>
+      <div style={themeCardStyle}>
         <SectionOrderList
           sectionOrder={homeDisplay.sectionOrder}
           onReorder={handleSectionReorder}
@@ -171,55 +173,28 @@ export default function ScreenSettingsTab({
 
 function ToggleRow({ label, checked, onChange }: { label: string; checked: boolean; onChange: (v: boolean) => void }) {
   return (
-    <label style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "10px 0", borderBottom: "1px solid rgba(60,40,20,0.06)", cursor: "pointer" }}>
-      <span style={{ fontSize: 13, color: "#3d3228" }}>{label}</span>
-      <input type="checkbox" checked={checked} onChange={e => onChange(e.target.checked)} style={{ width: 18, height: 18, accentColor: "#c17f4a" }} />
+    <label style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "10px 0", borderBottom: "1px solid var(--t-border)", cursor: "pointer" }}>
+      <span style={{ fontSize: "var(--t-font-size-base)", color: "var(--t-text)" }}>{label}</span>
+      <input type="checkbox" checked={checked} onChange={e => onChange(e.target.checked)} style={{ width: 18, height: 18, accentColor: "var(--t-checkbox-accent)" }} />
     </label>
   );
 }
 
-const cardStyle: CSSProperties = {
-  background: "white",
-  borderRadius: 12,
-  padding: "14px",
-  marginBottom: 12,
-  border: "1px solid rgba(60,40,20,0.1)",
-};
-
-const sectionTitleStyle: CSSProperties = {
-  fontSize: 15,
-  fontWeight: "bold",
-  color: "#3d3228",
-  marginBottom: 4,
-  paddingTop: 12,
-  borderTop: "1px solid rgba(60,40,20,0.12)",
-  marginTop: 8,
-};
-
 const labelStyle: CSSProperties = {
-  fontSize: 11,
-  color: "#9a8b7a",
+  fontSize: "var(--t-font-size-sm)",
+  color: "var(--t-text-muted)",
   marginBottom: 6,
-};
-
-const inputStyle: CSSProperties = {
-  width: "100%",
-  boxSizing: "border-box",
-  background: "#f5f0e8",
-  border: "1.5px solid rgba(60,40,20,0.12)",
-  borderRadius: 8,
-  padding: "10px 12px",
-  fontSize: 14,
 };
 
 const geoBtnStyle: CSSProperties = {
   width: "100%",
   padding: "10px",
-  borderRadius: 8,
-  border: "1.5px solid #c17f4a",
-  background: "#fdf0e4",
-  color: "#8b5a2b",
-  fontSize: 12,
-  fontWeight: "bold",
+  borderRadius: "var(--t-radius-sm)",
+  border: "1.5px solid var(--t-accent)",
+  background: "var(--t-accent-bg)",
+  color: "var(--t-text)",
+  fontSize: "var(--t-font-size-base)",
+  fontWeight: "var(--t-font-weight-bold)" as CSSProperties["fontWeight"],
   cursor: "pointer",
+  fontFamily: "var(--t-font-family)",
 };

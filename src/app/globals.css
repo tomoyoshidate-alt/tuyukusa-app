@@ -9,6 +9,45 @@
   --earth-light: #c4a77d;
   --ink: #3d3429;
   --ink-muted: #6b5f52;
+
+  /* Theme tokens (defaults = natural) */
+  --t-bg: #f5f0e8;
+  --t-bg-gradient-start: #ebe4d4;
+  --t-bg-gradient-end: #f5f0e8;
+  --t-bg-gradient: linear-gradient(165deg, #ebe4d4 0%, #f7f3eb 45%, #f5f0e8 100%);
+  --t-card-bg: #ffffff;
+  --t-text: #3d3228;
+  --t-text-muted: #9a8b7a;
+  --t-text-inverse: #f5f0e8;
+  --t-primary: #4a6741;
+  --t-primary-light: #6b8f62;
+  --t-primary-bg: #e8f0e4;
+  --t-accent: #c17f4a;
+  --t-accent-bg: #fdf0e4;
+  --t-border: rgba(60, 40, 20, 0.1);
+  --t-border-strong: rgba(60, 40, 20, 0.12);
+  --t-header-bg: #1a1410;
+  --t-nav-bg: #1a1410;
+  --t-nav-active: #e8a86a;
+  --t-nav-inactive: rgba(245, 240, 232, 0.45);
+  --t-error: #c44a4a;
+  --t-success: #4a6741;
+  --t-notion-bg: #eef4fb;
+  --t-notion-border: rgba(126, 200, 227, 0.35);
+  --t-radius-sm: 8px;
+  --t-radius-md: 12px;
+  --t-radius-lg: 14px;
+  --t-shadow: 0 2px 8px rgba(60, 40, 20, 0.08);
+  --t-font-family: var(--font-noto-sans), "Hiragino Sans", "Yu Gothic", sans-serif;
+  --t-font-size-sm: 11px;
+  --t-font-size-base: 13px;
+  --t-font-size-lg: 15px;
+  --t-font-size-xl: 18px;
+  --t-font-weight-bold: 700;
+  --t-checkbox-accent: #c17f4a;
+  --t-input-bg: #f5f0e8;
+  --t-diagnosis-bg: linear-gradient(160deg, #1a1410, #2d2218);
+  --t-diagnosis-text: #f5f0e8;
 }
 
 @theme inline {
@@ -19,7 +58,12 @@
 body {
   margin: 0;
   min-height: 100dvh;
-  background: linear-gradient(165deg, #ebe4d4 0%, var(--washi) 45%, #f5f0e8 100%);
-  color: var(--ink);
-  font-family: var(--font-noto-sans), "Hiragino Sans", "Yu Gothic", sans-serif;
+  background: var(--t-bg-gradient, var(--t-bg));
+  color: var(--t-text);
+  font-family: var(--t-font-family);
+  font-size: var(--t-font-size-base);
+}
+
+* {
+  box-sizing: border-box;
 }

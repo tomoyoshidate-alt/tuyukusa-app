@@ -1,14 +1,7 @@
 'use client'
 
-import {
-  useState,
-  useEffect,
-  useRef,
-  type CSSProperties,
-  type ReactNode,
-  type Dispatch,
-  type SetStateAction,
-} from "react";
+import { useState, useEffect, useRef, type CSSProperties, type ReactNode, type Dispatch, type SetStateAction } from "react";
+import { useTranslation } from "react-i18next";
 import dynamic from "next/dynamic";
 import { runTuyukusaStorageMigration } from "@/src/lib/tuyukusaStorage";
 import {
@@ -20,12 +13,13 @@ import {
   type GoogleCalendarSettings,
 } from "@/src/lib/googleCalendar";
 import {
-  getActiveNotionDailyTasks,
-  getActiveNotionDeadlineTasks,
-  getNotionScheduleTasks,
+  getTodayNotionScheduleEvents,
+  getTodayNotionTasks,
   INITIAL_NOTION_SETTINGS,
   normalizeNotionSettings,
   NOTION_SYNC_INTERVAL_MS,
+  scheduleEventLabel,
+  type NotionScheduleEvent,
   type NotionSettings,
   type NotionTask,
   type ParsedVoiceTask,
@@ -42,14 +36,25 @@ import {
 import AddToHomeScreen from "@/src/components/AddToHomeScreen";
 import BinauralGlobalAlarm from "@/src/components/BinauralGlobalAlarm";
 import HealthKitBridge from "@/src/components/HealthKitBridge";
+import LanguageSettingsPanel from "@/src/components/LanguageSettingsPanel";
 import NotionHomeBar from "@/src/components/NotionHomeBar";
 import NotionManualPage from "@/src/components/NotionManualPage";
-import NotionTaskRows from "@/src/components/NotionTaskRows";
+import NotionTodayTasksSection from "@/src/components/NotionTodayTasksSection";
 import RadioMiniPlayer from "@/src/components/RadioMiniPlayer";
 import ScreenSettingsTab from "@/src/components/ScreenSettingsTab";
 import TsuyukusaRadio from "@/src/components/TsuyukusaRadio";
 import VoiceInputButton from "@/src/components/VoiceInputButton";
 import VoiceTaskConfirmModal from "@/src/components/VoiceTaskConfirmModal";
+import {
+  themeAppShellStyle,
+  themeCardStyle,
+  themeFieldLabelStyle,
+  themeHeaderStyle,
+  themeHomeActionBtnStyle,
+  themeInputStyle,
+  themeNavStyle,
+} from "@/src/lib/themeStyles";
+import type { AppLocale } from "@/src/lib/i18n/detectLocale";
 import {
   DEFAULT_HOME_DISPLAY,
   isSectionVisible,
@@ -690,42 +695,10 @@ const INITIAL_HEALTH: HealthForm = {
   temperature: "",
 };
 
-const cardStyle = {
-  background: "white",
-  borderRadius: 12,
-  padding: "14px 16px",
-  marginBottom: 8,
-  border: "1px solid rgba(60,40,20,0.1)",
-};
-const homeActionBtnStyle: CSSProperties = {
-  width: "100%",
-  padding: "12px 14px",
-  borderRadius: 12,
-  border: "none",
-  background: "#1a1410",
-  color: "#f5f0e8",
-  fontSize: 13,
-  fontWeight: "bold",
-  cursor: "pointer",
-};
-const fieldLabelStyle = {
-  fontSize: 12,
-  fontWeight: "bold",
-  color: "#4a6741",
-  marginBottom: 10,
-};
-
-const inputStyle: CSSProperties = {
-  width: "100%",
-  background: "#f5f0e8",
-  border: "1.5px solid rgba(60,40,20,0.12)",
-  borderRadius: 10,
-  padding: "10px 12px",
-  fontSize: 14,
-  color: "#1a1410",
-  outline: "none",
-  boxSizing: "border-box",
-};
+const cardStyle = themeCardStyle;
+const homeActionBtnStyle = themeHomeActionBtnStyle;
+const fieldLabelStyle = themeFieldLabelStyle;
+const inputStyle = themeInputStyle;
 
 type ApiMessage = { role: "user" | "assistant"; content: string };
 
@@ -745,47 +718,15 @@ type HourlyWeather = {
 
 const DEFAULT_USER_NAME = "つゆくさ太郎";
 
-const USER_MANUAL_STEPS = [
-  {
-    icon: "🖥",
-    title: "画面設定",
-    body: "「画面」タブでプロフィール・地域・ホーム表示項目・表示順を設定できます。ドラッグ＆ドロップで並び替えも可能です。",
-  },
-  {
-    icon: "🏠",
-    title: "ホーム画面",
-    body: "天気・目標・診断・スケジュール・つゆくさラジオ・バイノーラルビート・ポモドーロを一覧できます。「ホーム画面に追加」でアプリのように起動できます。",
-  },
-  {
-    icon: "📻",
-    title: "つゆくさラジオ",
-    body: "RSSフィードからつゆくさラジオのエピソードを再生。YouTubeなどのURLをお気に入り登録できます。ビート/タイマーと切り替え可能です。",
-  },
-  {
-    icon: "🎧",
-    title: "バイノーラルビート & ポモドーロ",
-    body: "診断に合わせた周波数で集中・リラックスをサポート。ポモドーロは作業25分/休憩5分（カスタム可）で、作業中ベータ波・休憩中アルファ波を自動切替。終了時はアラームが鳴ります。",
-  },
-  {
-    icon: "💬",
-    title: "AI相談",
-    body: "体調や生活リズムを相談すると、つゆくさ理論に基づくアドバイスとスケジュール提案が得られます。提案はワンタップで今日のスケジュールに追加できます。",
-  },
-  {
-    icon: "❤️",
-    title: "iOSヘルスケア連携",
-    body: "画面設定またはホームの「ヘルスケアデータを送る」からiOSショートカットを起動。睡眠・歩数・心拍数がAI診断に活用されます。",
-  },
-  {
-    icon: "📆",
-    title: "Googleカレンダー（iCal）",
-    body: "設定タブで非公開のiCalフィードURLを登録。「仕事」「休日」「プライベート」の予定名でスケジュールが自動調整。1時間ごとに自動更新。",
-  },
-  {
-    icon: "🔒",
-    title: "データの保存",
-    body: "目標・スケジュール・設定は端末のlocalStorageに保存されます。アプリ更新時にデータ形式が変わる場合、自動でマイグレーションまたはリセットされます。",
-  },
+const USER_MANUAL_STEP_KEYS = [
+  { icon: "🖥", titleKey: "manual.display.title", bodyKey: "manual.display.body" },
+  { icon: "🏠", titleKey: "manual.home.title", bodyKey: "manual.home.body" },
+  { icon: "📻", titleKey: "manual.radio.title", bodyKey: "manual.radio.body" },
+  { icon: "🎧", titleKey: "manual.binaural.title", bodyKey: "manual.binaural.body" },
+  { icon: "💬", titleKey: "manual.chat.title", bodyKey: "manual.chat.body" },
+  { icon: "❤️", titleKey: "manual.health.title", bodyKey: "manual.health.body" },
+  { icon: "📆", titleKey: "manual.calendar.title", bodyKey: "manual.calendar.body" },
+  { icon: "🔒", titleKey: "manual.data.title", bodyKey: "manual.data.body" },
 ] as const;
 
 type WeatherData = {
@@ -1274,7 +1215,8 @@ async function fetchChatReply(
   messages: Message[],
   environmentContext?: string,
   userKnowledgeContext?: string,
-  healthContext?: string
+  healthContext?: string,
+  locale?: AppLocale
 ): Promise<ChatReply> {
   const res = await fetch("/api/chat", {
     method: "POST",
@@ -1284,6 +1226,7 @@ async function fetchChatReply(
       environmentContext,
       userKnowledgeContext,
       healthContext,
+      locale: locale ?? "ja",
     }),
   });
   if (!res.ok) throw new Error("Chat API request failed");
@@ -2084,7 +2027,29 @@ function ChipButton({
   );
 }
 
+function buildNotionDbParams(settings: NotionSettings): URLSearchParams {
+  const params = new URLSearchParams();
+  if (settings.apiKey.trim()) params.set("apiKey", settings.apiKey.trim());
+  if (settings.taskDatabaseId.trim()) params.set("taskDatabaseId", settings.taskDatabaseId.trim());
+  if (settings.scheduleDatabaseId.trim()) params.set("scheduleDatabaseId", settings.scheduleDatabaseId.trim());
+  if (settings.communicationDatabaseId.trim()) {
+    params.set("communicationDatabaseId", settings.communicationDatabaseId.trim());
+  }
+  return params;
+}
+
+function notionDbBody(settings: NotionSettings): Record<string, string | undefined> {
+  return {
+    apiKey: settings.apiKey.trim() || undefined,
+    taskDatabaseId: settings.taskDatabaseId.trim() || undefined,
+    scheduleDatabaseId: settings.scheduleDatabaseId.trim() || undefined,
+    communicationDatabaseId: settings.communicationDatabaseId.trim() || undefined,
+  };
+}
+
 export default function TuyukusaApp() {
+  const { t, i18n } = useTranslation();
+  const appLocale = (i18n.language?.slice(0, 2) ?? "ja") as AppLocale;
   const [tab, setTab] = useState<Tab>("home");
   const [chatMessages, setChatMessages] = useState<Message[]>([]);
   const [chatInput, setChatInput] = useState("");
@@ -2129,6 +2094,7 @@ export default function TuyukusaApp() {
     normalizeNotionSettings
   );
   const [notionTasks, setNotionTasks] = useState<NotionTask[]>([]);
+  const [notionScheduleEvents, setNotionScheduleEvents] = useState<NotionScheduleEvent[]>([]);
   const [notionSyncing, setNotionSyncing] = useState(false);
   const [notionMessage, setNotionMessage] = useState("");
   const [showNotionManual, setShowNotionManual] = useState(false);
@@ -2192,14 +2158,13 @@ export default function TuyukusaApp() {
 
   const timelineItems = sortByTime(schedule.items ?? []);
   const dayKey = getDayKey();
-  const notionDailyTasks = getActiveNotionDailyTasks(notionTasks, dayKey);
-  const notionDeadlineTasks = getActiveNotionDeadlineTasks(notionTasks);
-  const notionScheduleTasks = getNotionScheduleTasks(notionTasks, dayKey);
-  const notionScheduleItems: ScheduleItem[] = notionScheduleTasks.map(t => ({
-    id: `notion-${t.id}`,
-    time: t.time ?? "09:00",
-    label: t.text,
-    sub: `Notion · ${t.category}`,
+  const notionTodayTasks = getTodayNotionTasks(notionTasks, dayKey);
+  const notionTodayScheduleEvents = getTodayNotionScheduleEvents(notionScheduleEvents, dayKey);
+  const notionScheduleItems: ScheduleItem[] = notionTodayScheduleEvents.map(e => ({
+    id: `notion-schedule-${e.id}`,
+    time: e.time ?? "09:00",
+    label: e.title,
+    sub: `Notion · ${scheduleEventLabel(e.eventType)}`,
   }));
   const mergedTimelineItems = sortByTime([...timelineItems, ...notionScheduleItems]);
   const scheduleRemainingSec = (() => {
@@ -2419,7 +2384,7 @@ export default function TuyukusaApp() {
 二行目：期限日（YYYY-MM-DD形式、今日から7〜30日後）
 
 ${buildHealthSummary(healthForm)}`;
-      const { content } = await fetchChatReply([{ type: "user", text: prompt }], envContext, userKnowledgeContext, healthContext);
+      const { content } = await fetchChatReply([{ type: "user", text: prompt }], envContext, userKnowledgeContext, healthContext, appLocale);
       setAiDeadlineSuggestion(parseAiDeadlineReply(content));
     } catch {
       setAiDeadlineSuggestion({
@@ -2619,17 +2584,24 @@ ${buildHealthSummary(healthForm)}`;
     setNotionSyncing(true);
     setNotionMessage("");
     try {
-      const params = new URLSearchParams();
-      if (notionSettings.apiKey.trim()) params.set("apiKey", notionSettings.apiKey.trim());
-      if (notionSettings.databaseId.trim()) params.set("databaseId", notionSettings.databaseId.trim());
+      const params = buildNotionDbParams(notionSettings);
       const res = await fetch(`/api/notion?${params.toString()}`);
-      const data = (await res.json()) as { tasks?: NotionTask[]; databaseId?: string; syncedAt?: number; error?: string };
+      const data = (await res.json()) as {
+        tasks?: NotionTask[];
+        scheduleEvents?: NotionScheduleEvent[];
+        syncedAt?: number;
+        databaseIds?: { tasks: string; schedule: string; communication: string };
+        error?: string;
+      };
       if (!res.ok) throw new Error(data.error ?? "Notion同期に失敗しました");
       setNotionTasks(data.tasks ?? []);
+      setNotionScheduleEvents(data.scheduleEvents ?? []);
       setNotionSettings(prev => ({
         ...prev,
         connected: true,
-        databaseId: data.databaseId ?? prev.databaseId,
+        taskDatabaseId: data.databaseIds?.tasks ?? prev.taskDatabaseId,
+        scheduleDatabaseId: data.databaseIds?.schedule ?? prev.scheduleDatabaseId,
+        communicationDatabaseId: data.databaseIds?.communication ?? prev.communicationDatabaseId,
         lastSyncAt: data.syncedAt ?? Date.now(),
       }));
       return true;
@@ -2649,14 +2621,21 @@ ${buildHealthSummary(healthForm)}`;
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           action: "setup",
-          apiKey: notionSettings.apiKey.trim() || undefined,
+          ...notionDbBody(notionSettings),
         }),
       });
-      const data = (await res.json()) as { databaseId?: string; created?: boolean; error?: string };
+      const data = (await res.json()) as {
+        taskDatabaseId?: string;
+        databaseIds?: { tasks: string; schedule: string; communication: string };
+        created?: boolean;
+        error?: string;
+      };
       if (!res.ok) throw new Error(data.error ?? "セットアップに失敗しました");
       setNotionSettings(prev => ({
         ...prev,
-        databaseId: data.databaseId ?? prev.databaseId,
+        taskDatabaseId: data.databaseIds?.tasks ?? data.taskDatabaseId ?? prev.taskDatabaseId,
+        scheduleDatabaseId: data.databaseIds?.schedule ?? prev.scheduleDatabaseId,
+        communicationDatabaseId: data.databaseIds?.communication ?? prev.communicationDatabaseId,
         connected: true,
         setupComplete: true,
       }));
@@ -2673,10 +2652,30 @@ ${buildHealthSummary(healthForm)}`;
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          apiKey: notionSettings.apiKey.trim() || undefined,
-          databaseId: notionSettings.databaseId.trim() || undefined,
+          ...notionDbBody(notionSettings),
           pageId: task.id,
           status: task.status === "done" ? "pending" : "done",
+          target: "tasks",
+        }),
+      });
+      const data = (await res.json()) as { error?: string };
+      if (!res.ok) throw new Error(data.error ?? "更新に失敗しました");
+      await syncNotion();
+    } catch (err) {
+      setNotionMessage(err instanceof Error ? err.message : "更新に失敗しました");
+    }
+  };
+
+  const toggleNotionScheduleEvent = async (event: NotionScheduleEvent) => {
+    try {
+      const res = await fetch("/api/notion", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          ...notionDbBody(notionSettings),
+          pageId: event.id,
+          status: event.status === "done" ? "pending" : "done",
+          target: "schedule",
         }),
       });
       const data = (await res.json()) as { error?: string };
@@ -2714,8 +2713,7 @@ ${buildHealthSummary(healthForm)}`;
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          apiKey: notionSettings.apiKey.trim() || undefined,
-          databaseId: notionSettings.databaseId.trim() || undefined,
+          ...notionDbBody(notionSettings),
           task: pendingVoiceTask,
         }),
       });
@@ -2752,7 +2750,18 @@ ${buildHealthSummary(healthForm)}`;
       void syncNotion();
     }, NOTION_SYNC_INTERVAL_MS);
     return () => clearInterval(timer);
-  }, [notionHydrated, notionSettings.connected, notionSettings.apiKey, notionSettings.databaseId]);
+  }, [notionHydrated, notionSettings.connected, notionSettings.apiKey, notionSettings.taskDatabaseId, notionSettings.scheduleDatabaseId, notionSettings.communicationDatabaseId]);
+
+  useEffect(() => {
+    const openNotionTasks = () => {
+      setTab("home");
+      window.setTimeout(() => {
+        document.getElementById("notion-today-tasks")?.scrollIntoView({ behavior: "smooth", block: "start" });
+      }, 100);
+    };
+    window.addEventListener("tuyukusa:open-notion-tasks", openNotionTasks);
+    return () => window.removeEventListener("tuyukusa:open-notion-tasks", openNotionTasks);
+  }, []);
 
   useEffect(() => {
     if (!scheduleHydrated || !calendarHydrated) return;
@@ -2815,7 +2824,7 @@ ${buildHealthSummary(healthForm)}`;
       const prompt = `${labels[period]}の目標を1つだけ提案してください。以下を踏まえ、${categoryLine}
 
 ${buildHealthSummary(healthForm)}`;
-      const { content } = await fetchChatReply([{ type: "user", text: prompt }], envContext, userKnowledgeContext, healthContext);
+      const { content } = await fetchChatReply([{ type: "user", text: prompt }], envContext, userKnowledgeContext, healthContext, appLocale);
       const parsed = parseAiGoalReply(content);
       setAiSuggestions(prev => ({
         ...prev,
@@ -2947,7 +2956,7 @@ ${buildHealthSummary(healthForm)}`;
     try {
       const prompt = buildScheduleProposalPrompt(data);
       const flowMessages: Message[] = [...baseMessages, { type: "user", text: prompt }];
-      const reply = await fetchChatReply(flowMessages, envContext, userKnowledgeContext, healthContext);
+      const reply = await fetchChatReply(flowMessages, envContext, userKnowledgeContext, healthContext, appLocale);
       setChatMessages(prev => [
         ...prev,
         {
@@ -3007,7 +3016,7 @@ ${buildHealthSummary(healthForm)}`;
       setChatMessages(userMessages);
       setIsLoading(true);
       try {
-        const reply = await fetchChatReply(userMessages, envContext, userKnowledgeContext, healthContext);
+        const reply = await fetchChatReply(userMessages, envContext, userKnowledgeContext, healthContext, appLocale);
         setChatMessages(prev => [...prev, createAiChatMessage(reply.content, reply)]);
       } catch {
         setChatMessages(prev => [
@@ -3080,7 +3089,7 @@ ${buildHealthSummary(healthForm)}`;
     setChatMessages(updatedMessages);
     setIsLoading(true);
     try {
-      const reply = await fetchChatReply(updatedMessages, envContext, userKnowledgeContext, healthContext);
+      const reply = await fetchChatReply(updatedMessages, envContext, userKnowledgeContext, healthContext, appLocale);
       setChatMessages(prev => [...prev, createAiChatMessage(reply.content, reply)]);
     } catch {
       setChatMessages(prev => [
@@ -3109,7 +3118,7 @@ ${buildHealthSummary(healthForm)}`;
     setChatMessages(updatedMessages);
     setIsLoading(true);
     try {
-      const reply = await fetchChatReply(updatedMessages, envContext, userKnowledgeContext, healthContext);
+      const reply = await fetchChatReply(updatedMessages, envContext, userKnowledgeContext, healthContext, appLocale);
       setChatMessages(prev => [...prev, createAiChatMessage(reply.content, reply)]);
     } catch {
       setChatMessages(prev => [
@@ -3141,8 +3150,8 @@ ${buildHealthSummary(healthForm)}`;
         return (
           <div style={{ margin: "16px 16px 0" }}>
             {weatherLoading && (
-              <div style={{ background: "white", borderRadius: 14, padding: 16, height: 140, border: "1px solid rgba(60,40,20,0.1)", fontSize: 11, color: "#9a8b7a", textAlign: "center", lineHeight: "108px" }}>
-                天気を取得中...
+              <div style={{ background: "var(--t-card-bg)", borderRadius: "var(--t-radius-lg)", padding: 16, height: 140, border: "1px solid var(--t-border)", fontSize: "var(--t-font-size-sm)", color: "var(--t-text-muted)", textAlign: "center", lineHeight: "108px" }}>
+                {t("home.weatherLoading")}
               </div>
             )}
             {weather && !weatherLoading && weather.hourly?.length > 0 && (
@@ -3160,21 +3169,34 @@ ${buildHealthSummary(healthForm)}`;
       case "sunTimes":
         if (!weather || weatherLoading || (!weather.sunrise && !weather.sunset)) return null;
         return (
-          <div style={{ margin: "12px 16px 0", background: "white", borderRadius: 12, padding: "12px 14px", border: "1px solid rgba(60,40,20,0.1)" }}>
-            <div style={{ fontSize: 10, color: "#9a8b7a", marginBottom: 8, textAlign: "center" }}>
+          <div style={{ margin: "12px 16px 0", background: "var(--t-card-bg)", borderRadius: "var(--t-radius-md)", padding: "12px 14px", border: "1px solid var(--t-border)" }}>
+            <div style={{ fontSize: "var(--t-font-size-sm)", color: "var(--t-text-muted)", marginBottom: 8, textAlign: "center" }}>
               📍 {getRegionById(locationSettings.regionId).label}
             </div>
-            <div style={{ display: "flex", justifyContent: "space-around", fontSize: 13, color: "#3d3228" }}>
-              {weather.sunrise && <span>🌅 日の出 <strong>{weather.sunrise}</strong></span>}
-              {weather.sunset && <span>🌇 日の入り <strong>{weather.sunset}</strong></span>}
+            <div style={{ display: "flex", justifyContent: "space-around", fontSize: "var(--t-font-size-base)", color: "var(--t-text)" }}>
+              {weather.sunrise && <span>🌅 {t("home.sunrise")} <strong>{weather.sunrise}</strong></span>}
+              {weather.sunset && <span>🌇 {t("home.sunset")} <strong>{weather.sunset}</strong></span>}
             </div>
           </div>
+        );
+      case "notionTodayTasks":
+        return (
+          <NotionTodayTasksSection
+            tasks={notionTodayTasks}
+            scheduleEvents={notionTodayScheduleEvents}
+            connected={notionSettings.connected}
+            lastSyncAt={notionSettings.lastSyncAt}
+            syncing={notionSyncing}
+            onToggleTask={toggleNotionTask}
+            onToggleScheduleEvent={toggleNotionScheduleEvent}
+            onSync={() => void syncNotion()}
+          />
         );
       case "dailyGoal":
         return (
           <>
             <HomeGoalSection
-              title="🎯 今日の目標"
+              title={`🎯 ${t("home.todayGoal")}`}
               goalList={goals.daily}
               collapsed={false}
               collapsible={false}
@@ -3193,11 +3215,6 @@ ${buildHealthSummary(healthForm)}`;
               onAdoptAi={() => adoptAiGoal("daily")}
               hideCategories
             />
-            {notionDailyTasks.length > 0 && (
-              <div style={{ margin: "0 16px 0", padding: "0 16px 14px", background: "white", borderRadius: "0 0 12px 12px", marginTop: -8, border: "1px solid rgba(60,40,20,0.1)", borderTop: "none" }}>
-                <NotionTaskRows tasks={notionDailyTasks} onToggle={toggleNotionTask} />
-              </div>
-            )}
           </>
         );
       case "deadlineGoal":
@@ -3224,11 +3241,6 @@ ${buildHealthSummary(healthForm)}`;
               aiSuggestion={aiDeadlineSuggestion}
               onAdoptAi={adoptAiDeadlineGoal}
             />
-            {notionDeadlineTasks.length > 0 && (
-              <div style={{ margin: "0 16px 0", padding: "0 16px 14px", background: "white", borderRadius: "0 0 12px 12px", marginTop: -8, border: "1px solid rgba(60,40,20,0.1)", borderTop: "none" }}>
-                <NotionTaskRows tasks={notionDeadlineTasks} onToggle={toggleNotionTask} showType />
-              </div>
-            )}
           </>
         );
       case "monthlyGoal":
@@ -3257,11 +3269,11 @@ ${buildHealthSummary(healthForm)}`;
         );
       case "diagnosis":
         return (
-          <div style={{ background: "linear-gradient(160deg, #1a1410, #2d2218)", color: "#f5f0e8", padding: "28px 20px", marginTop: 16 }}>
-            <div style={{ fontSize: 12, opacity: 0.6, marginBottom: 4 }}>{pickTimeGreeting()}</div>
-            <div style={{ fontSize: 22, fontWeight: "bold", marginBottom: 16 }}>{getDisplayName(userProfile)}</div>
-            <div style={{ display: "inline-block", background: "rgba(193,127,74,0.2)", border: "1px solid rgba(193,127,74,0.3)", borderRadius: 20, padding: "6px 14px", fontSize: 13, color: "#e8a86a", marginBottom: 16 }}>
-              今日の診断：{MOCK_SCHEDULE.diagnosis}
+          <div style={{ background: "var(--t-diagnosis-bg)", color: "var(--t-diagnosis-text)", padding: "28px 20px", marginTop: 16 }}>
+            <div style={{ fontSize: "var(--t-font-size-base)", opacity: 0.6, marginBottom: 4 }}>{pickTimeGreeting()}</div>
+            <div style={{ fontSize: "var(--t-font-size-xl)", fontWeight: "bold", marginBottom: 16 }}>{getDisplayName(userProfile)}</div>
+            <div style={{ display: "inline-block", background: "rgba(193,127,74,0.2)", border: "1px solid rgba(193,127,74,0.3)", borderRadius: 20, padding: "6px 14px", fontSize: "var(--t-font-size-base)", color: "var(--t-nav-active)", marginBottom: 16 }}>
+              {t("home.todayDiagnosis")}：{MOCK_SCHEDULE.diagnosis}
             </div>
             <div style={{ fontSize: 13, lineHeight: 1.8, opacity: 0.8, borderLeft: "2px solid #c17f4a", paddingLeft: 12 }}>
               {MOCK_SCHEDULE.advice}
@@ -3277,36 +3289,38 @@ ${buildHealthSummary(healthForm)}`;
         return (
           <>
             <div style={{ padding: "20px 20px 8px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-              <div style={{ fontSize: 15, fontWeight: "bold", color: "#3d3228" }}>📅 今日のスケジュール</div>
+              <div style={{ fontSize: "var(--t-font-size-lg)", fontWeight: "bold", color: "var(--t-text)" }}>📅 {t("home.todaySchedule")}</div>
               <button
                 type="button"
                 onClick={() => setScheduleEdit({ mode: "add", item: { id: "", time: "12:00", label: "", sub: "" } })}
-                style={{ background: "#fdf0e4", border: "1.5px solid #c17f4a", borderRadius: 16, padding: "4px 12px", fontSize: 12, color: "#8b5a2b", cursor: "pointer", fontWeight: "bold" }}
+                style={{ background: "var(--t-accent-bg)", border: "1.5px solid var(--t-accent)", borderRadius: 16, padding: "4px 12px", fontSize: "var(--t-font-size-base)", color: "var(--t-text)", cursor: "pointer", fontWeight: "bold" }}
               >
-                ＋ 追加
+                {t("home.addSchedule")}
               </button>
             </div>
-            {mergedTimelineItems.map(item => (
+            {mergedTimelineItems.map(item => {
+              const isNotionItem = item.id.startsWith("notion-schedule-") || item.id.startsWith("notion-");
+              return (
               <button
                 key={item.id}
                 type="button"
                 onClick={() => {
-                  if (item.id.startsWith("notion-")) return;
+                  if (isNotionItem) return;
                   setScheduleEdit({ mode: "edit", item: { ...item } });
                 }}
                 style={{
                   display: "block", width: "calc(100% - 40px)", margin: "0 20px 8px", background: "white", borderRadius: 12, padding: "12px 14px",
-                  border: item.id.startsWith("notion-")
+                  border: isNotionItem
                     ? "1.5px solid rgba(126,200,227,0.5)"
                     : item.id.startsWith("custom-") || item.id.startsWith("item-")
                       ? "1.5px solid #c17f4a"
                       : "1px solid rgba(60,40,20,0.1)",
-                  cursor: item.id.startsWith("notion-") ? "default" : "pointer", textAlign: "left",
+                  cursor: isNotionItem ? "default" : "pointer", textAlign: "left",
                 }}
               >
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
                   <div style={{ fontSize: 11, color: "#4a6741", fontWeight: "bold", marginBottom: 2 }}>{item.label}</div>
-                  {item.id.startsWith("notion-") && (
+                  {isNotionItem && (
                     <span style={{ fontSize: 9, color: "#7ec8e3", background: "rgba(126,200,227,0.15)", borderRadius: 8, padding: "2px 6px" }}>
                       Notion
                     </span>
@@ -3319,11 +3333,12 @@ ${buildHealthSummary(healthForm)}`;
                 </div>
                 <div style={{ fontSize: 18, fontWeight: "bold", color: "#1a1410" }}>{item.time}</div>
                 {item.sub && <div style={{ fontSize: 11, color: "#3d3228", opacity: 0.7 }}>{item.sub}</div>}
-                {!item.id.startsWith("notion-") && (
-                  <div style={{ fontSize: 10, color: "#9a8b7a", marginTop: 6 }}>タップして編集</div>
+                {!isNotionItem && (
+                  <div style={{ fontSize: "var(--t-font-size-sm)", color: "var(--t-text-muted)", marginTop: 6 }}>{t("common.tapToEdit")}</div>
                 )}
               </button>
-            ))}
+            );
+            })}
           </>
         );
       case "radio":
@@ -3337,25 +3352,25 @@ ${buildHealthSummary(healthForm)}`;
         );
       case "binaural":
         return (
-          <div style={{ margin: "12px 16px 0", background: "white", borderRadius: 12, padding: "14px", border: "1px solid rgba(60,40,20,0.1)" }}>
-            <div style={{ fontSize: 13, fontWeight: "bold", color: "#4a6741", marginBottom: 8 }}>🎵 サウンドプレーヤー</div>
-            <div style={{ fontSize: 11, color: "#9a8b7a", marginBottom: 10, lineHeight: 1.5 }}>
-              グラニュライザー · 3chミキサー · BB · プレイリスト
+          <div style={{ margin: "12px 16px 0", background: "var(--t-card-bg)", borderRadius: "var(--t-radius-md)", padding: "14px", border: "1px solid var(--t-border)" }}>
+            <div style={{ fontSize: "var(--t-font-size-base)", fontWeight: "bold", color: "var(--t-primary)", marginBottom: 8 }}>🎵 {t("home.soundPlayer")}</div>
+            <div style={{ fontSize: "var(--t-font-size-sm)", color: "var(--t-text-muted)", marginBottom: 10, lineHeight: 1.5 }}>
+              {t("home.soundPlayerHint")}
             </div>
             <button type="button" onClick={() => openBinauralPanel("beats")} style={homeActionBtnStyle}>
-              サウンドを開く
+              {t("home.openSound")}
             </button>
           </div>
         );
       case "pomodoro":
         return (
-          <div style={{ margin: "12px 16px 0", background: "white", borderRadius: 12, padding: "14px", border: "1px solid rgba(60,40,20,0.1)" }}>
-            <div style={{ fontSize: 13, fontWeight: "bold", color: "#4a6741", marginBottom: 8 }}>🍅 ポモドーロタイマー</div>
-            <div style={{ fontSize: 11, color: "#9a8b7a", marginBottom: 10, lineHeight: 1.5 }}>
-              サウンドタブから作業25分・休憩5分（カスタム可）
+          <div style={{ margin: "12px 16px 0", background: "var(--t-card-bg)", borderRadius: "var(--t-radius-md)", padding: "14px", border: "1px solid var(--t-border)" }}>
+            <div style={{ fontSize: "var(--t-font-size-base)", fontWeight: "bold", color: "var(--t-primary)", marginBottom: 8 }}>🍅 {t("home.pomodoroTitle")}</div>
+            <div style={{ fontSize: "var(--t-font-size-sm)", color: "var(--t-text-muted)", marginBottom: 10, lineHeight: 1.5 }}>
+              {t("home.pomodoroHint")}
             </div>
             <button type="button" onClick={() => openBinauralPanel("pomodoro")} style={homeActionBtnStyle}>
-              タイマーを開く
+              {t("home.openTimer")}
             </button>
           </div>
         );
@@ -3366,28 +3381,28 @@ ${buildHealthSummary(healthForm)}`;
 
   if (!storageReady) {
     return (
-      <div style={{ maxWidth: 430, margin: "0 auto", minHeight: "100vh", background: "#f5f0e8", display: "flex", flexDirection: "column", fontFamily: "sans-serif" }}>
-        <div style={{ background: "#1a1410", color: "#f5f0e8", padding: "14px 20px 12px" }}>
-          <div style={{ fontSize: 18, fontWeight: "bold" }}>🌿 つゆくさ</div>
+      <div style={themeAppShellStyle}>
+        <div style={themeHeaderStyle}>
+          <div style={{ fontSize: "var(--t-font-size-xl)", fontWeight: "bold" }}>🌿 {t("common.appName")}</div>
         </div>
-        <div style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 13, color: "#9a8b7a" }}>
-          読み込み中...
+        <div style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", fontSize: "var(--t-font-size-base)", color: "var(--t-text-muted)" }}>
+          {t("common.loading")}
         </div>
       </div>
     );
   }
 
   return (
-    <div style={{ maxWidth: 430, margin: "0 auto", minHeight: "100vh", background: "#f5f0e8", display: "flex", flexDirection: "column", fontFamily: "sans-serif" }}>
+    <div style={themeAppShellStyle}>
       
       {/* ヘッダー */}
-      <div style={{ background: "#1a1410", color: "#f5f0e8", padding: "14px 20px 12px" }}>
+      <div style={themeHeaderStyle}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: weather || weatherLoading ? 10 : 0 }}>
-          <div style={{ fontSize: 18, fontWeight: "bold" }}>🌿 つゆくさ</div>
+          <div style={{ fontSize: "var(--t-font-size-xl)", fontWeight: "bold" }}>🌿 {t("common.appName")}</div>
           <ClientFormattedDate />
         </div>
         {weatherLoading && (
-          <div style={{ fontSize: 11, opacity: 0.5 }}>天気・月を取得中...</div>
+          <div style={{ fontSize: "var(--t-font-size-sm)", opacity: 0.5 }}>{t("home.weatherHeaderLoading")}</div>
         )}
         {weather && !weatherLoading && (
           <div style={{ display: "flex", flexWrap: "wrap", gap: "8px 14px", fontSize: 11, opacity: 0.85 }}>
@@ -3604,16 +3619,18 @@ ${buildHealthSummary(healthForm)}`;
             <div style={{ fontSize: 11, color: "#9a8b7a", marginBottom: 12, lineHeight: 1.5 }}>
               つゆくさ生活リズムアプリの主な機能と設定手順
             </div>
-            {USER_MANUAL_STEPS.map((step, i) => (
-              <div key={step.title} style={{ ...cardStyle, marginBottom: 10 }}>
-                <div style={{ fontSize: 13, fontWeight: "bold", color: "#3d3228", marginBottom: 6 }}>
-                  {i + 1}. {step.icon} {step.title}
+            {USER_MANUAL_STEP_KEYS.map((step, i) => (
+              <div key={step.titleKey} style={{ ...cardStyle, marginBottom: 10 }}>
+                <div style={{ fontSize: "var(--t-font-size-base)", fontWeight: "bold", color: "var(--t-text)", marginBottom: 6 }}>
+                  {i + 1}. {step.icon} {t(step.titleKey)}
                 </div>
-                <div style={{ fontSize: 12, color: "#3d3228", lineHeight: 1.7, opacity: 0.85, whiteSpace: "pre-line" }}>
-                  {step.body}
+                <div style={{ fontSize: "var(--t-font-size-base)", color: "var(--t-text)", lineHeight: 1.7, opacity: 0.85, whiteSpace: "pre-line" }}>
+                  {t(step.bodyKey)}
                 </div>
               </div>
             ))}
+
+            <LanguageSettingsPanel />
 
             <div style={{ fontSize: 15, fontWeight: "bold", color: "#3d3228", marginBottom: 4, paddingTop: 8, borderTop: "1px solid rgba(60,40,20,0.12)" }}>📅 曜日別スケジュール</div>
             <div style={{ fontSize: 11, color: "#3d3228", opacity: 0.6, marginBottom: 12, lineHeight: 1.5 }}>
@@ -3810,9 +3827,9 @@ ${buildHealthSummary(healthForm)}`;
                 onChange={e => setNotionSettings(prev => ({ ...prev, apiKey: e.target.value, connected: false }))}
                 style={{ ...inputStyle, marginBottom: 10 }}
               />
-              {notionSettings.databaseId && (
-                <div style={{ fontSize: 10, color: "#9a8b7a", marginBottom: 10 }}>
-                  データベースID: {notionSettings.databaseId.slice(0, 8)}…（自動設定済み）
+              {notionSettings.taskDatabaseId && (
+                <div style={{ fontSize: 10, color: "#9a8b7a", marginBottom: 10, lineHeight: 1.6 }}>
+                  タスク: {notionSettings.taskDatabaseId.slice(0, 8)}… · スケジュール: {notionSettings.scheduleDatabaseId.slice(0, 8)}… · コミュニケーション: {notionSettings.communicationDatabaseId.slice(0, 8)}…
                 </div>
               )}
               <div style={{ display: "flex", gap: 8 }}>
@@ -4544,21 +4561,21 @@ ${buildHealthSummary(healthForm)}`;
       <RadioMiniPlayer />
 
       {/* ボトムナビ */}
-      <div style={{ background: "#1a1410", display: "flex", borderTop: "1px solid rgba(255,255,255,0.08)" }}>
+      <div style={themeNavStyle}>
         {[
-          { key: "home", icon: "🏠", label: "ホーム" },
-          { key: "chat", icon: "💬", label: "AI相談" },
-          { key: "sound", icon: "🎵", label: "サウンド" },
-          { key: "history", icon: "📊", label: "履歴" },
-          { key: "display", icon: "🖥", label: "画面" },
-          { key: "settings", icon: "⚙️", label: "設定" },
+          { key: "home", icon: "🏠", labelKey: "tabs.home" },
+          { key: "chat", icon: "💬", labelKey: "tabs.chat" },
+          { key: "sound", icon: "🎵", labelKey: "tabs.sound" },
+          { key: "history", icon: "📊", labelKey: "tabs.history" },
+          { key: "display", icon: "🖥", labelKey: "tabs.display" },
+          { key: "settings", icon: "⚙️", labelKey: "tabs.settings" },
         ].map(item => (
           <button key={item.key} onClick={() => setTab(item.key as Tab)} style={{
             flex: 1, display: "flex", flexDirection: "column", alignItems: "center", padding: "10px 0 12px", gap: 4, cursor: "pointer", border: "none", background: "none",
-            color: tab === item.key ? "#e8a86a" : "rgba(245,240,232,0.45)", fontSize: 10, fontFamily: "sans-serif"
+            color: tab === item.key ? "var(--t-nav-active)" : "var(--t-nav-inactive)", fontSize: "var(--t-font-size-sm)", fontFamily: "var(--t-font-family)"
           }}>
             <div style={{ fontSize: 20 }}>{item.icon}</div>
-            {item.label}
+            {t(item.labelKey)}
           </button>
         ))}
       </div>

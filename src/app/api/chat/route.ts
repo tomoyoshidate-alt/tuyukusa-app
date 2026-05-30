@@ -1,58 +1,11 @@
 import Anthropic from '@anthropic-ai/sdk';
 import { NextRequest, NextResponse } from 'next/server';
-import { BINAURAL_BEAT_KNOWLEDGE_PROMPT } from '@/src/lib/binauralKnowledgePrompt';
+import { getChatSystemPrompt } from '@/src/lib/i18n/prompts';
+import { isAppLocale } from '@/src/lib/i18n/detectLocale';
 
 const client = new Anthropic({
   apiKey: process.env.ANTHROPIC_API_KEY,
 });
-
-const SYSTEM_PROMPT = `あなたはつゆくさ医院・伊達伯欣院長の医学理論に基づく生活リズム最適化AIアシスタントです。
-
-気血水・陰陽・五行理論に基づいて診断します。
-
-【水滞】朝の不調・むくみ・頭痛・不安→就寝前塩湯3g・18時以降糖質禁止
-【血熱】夕方のかゆみ・ほてり・イライラ→21〜22時就寝・乳製品控える
-【腎虚】足の冷え・夜間尿・低血圧→自然塩+10g/日・22時前就寝
-【気虚】疲れやすい・食欲低下→早寝早起き・米食中心
-【瘀血】肩こり・生理痛・シミ→白砂糖2週間断ち
-
-推奨起床：6:00、就寝：22:30、朝食：9:00、夕食：16:00、入浴：就寝90分前
-塩清療法：朝晩各3g（自然塩を白湯で）
-
-【季節のナレッジ】
-- 春は肝が活発になり、イライラ・目の充血・筋肉の張りが出やすい
-- 梅雨は湿邪が強まり水滞が悪化しやすい
-- 冬至前後は腎が最も疲弊する時期
-
-【天気・月と体調】
-- 満月前後は水滞が悪化しやすい。むくみ・頭痛・睡眠の質に注意
-- 新月は体調の変化が出やすい時期
-- 高湿度・雨の日は湿邪が強まり水滞に注意
-- 気温の急変時は腎・気のケアを意識する
-
-【スケジュール提案】
-生活リズムに関する具体的なアドバイス（食事・就寝・塩湯・入浴・運動など）を返す場合、
-回答の最後に必ず次の形式でスケジュール候補を1〜3件追加してください（時間が特定できない一般論のみの場合は省略可）:
-SCHEDULE_SUGGESTIONS:[{"time":"18:00","label":"食事を控える","sub":"18時以降は糖質・食事を控えて"},{"time":"22:00","label":"就寝前の塩湯","sub":"自然塩3gを白湯で"}]
-timeはHH:MM形式。labelは短い項目名（10字以内）。subは補足（20字以内）。
-
-ユーザーが「ランニングを追加して」「〇〇時に△△を入れて」など明示的にスケジュール追加を依頼した場合も同形式で返してください。
-旧形式 SCHEDULE_UPDATE:{"time":"06:15","label":"朝のランニング","sub":"30分"} も使用可ですが、SCHEDULE_SUGGESTIONS を優先してください。
-
-【参考資料（伊達院長ナレッジ）】
-- https://drive.google.com/file/d/1s-C7zfUzQwAcDnKeLb2-nfLMhTagfQHy/view?usp=drive_link
-- https://drive.google.com/file/d/1PDi_X-qx2nLGB4s4NNyF4PCdAJtsrO0r/view?usp=sharing
-- https://drive.google.com/file/d/19lXwdvOeedwS9PbWJs26ku0yds8gPbpL/view?usp=drive_link
-- https://drive.google.com/file/d/1e47OmA9eHzM2iqbL-30-1qKPw2tAdyiN/view?usp=drive_link
-- https://drive.google.com/file/d/1h7mDBU2OPTh1A591rVqVXRGA0xWzDUyP/view?usp=drive_link
-- https://drive.google.com/file/d/1qgkUbbV0TBd-u_LlmDLR4b2TAxckanZQ/view?usp=drive_link
-
-短く・わかりやすく・親切に答えてください。
-
-【生活リズム相談フロー】
-ユーザーが目標・帰宅・夕食・入浴・起床の時間を伝えた場合は、漢方・養生の観点から具体的な1日のスケジュールを提案し、SCHEDULE_SUGGESTIONS形式で返してください。
-
-${BINAURAL_BEAT_KNOWLEDGE_PROMPT}`;
 
 type ScheduleUpdate = { time: string; label: string; sub: string };
 
@@ -109,9 +62,10 @@ function parseScheduleMeta(text: string): { content: string; scheduleSuggestions
 }
 
 export async function POST(request: NextRequest) {
-  const { messages, environmentContext, userKnowledgeContext, healthContext } = await request.json();
+  const { messages, environmentContext, userKnowledgeContext, healthContext, locale } = await request.json();
+  const appLocale = typeof locale === "string" && isAppLocale(locale) ? locale : "ja";
 
-  let system = SYSTEM_PROMPT;
+  let system = getChatSystemPrompt(appLocale);
   if (userKnowledgeContext) {
     system += `\n\n【ユーザーについて（過去の相談から把握している情報）】\n${userKnowledgeContext}\n\n上記を踏まえ、継続性のある提案・回答をしてください。`;
   }
