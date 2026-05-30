@@ -20,6 +20,17 @@ import {
   type GoogleCalendarSettings,
 } from "@/src/lib/googleCalendar";
 import {
+  getActiveNotionDailyTasks,
+  getActiveNotionDeadlineTasks,
+  getNotionScheduleTasks,
+  INITIAL_NOTION_SETTINGS,
+  normalizeNotionSettings,
+  NOTION_SYNC_INTERVAL_MS,
+  type NotionSettings,
+  type NotionTask,
+  type ParsedVoiceTask,
+} from "@/src/lib/notion";
+import {
   buildHealthContext,
   formatHealthSummary,
   INITIAL_HEALTH_DATA,
@@ -31,9 +42,14 @@ import {
 import AddToHomeScreen from "@/src/components/AddToHomeScreen";
 import BinauralGlobalAlarm from "@/src/components/BinauralGlobalAlarm";
 import HealthKitBridge from "@/src/components/HealthKitBridge";
+import NotionHomeBar from "@/src/components/NotionHomeBar";
+import NotionManualPage from "@/src/components/NotionManualPage";
+import NotionTaskRows from "@/src/components/NotionTaskRows";
 import RadioMiniPlayer from "@/src/components/RadioMiniPlayer";
 import ScreenSettingsTab from "@/src/components/ScreenSettingsTab";
 import TsuyukusaRadio from "@/src/components/TsuyukusaRadio";
+import VoiceInputButton from "@/src/components/VoiceInputButton";
+import VoiceTaskConfirmModal from "@/src/components/VoiceTaskConfirmModal";
 import {
   DEFAULT_HOME_DISPLAY,
   isSectionVisible,
@@ -2107,6 +2123,18 @@ export default function TuyukusaApp() {
     INITIAL_GOOGLE_CALENDAR,
     normalizeGoogleCalendarSettings
   );
+  const [notionSettings, setNotionSettings, notionHydrated] = useLocalStorage<NotionSettings>(
+    "tuyukusa-notion",
+    INITIAL_NOTION_SETTINGS,
+    normalizeNotionSettings
+  );
+  const [notionTasks, setNotionTasks] = useState<NotionTask[]>([]);
+  const [notionSyncing, setNotionSyncing] = useState(false);
+  const [notionMessage, setNotionMessage] = useState("");
+  const [showNotionManual, setShowNotionManual] = useState(false);
+  const [pendingVoiceTask, setPendingVoiceTask] = useState<ParsedVoiceTask | null>(null);
+  const [voiceParsing, setVoiceParsing] = useState(false);
+  const [voiceSaving, setVoiceSaving] = useState(false);
   const [chatKnowledge, setChatKnowledge, chatKnowledgeHydrated] = useLocalStorage<ChatKnowledge>(
     "tuyukusa-chat-knowledge",
     INITIAL_CHAT_KNOWLEDGE,
@@ -2163,10 +2191,21 @@ export default function TuyukusaApp() {
   const healthContext = buildHealthContext(healthData);
 
   const timelineItems = sortByTime(schedule.items ?? []);
+  const dayKey = getDayKey();
+  const notionDailyTasks = getActiveNotionDailyTasks(notionTasks, dayKey);
+  const notionDeadlineTasks = getActiveNotionDeadlineTasks(notionTasks);
+  const notionScheduleTasks = getNotionScheduleTasks(notionTasks, dayKey);
+  const notionScheduleItems: ScheduleItem[] = notionScheduleTasks.map(t => ({
+    id: `notion-${t.id}`,
+    time: t.time ?? "09:00",
+    label: t.text,
+    sub: `Notion · ${t.category}`,
+  }));
+  const mergedTimelineItems = sortByTime([...timelineItems, ...notionScheduleItems]);
   const scheduleRemainingSec = (() => {
     const now = new Date();
     const nowMin = now.getHours() * 60 + now.getMinutes();
-    for (const item of timelineItems) {
+    for (const item of mergedTimelineItems) {
       const parts = item.time.split(":").map(Number);
       if (parts.length < 2 || Number.isNaN(parts[0]) || Number.isNaN(parts[1])) continue;
       const itemMin = parts[0] * 60 + parts[1];
@@ -2182,6 +2221,7 @@ export default function TuyukusaApp() {
     aiSuggestionsHydrated &&
     userProfileHydrated &&
     calendarHydrated &&
+    notionHydrated &&
     chatKnowledgeHydrated &&
     locationHydrated &&
     radioHydrated &&
@@ -2574,6 +2614,145 @@ ${buildHealthSummary(healthForm)}`;
     setGoogleCalendar(INITIAL_GOOGLE_CALENDAR);
     setCalendarMessage("");
   };
+
+  const syncNotion = async (): Promise<boolean> => {
+    setNotionSyncing(true);
+    setNotionMessage("");
+    try {
+      const params = new URLSearchParams();
+      if (notionSettings.apiKey.trim()) params.set("apiKey", notionSettings.apiKey.trim());
+      if (notionSettings.databaseId.trim()) params.set("databaseId", notionSettings.databaseId.trim());
+      const res = await fetch(`/api/notion?${params.toString()}`);
+      const data = (await res.json()) as { tasks?: NotionTask[]; databaseId?: string; syncedAt?: number; error?: string };
+      if (!res.ok) throw new Error(data.error ?? "Notion同期に失敗しました");
+      setNotionTasks(data.tasks ?? []);
+      setNotionSettings(prev => ({
+        ...prev,
+        connected: true,
+        databaseId: data.databaseId ?? prev.databaseId,
+        lastSyncAt: data.syncedAt ?? Date.now(),
+      }));
+      return true;
+    } catch (err) {
+      setNotionMessage(err instanceof Error ? err.message : "Notion同期に失敗しました");
+      return false;
+    } finally {
+      setNotionSyncing(false);
+    }
+  };
+
+  const setupNotion = async () => {
+    setNotionMessage("");
+    try {
+      const res = await fetch("/api/notion", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "setup",
+          apiKey: notionSettings.apiKey.trim() || undefined,
+        }),
+      });
+      const data = (await res.json()) as { databaseId?: string; created?: boolean; error?: string };
+      if (!res.ok) throw new Error(data.error ?? "セットアップに失敗しました");
+      setNotionSettings(prev => ({
+        ...prev,
+        databaseId: data.databaseId ?? prev.databaseId,
+        connected: true,
+        setupComplete: true,
+      }));
+      setNotionMessage(data.created ? "データベースを作成しました" : "既存のデータベースに接続しました");
+      await syncNotion();
+    } catch (err) {
+      setNotionMessage(err instanceof Error ? err.message : "セットアップに失敗しました");
+    }
+  };
+
+  const toggleNotionTask = async (task: NotionTask) => {
+    try {
+      const res = await fetch("/api/notion", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          apiKey: notionSettings.apiKey.trim() || undefined,
+          databaseId: notionSettings.databaseId.trim() || undefined,
+          pageId: task.id,
+          status: task.status === "done" ? "pending" : "done",
+        }),
+      });
+      const data = (await res.json()) as { error?: string };
+      if (!res.ok) throw new Error(data.error ?? "更新に失敗しました");
+      await syncNotion();
+    } catch (err) {
+      setNotionMessage(err instanceof Error ? err.message : "更新に失敗しました");
+    }
+  };
+
+  const handleVoiceTranscript = async (transcript: string) => {
+    setVoiceParsing(true);
+    setNotionMessage("");
+    try {
+      const res = await fetch("/api/notion/parse-voice", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ transcript }),
+      });
+      const data = (await res.json()) as { task?: ParsedVoiceTask; error?: string };
+      if (!res.ok || !data.task) throw new Error(data.error ?? "音声の解析に失敗しました");
+      setPendingVoiceTask(data.task);
+    } catch (err) {
+      setNotionMessage(err instanceof Error ? err.message : "音声の解析に失敗しました");
+    } finally {
+      setVoiceParsing(false);
+    }
+  };
+
+  const confirmVoiceTask = async () => {
+    if (!pendingVoiceTask) return;
+    setVoiceSaving(true);
+    try {
+      const res = await fetch("/api/notion", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          apiKey: notionSettings.apiKey.trim() || undefined,
+          databaseId: notionSettings.databaseId.trim() || undefined,
+          task: pendingVoiceTask,
+        }),
+      });
+      const data = (await res.json()) as { error?: string };
+      if (!res.ok) throw new Error(data.error ?? "タスク登録に失敗しました");
+      setPendingVoiceTask(null);
+      setNotionMessage("タスクをNotionに登録しました");
+      await syncNotion();
+    } catch (err) {
+      setNotionMessage(err instanceof Error ? err.message : "タスク登録に失敗しました");
+    } finally {
+      setVoiceSaving(false);
+    }
+  };
+
+  const notionAutoConnectRef = useRef(false);
+
+  useEffect(() => {
+    if (!notionHydrated || notionAutoConnectRef.current) return;
+    notionAutoConnectRef.current = true;
+    void (async () => {
+      if (notionSettings.connected) {
+        await syncNotion();
+        return;
+      }
+      const ok = await syncNotion();
+      if (!ok) await setupNotion();
+    })();
+  }, [notionHydrated, notionSettings.connected]);
+
+  useEffect(() => {
+    if (!notionHydrated || !notionSettings.connected) return;
+    const timer = setInterval(() => {
+      void syncNotion();
+    }, NOTION_SYNC_INTERVAL_MS);
+    return () => clearInterval(timer);
+  }, [notionHydrated, notionSettings.connected, notionSettings.apiKey, notionSettings.databaseId]);
 
   useEffect(() => {
     if (!scheduleHydrated || !calendarHydrated) return;
@@ -2993,50 +3172,64 @@ ${buildHealthSummary(healthForm)}`;
         );
       case "dailyGoal":
         return (
-          <HomeGoalSection
-            title="🎯 今日の目標"
-            goalList={goals.daily}
-            collapsed={false}
-            collapsible={false}
-            inputText={dailyInput}
-            onInputTextChange={setDailyInput}
-            onAdd={() => {
-              if (!dailyInput.trim()) return;
-              addGoalItem("daily", dailyInput.trim(), "その他");
-              setDailyInput("");
-            }}
-            onUpdateItem={(id, patch) => updateGoalItem("daily", id, patch)}
-            onRemoveItem={id => removeGoalItem("daily", id)}
-            onAiSuggest={() => suggestGoal("daily")}
-            isSuggesting={suggestingPeriod === "daily"}
-            aiSuggestion={aiSuggestions.daily?.periodKey === getDayKey() ? aiSuggestions.daily : null}
-            onAdoptAi={() => adoptAiGoal("daily")}
-            hideCategories
-          />
+          <>
+            <HomeGoalSection
+              title="🎯 今日の目標"
+              goalList={goals.daily}
+              collapsed={false}
+              collapsible={false}
+              inputText={dailyInput}
+              onInputTextChange={setDailyInput}
+              onAdd={() => {
+                if (!dailyInput.trim()) return;
+                addGoalItem("daily", dailyInput.trim(), "その他");
+                setDailyInput("");
+              }}
+              onUpdateItem={(id, patch) => updateGoalItem("daily", id, patch)}
+              onRemoveItem={id => removeGoalItem("daily", id)}
+              onAiSuggest={() => suggestGoal("daily")}
+              isSuggesting={suggestingPeriod === "daily"}
+              aiSuggestion={aiSuggestions.daily?.periodKey === getDayKey() ? aiSuggestions.daily : null}
+              onAdoptAi={() => adoptAiGoal("daily")}
+              hideCategories
+            />
+            {notionDailyTasks.length > 0 && (
+              <div style={{ margin: "0 16px 0", padding: "0 16px 14px", background: "white", borderRadius: "0 0 12px 12px", marginTop: -8, border: "1px solid rgba(60,40,20,0.1)", borderTop: "none" }}>
+                <NotionTaskRows tasks={notionDailyTasks} onToggle={toggleNotionTask} />
+              </div>
+            )}
+          </>
         );
       case "deadlineGoal":
         return (
-          <HomeDeadlineGoalsSection
-            goals={goals.deadlineGoals ?? []}
-            inputText={deadlineInput}
-            inputGoalType={deadlineGoalType}
-            inputDeadline={deadlineDate}
-            onInputTextChange={setDeadlineInput}
-            onInputGoalTypeChange={setDeadlineGoalType}
-            onInputDeadlineChange={setDeadlineDate}
-            onAdd={() => {
-              if (!deadlineInput.trim()) return;
-              addDeadlineGoalEntry(deadlineInput.trim(), "その他", deadlineDate, deadlineGoalType);
-              setDeadlineInput("");
-            }}
-            onUpdateGoal={updateDeadlineGoal}
-            onToggleAchieved={toggleDeadlineGoalAchieved}
-            onRemoveGoal={removeDeadlineGoal}
-            onAiSuggest={suggestDeadlineGoal}
-            isSuggesting={isSuggestingDeadline}
-            aiSuggestion={aiDeadlineSuggestion}
-            onAdoptAi={adoptAiDeadlineGoal}
-          />
+          <>
+            <HomeDeadlineGoalsSection
+              goals={goals.deadlineGoals ?? []}
+              inputText={deadlineInput}
+              inputGoalType={deadlineGoalType}
+              inputDeadline={deadlineDate}
+              onInputTextChange={setDeadlineInput}
+              onInputGoalTypeChange={setDeadlineGoalType}
+              onInputDeadlineChange={setDeadlineDate}
+              onAdd={() => {
+                if (!deadlineInput.trim()) return;
+                addDeadlineGoalEntry(deadlineInput.trim(), "その他", deadlineDate, deadlineGoalType);
+                setDeadlineInput("");
+              }}
+              onUpdateGoal={updateDeadlineGoal}
+              onToggleAchieved={toggleDeadlineGoalAchieved}
+              onRemoveGoal={removeDeadlineGoal}
+              onAiSuggest={suggestDeadlineGoal}
+              isSuggesting={isSuggestingDeadline}
+              aiSuggestion={aiDeadlineSuggestion}
+              onAdoptAi={adoptAiDeadlineGoal}
+            />
+            {notionDeadlineTasks.length > 0 && (
+              <div style={{ margin: "0 16px 0", padding: "0 16px 14px", background: "white", borderRadius: "0 0 12px 12px", marginTop: -8, border: "1px solid rgba(60,40,20,0.1)", borderTop: "none" }}>
+                <NotionTaskRows tasks={notionDeadlineTasks} onToggle={toggleNotionTask} showType />
+              </div>
+            )}
+          </>
         );
       case "monthlyGoal":
         return (
@@ -3093,19 +3286,31 @@ ${buildHealthSummary(healthForm)}`;
                 ＋ 追加
               </button>
             </div>
-            {timelineItems.map(item => (
+            {mergedTimelineItems.map(item => (
               <button
                 key={item.id}
                 type="button"
-                onClick={() => setScheduleEdit({ mode: "edit", item: { ...item } })}
+                onClick={() => {
+                  if (item.id.startsWith("notion-")) return;
+                  setScheduleEdit({ mode: "edit", item: { ...item } });
+                }}
                 style={{
                   display: "block", width: "calc(100% - 40px)", margin: "0 20px 8px", background: "white", borderRadius: 12, padding: "12px 14px",
-                  border: item.id.startsWith("custom-") || item.id.startsWith("item-") ? "1.5px solid #c17f4a" : "1px solid rgba(60,40,20,0.1)",
-                  cursor: "pointer", textAlign: "left",
+                  border: item.id.startsWith("notion-")
+                    ? "1.5px solid rgba(126,200,227,0.5)"
+                    : item.id.startsWith("custom-") || item.id.startsWith("item-")
+                      ? "1.5px solid #c17f4a"
+                      : "1px solid rgba(60,40,20,0.1)",
+                  cursor: item.id.startsWith("notion-") ? "default" : "pointer", textAlign: "left",
                 }}
               >
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
                   <div style={{ fontSize: 11, color: "#4a6741", fontWeight: "bold", marginBottom: 2 }}>{item.label}</div>
+                  {item.id.startsWith("notion-") && (
+                    <span style={{ fontSize: 9, color: "#7ec8e3", background: "rgba(126,200,227,0.15)", borderRadius: 8, padding: "2px 6px" }}>
+                      Notion
+                    </span>
+                  )}
                   {(item.id.startsWith("custom-") || item.id.startsWith("item-")) && (
                     <span style={{ fontSize: 9, color: "#c17f4a", background: "#fdf0e4", borderRadius: 8, padding: "2px 6px" }}>
                       {item.id.startsWith("custom-") ? "AI追加" : "追加"}
@@ -3114,7 +3319,9 @@ ${buildHealthSummary(healthForm)}`;
                 </div>
                 <div style={{ fontSize: 18, fontWeight: "bold", color: "#1a1410" }}>{item.time}</div>
                 {item.sub && <div style={{ fontSize: 11, color: "#3d3228", opacity: 0.7 }}>{item.sub}</div>}
-                <div style={{ fontSize: 10, color: "#9a8b7a", marginTop: 6 }}>タップして編集</div>
+                {!item.id.startsWith("notion-") && (
+                  <div style={{ fontSize: 10, color: "#9a8b7a", marginTop: 6 }}>タップして編集</div>
+                )}
               </button>
             ))}
           </>
@@ -3200,6 +3407,18 @@ ${buildHealthSummary(healthForm)}`;
           <div>
             <AddToHomeScreen />
             <HealthKitBridge healthData={healthData} />
+            <NotionHomeBar
+              connected={notionSettings.connected}
+              lastSyncAt={notionSettings.lastSyncAt}
+              syncing={notionSyncing || voiceParsing}
+              onSync={() => void syncNotion()}
+              onVoice={text => void handleVoiceTranscript(text)}
+            />
+            {notionMessage && (
+              <div style={{ margin: "8px 16px 0", padding: "8px 12px", borderRadius: 8, fontSize: 11, color: notionMessage.includes("失敗") ? "#c44a4a" : "#4a6741", background: notionMessage.includes("失敗") ? "rgba(196,74,74,0.08)" : "#e8f0e4" }}>
+                {notionMessage}
+              </div>
+            )}
             {healthImportMessage && (
               <div style={{ margin: "8px 16px 0", padding: "10px 12px", background: "#e8f0e4", borderRadius: 10, fontSize: 12, color: "#4a6741", textAlign: "center" }}>
                 ✓ {healthImportMessage}
@@ -3343,6 +3562,7 @@ ${buildHealthSummary(healthForm)}`;
               <div ref={messagesEndRef} />
             </div>
             <div style={{ padding: "10px 16px", background: "#f5f0e8", borderTop: "1px solid rgba(60,40,20,0.1)", display: "flex", gap: 8, alignItems: "flex-end" }}>
+              <VoiceInputButton onTranscript={text => void handleVoiceTranscript(text)} disabled={voiceParsing} />
               <textarea
                 style={{ flex: 1, background: "white", border: "1.5px solid rgba(60,40,20,0.12)", borderRadius: 22, padding: "10px 16px", fontSize: 13, outline: "none", resize: "none", minHeight: 42, maxHeight: 100, fontFamily: "sans-serif", lineHeight: 1.5 }}
                 placeholder="自由に入力できます..."
@@ -3554,6 +3774,94 @@ ${buildHealthSummary(healthForm)}`;
                   }}
                 >
                   {calendarMessage}
+                </div>
+              )}
+            </div>
+
+            <div style={{ fontSize: 15, fontWeight: "bold", color: "#3d3228", marginBottom: 4, paddingTop: 12, borderTop: "1px solid rgba(60,40,20,0.12)", marginTop: 8 }}>🔗 Notion連携</div>
+            <div style={{ ...cardStyle, marginBottom: 12, background: "#eef4fb", border: "1px solid rgba(126,200,227,0.35)" }}>
+              <div style={{ fontSize: 13, fontWeight: "bold", color: "#3d3228", marginBottom: 8 }}>タスク管理をNotionと同期</div>
+              <div style={{ fontSize: 12, color: "#3d3228", lineHeight: 1.7, marginBottom: 10 }}>
+                音声入力でタスクを追加できます。APIキーを入力して自動セットアップするだけで使えます。
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowNotionManual(true)}
+                style={{
+                  width: "100%",
+                  marginBottom: 10,
+                  padding: "8px 12px",
+                  borderRadius: 8,
+                  border: "1px solid rgba(126,200,227,0.5)",
+                  background: "white",
+                  color: "#4a6741",
+                  fontSize: 12,
+                  cursor: "pointer",
+                  textAlign: "left",
+                }}
+              >
+                📖 Notion連携の設定方法
+              </button>
+              <div style={fieldLabelStyle}>Notion APIキー（シークレット）</div>
+              <input
+                type="password"
+                placeholder="secret_... （空欄の場合はサーバー設定を使用）"
+                value={notionSettings.apiKey}
+                onChange={e => setNotionSettings(prev => ({ ...prev, apiKey: e.target.value, connected: false }))}
+                style={{ ...inputStyle, marginBottom: 10 }}
+              />
+              {notionSettings.databaseId && (
+                <div style={{ fontSize: 10, color: "#9a8b7a", marginBottom: 10 }}>
+                  データベースID: {notionSettings.databaseId.slice(0, 8)}…（自動設定済み）
+                </div>
+              )}
+              <div style={{ display: "flex", gap: 8 }}>
+                <button
+                  type="button"
+                  onClick={() => void setupNotion()}
+                  style={{
+                    flex: 1,
+                    padding: "10px",
+                    borderRadius: 10,
+                    border: "none",
+                    background: "#4a6741",
+                    color: "#f5f0e8",
+                    fontSize: 13,
+                    fontWeight: "bold",
+                    cursor: "pointer",
+                  }}
+                >
+                  {notionSettings.connected ? "再接続" : "自動セットアップ"}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => void syncNotion()}
+                  disabled={!notionSettings.connected}
+                  style={{
+                    padding: "10px 14px",
+                    borderRadius: 10,
+                    border: "1.5px solid rgba(60,40,20,0.12)",
+                    background: "white",
+                    color: "#9a8b7a",
+                    fontSize: 13,
+                    cursor: notionSettings.connected ? "pointer" : "default",
+                    opacity: notionSettings.connected ? 1 : 0.5,
+                  }}
+                >
+                  同期
+                </button>
+              </div>
+              {notionSettings.connected && (
+                <div style={{ fontSize: 11, color: "#4a6741", marginTop: 10 }}>
+                  ✓ 接続済み · 5分ごとに自動同期
+                  {notionSettings.lastSyncAt
+                    ? ` · 最終 ${new Date(notionSettings.lastSyncAt).toLocaleTimeString("ja-JP", { hour: "2-digit", minute: "2-digit" })}`
+                    : ""}
+                </div>
+              )}
+              {notionMessage && tab === "settings" && (
+                <div style={{ fontSize: 11, color: notionMessage.includes("失敗") ? "#c44a4a" : "#4a6741", marginTop: 10, lineHeight: 1.5 }}>
+                  {notionMessage}
                 </div>
               )}
             </div>
@@ -4209,6 +4517,25 @@ ${buildHealthSummary(healthForm)}`;
           diagnosis={MOCK_SCHEDULE.diagnosis}
           initialPanelMode={binauralPanelMode}
           onClose={() => setShowBinauralPanel(false)}
+        />
+      )}
+
+      {showNotionManual && (
+        <NotionManualPage
+          onClose={() => setShowNotionManual(false)}
+          onOpenSettings={() => {
+            setShowNotionManual(false);
+            setTab("settings");
+          }}
+        />
+      )}
+
+      {pendingVoiceTask && (
+        <VoiceTaskConfirmModal
+          task={pendingVoiceTask}
+          loading={voiceSaving}
+          onConfirm={() => void confirmVoiceTask()}
+          onCancel={() => setPendingVoiceTask(null)}
         />
       )}
 
