@@ -157,7 +157,7 @@ export default function ScreenSettingsTab({
 
       <div style={sectionTitleStyle}>↕️ 表示順の並び替え</div>
       <div style={{ fontSize: 11, color: "#9a8b7a", marginBottom: 8, lineHeight: 1.5 }}>
-        ドラッグ＆ドロップでホーム画面の表示順を変更できます
+        ⠿ を長押し（約0.15秒）してドラッグすると並び替えできます。スクロールと区別するため、ハンドルを押し続けてから動かしてください。
       </div>
       <div style={cardStyle}>
         <SectionOrderList

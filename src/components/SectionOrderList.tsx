@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, type CSSProperties } from "react";
+import { useState, type CSSProperties, type HTMLAttributes } from "react";
 import {
   DndContext,
   DragOverlay,
@@ -28,15 +28,17 @@ type Props = {
   onReorder: (nextOrder: HomeSectionId[]) => void;
 };
 
+const TOUCH_ACTIVATION = { delay: 150, tolerance: 8 } as const;
+
 export default function SectionOrderList({ sectionOrder, onReorder }: Props) {
   const [activeId, setActiveId] = useState<HomeSectionId | null>(null);
 
   const sensors = useSensors(
-    useSensor(PointerSensor, {
-      activationConstraint: { distance: 6 },
-    }),
     useSensor(TouchSensor, {
-      activationConstraint: { delay: 200, tolerance: 12 },
+      activationConstraint: TOUCH_ACTIVATION,
+    }),
+    useSensor(PointerSensor, {
+      activationConstraint: { distance: 8 },
     }),
     useSensor(KeyboardSensor, {
       coordinateGetter: sortableKeyboardCoordinates,
@@ -78,13 +80,13 @@ export default function SectionOrderList({ sectionOrder, onReorder }: Props) {
               key={sectionId}
               sectionId={sectionId}
               index={index}
-              isActive={activeId === sectionId}
+              isOverlayActive={activeId === sectionId}
             />
           ))}
         </div>
       </SortableContext>
 
-      <DragOverlay dropAnimation={{ duration: 200, easing: "ease" }}>
+      <DragOverlay dropAnimation={{ duration: 180, easing: "ease-out" }}>
         {activeId ? (
           <SectionRowContent sectionId={activeId} index={activeIndex} isDragging isOverlay />
         ) : null}
@@ -96,28 +98,41 @@ export default function SectionOrderList({ sectionOrder, onReorder }: Props) {
 function SortableSectionRow({
   sectionId,
   index,
-  isActive,
+  isOverlayActive,
 }: {
   sectionId: HomeSectionId;
   index: number;
-  isActive: boolean;
+  isOverlayActive: boolean;
 }) {
-  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
-    id: sectionId,
-  });
+  const {
+    attributes,
+    listeners,
+    setNodeRef,
+    setActivatorNodeRef,
+    transform,
+    transition,
+    isDragging,
+  } = useSortable({ id: sectionId });
+
+  const dragging = isDragging || isOverlayActive;
 
   const style: CSSProperties = {
     transform: CSS.Transform.toString(transform),
     transition,
-    opacity: isDragging ? 0.4 : 1,
+    opacity: isDragging ? 0.35 : 1,
     position: "relative",
-    zIndex: isDragging ? 2 : 1,
-    touchAction: "manipulation",
+    zIndex: dragging ? 2 : 0,
   };
 
   return (
-    <div ref={setNodeRef} style={style} {...attributes} {...listeners}>
-      <SectionRowContent sectionId={sectionId} index={index} isDragging={isActive || isDragging} />
+    <div ref={setNodeRef} style={style}>
+      <SectionRowContent
+        sectionId={sectionId}
+        index={index}
+        isDragging={dragging}
+        handleRef={setActivatorNodeRef}
+        handleProps={{ ...attributes, ...listeners }}
+      />
     </div>
   );
 }
@@ -127,11 +142,15 @@ function SectionRowContent({
   index,
   isDragging,
   isOverlay = false,
+  handleRef,
+  handleProps,
 }: {
   sectionId: HomeSectionId;
   index: number;
   isDragging: boolean;
   isOverlay?: boolean;
+  handleRef?: (element: HTMLElement | null) => void;
+  handleProps?: HTMLAttributes<HTMLButtonElement>;
 }) {
   return (
     <div
@@ -139,39 +158,60 @@ function SectionRowContent({
         display: "flex",
         alignItems: "center",
         gap: 10,
-        padding: "12px 10px",
-        marginBottom: 4,
-        borderRadius: 8,
+        padding: "10px 10px",
+        marginBottom: 6,
+        borderRadius: 10,
         background: isDragging ? "#fdf0e4" : "#f5f0e8",
         border: isDragging ? "2px solid #c17f4a" : "1px solid rgba(60,40,20,0.08)",
         boxShadow: isOverlay
-          ? "0 8px 24px rgba(60,40,20,0.18)"
+          ? "0 10px 28px rgba(193,127,74,0.35)"
           : isDragging
-            ? "0 2px 8px rgba(193,127,74,0.25)"
+            ? "0 4px 14px rgba(193,127,74,0.28)"
             : "none",
-        cursor: isOverlay ? "grabbing" : "grab",
-        userSelect: "none",
-        WebkitUserSelect: "none",
-        WebkitTouchCallout: "none",
+        transform: isOverlay ? "scale(1.02)" : isDragging ? "scale(1.01)" : "none",
+        transition: isOverlay ? "none" : "box-shadow 0.15s ease, background 0.15s ease, border-color 0.15s ease",
       }}
     >
-      <span
+      <button
+        type="button"
+        ref={handleRef}
+        {...handleProps}
+        aria-label={`${HOME_SECTION_LABELS[sectionId]}の順序を変更`}
         style={{
-          fontSize: 16,
-          opacity: isDragging ? 1 : 0.5,
-          color: isDragging ? "#c17f4a" : "inherit",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          width: 36,
+          height: 36,
+          margin: 0,
+          padding: 0,
+          border: isDragging ? "2px solid #c17f4a" : "1px solid rgba(60,40,20,0.12)",
+          borderRadius: 8,
+          background: isDragging ? "#fff8f0" : "white",
+          color: isDragging ? "#c17f4a" : "#9a8b7a",
+          fontSize: 18,
+          lineHeight: 1,
+          cursor: isOverlay ? "grabbing" : "grab",
+          touchAction: "none",
+          WebkitTouchCallout: "none",
+          WebkitUserSelect: "none",
+          userSelect: "none",
           flexShrink: 0,
         }}
-        aria-hidden
       >
         ⠿
+      </button>
+      <span style={{ fontSize: 13, color: isDragging ? "#8b5a2b" : "#3d3228", flex: 1, fontWeight: isDragging ? "bold" : "normal" }}>
+        {HOME_SECTION_LABELS[sectionId]}
       </span>
-      <span style={{ fontSize: 13, color: "#3d3228", flex: 1 }}>{HOME_SECTION_LABELS[sectionId]}</span>
       <span
         style={{
           fontSize: 10,
           color: isDragging ? "#c17f4a" : "#9a8b7a",
           fontWeight: isDragging ? "bold" : "normal",
+          background: isDragging ? "#fff8f0" : "transparent",
+          borderRadius: 10,
+          padding: isDragging ? "2px 8px" : 0,
         }}
       >
         {index + 1}
