@@ -46,7 +46,7 @@ function connectNoiseLoop(
   };
 }
 
-function buildAmbient(
+export function buildAmbient(
   ctx: AudioContext,
   ambientGain: GainNode,
   ambientId: AmbientSoundId
@@ -287,14 +287,18 @@ export class BinauralAudioEngine {
   private preInterruptMaster = 0.7;
   private ctxStateCleanup: (() => void) | null = null;
 
+  private ownsContext = true;
+
   async start(
     preset: BinauralBeatPreset,
     ambientId: AmbientSoundId,
-    options?: { fadeInSec?: number }
+    options?: { fadeInSec?: number; ctx?: AudioContext; destination?: AudioNode }
   ): Promise<void> {
     this.stop();
     const fadeInSec = options?.fadeInSec ?? 0;
-    const ctx = new AudioContext();
+    const externalCtx = options?.ctx;
+    const ctx = externalCtx ?? new AudioContext();
+    this.ownsContext = !externalCtx;
     await ctx.resume();
 
     const master = ctx.createGain();
@@ -305,7 +309,7 @@ export class BinauralAudioEngine {
     } else {
       master.gain.value = this.targetMaster;
     }
-    master.connect(ctx.destination);
+    master.connect(options?.destination ?? ctx.destination);
 
     const binauralGain = ctx.createGain();
     binauralGain.gain.value = this.targetBinaural;
@@ -366,7 +370,7 @@ export class BinauralAudioEngine {
       /* ignore */
     }
     merger.disconnect();
-    void ctx.close();
+    if (this.ownsContext) void ctx.close();
     this.nodes = null;
     this.currentAmbientId = null;
   }

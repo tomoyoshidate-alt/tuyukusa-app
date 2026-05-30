@@ -78,6 +78,10 @@ const BinauralBeatsPanel = dynamic(() => import("@/src/components/BinauralBeatsP
   ssr: false,
 });
 
+const SoundSystemPanel = dynamic(() => import("@/src/components/sound/SoundSystemPanel"), {
+  ssr: false,
+});
+
 function useLocalStorage<T>(
   key: string,
   initialValue: T,
@@ -553,7 +557,7 @@ type Message = {
   addedScheduleIds?: string[];
 };
 
-type Tab = "home" | "chat" | "history" | "display" | "settings";
+type Tab = "home" | "chat" | "history" | "sound" | "display" | "settings";
 type MoodKey = "anger" | "anxiety" | "sadness" | "fog" | "manic";
 type CountOption = number | "5回以上";
 type HealthFieldId =
@@ -2145,6 +2149,7 @@ export default function TuyukusaApp() {
   const [saveMessage, setSaveMessage] = useState("");
   const [showBinauralPanel, setShowBinauralPanel] = useState(false);
   const [binauralPanelMode, setBinauralPanelMode] = useState<"beats" | "pomodoro">("beats");
+  const [soundPanelMode, setSoundPanelMode] = useState<"mixer" | "pomodoro">("mixer");
   const [scheduleEdit, setScheduleEdit] = useState<ScheduleEditDraft | null>(null);
   const [templateEditDay, setTemplateEditDay] = useState(() => new Date().getDay());
   const [templateScheduleEdit, setTemplateScheduleEdit] = useState<ScheduleEditDraft | null>(null);
@@ -2158,6 +2163,17 @@ export default function TuyukusaApp() {
   const healthContext = buildHealthContext(healthData);
 
   const timelineItems = sortByTime(schedule.items ?? []);
+  const scheduleRemainingSec = (() => {
+    const now = new Date();
+    const nowMin = now.getHours() * 60 + now.getMinutes();
+    for (const item of timelineItems) {
+      const parts = item.time.split(":").map(Number);
+      if (parts.length < 2 || Number.isNaN(parts[0]) || Number.isNaN(parts[1])) continue;
+      const itemMin = parts[0] * 60 + parts[1];
+      if (itemMin > nowMin) return (itemMin - nowMin) * 60;
+    }
+    return 0;
+  })();
   const storageReady =
     goalsHydrated &&
     scheduleHydrated &&
@@ -2206,8 +2222,8 @@ export default function TuyukusaApp() {
   };
 
   const openBinauralPanel = (mode: "beats" | "pomodoro" = "beats") => {
-    setBinauralPanelMode(mode);
-    setShowBinauralPanel(true);
+    setSoundPanelMode(mode === "pomodoro" ? "pomodoro" : "mixer");
+    setTab("sound");
   };
 
   useEffect(() => {
@@ -3115,12 +3131,12 @@ ${buildHealthSummary(healthForm)}`;
       case "binaural":
         return (
           <div style={{ margin: "12px 16px 0", background: "white", borderRadius: 12, padding: "14px", border: "1px solid rgba(60,40,20,0.1)" }}>
-            <div style={{ fontSize: 13, fontWeight: "bold", color: "#4a6741", marginBottom: 8 }}>🎧 バイノーラルビート</div>
+            <div style={{ fontSize: 13, fontWeight: "bold", color: "#4a6741", marginBottom: 8 }}>🎵 サウンドプレーヤー</div>
             <div style={{ fontSize: 11, color: "#9a8b7a", marginBottom: 10, lineHeight: 1.5 }}>
-              診断「{MOCK_SCHEDULE.diagnosis}」におすすめの周波数で集中・リラックスをサポート
+              グラニュライザー · 3chミキサー · BB · プレイリスト
             </div>
             <button type="button" onClick={() => openBinauralPanel("beats")} style={homeActionBtnStyle}>
-              ビートを聴く
+              サウンドを開く
             </button>
           </div>
         );
@@ -3129,7 +3145,7 @@ ${buildHealthSummary(healthForm)}`;
           <div style={{ margin: "12px 16px 0", background: "white", borderRadius: 12, padding: "14px", border: "1px solid rgba(60,40,20,0.1)" }}>
             <div style={{ fontSize: 13, fontWeight: "bold", color: "#4a6741", marginBottom: 8 }}>🍅 ポモドーロタイマー</div>
             <div style={{ fontSize: 11, color: "#9a8b7a", marginBottom: 10, lineHeight: 1.5 }}>
-              作業25分・休憩5分（カスタム可）。ベータ波/アルファ波と自動連動
+              サウンドタブから作業25分・休憩5分（カスタム可）
             </div>
             <button type="button" onClick={() => openBinauralPanel("pomodoro")} style={homeActionBtnStyle}>
               タイマーを開く
@@ -4156,6 +4172,16 @@ ${buildHealthSummary(healthForm)}`;
           </div>
         )}
 
+        {tab === "sound" && (
+          <div style={{ background: "#1a1410", minHeight: "100%" }}>
+            <SoundSystemPanel
+              diagnosis={MOCK_SCHEDULE.diagnosis}
+              scheduleRemainingSec={scheduleRemainingSec}
+              initialMode={soundPanelMode}
+            />
+          </div>
+        )}
+
       </div>
 
       {scheduleEdit && (
@@ -4195,6 +4221,7 @@ ${buildHealthSummary(healthForm)}`;
         {[
           { key: "home", icon: "🏠", label: "ホーム" },
           { key: "chat", icon: "💬", label: "AI相談" },
+          { key: "sound", icon: "🎵", label: "サウンド" },
           { key: "history", icon: "📊", label: "履歴" },
           { key: "display", icon: "🖥", label: "画面" },
           { key: "settings", icon: "⚙️", label: "設定" },
