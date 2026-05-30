@@ -4,8 +4,6 @@ import { useEffect, useState, type CSSProperties } from "react";
 import TomoyoshiDateMedia from "@/src/components/TomoyoshiDateMedia";
 import {
   detectMediaPlatform,
-  toEmbedUrl,
-  TSUYUKUSA_RADIO_EPISODE_LIST_EMBED_URL,
   TSUYUKUSA_RADIO_PODCASTERS_URL,
   TSUYUKUSA_RADIO_TITLE,
   TSUYUKUSA_RADIO_URL,
@@ -74,14 +72,10 @@ export default function TsuyukusaRadio({
     activeFavorite?.url ??
     radioSettings.activeEpisode?.openUrl ??
     (isShowDefault ? TSUYUKUSA_RADIO_PODCASTERS_URL : TSUYUKUSA_RADIO_URL);
-  const showEmbedUrl =
-    !playback.isPlaying && isShowDefault ? TSUYUKUSA_RADIO_EPISODE_LIST_EMBED_URL : null;
-  const canPlay =
-    isShowDefault ||
-    !!radioSettings.activeEpisode?.embedUrl ||
+  const canPlayInApp =
     !!radioSettings.activeEpisode?.audioUrl ||
-    (activeFavorite ? toEmbedUrl(activeFavorite.url) !== null : false);
-  const isPlayingThisSource = playback.isPlaying;
+    (isShowDefault && !!episodes.find(e => e.audioUrl));
+  const isPlayingThisSource = playback.isPlaying && !!playback.audioUrl;
 
   const handleChange = (next: RadioSettings) => {
     onChange(next);
@@ -91,11 +85,43 @@ export default function TsuyukusaRadio({
   };
 
   const selectShow = () => {
+    const firstWithAudio = episodes.find(e => e.audioUrl);
     handleChange({
       ...radioSettings,
       activeFavoriteId: null,
-      activeEpisode: null,
+      activeEpisode: firstWithAudio
+        ? {
+            id: firstWithAudio.id,
+            title: firstWithAudio.title,
+            openUrl: firstWithAudio.openUrl,
+            embedUrl: null,
+            audioUrl: firstWithAudio.audioUrl,
+          }
+        : null,
     });
+  };
+
+  const handlePlayToggle = () => {
+    if (isShowDefault && !radioSettings.activeEpisode) {
+      const firstWithAudio = episodes.find(e => e.audioUrl);
+      if (firstWithAudio) {
+        const next: RadioSettings = {
+          ...radioSettings,
+          activeFavoriteId: null,
+          activeEpisode: {
+            id: firstWithAudio.id,
+            title: firstWithAudio.title,
+            openUrl: firstWithAudio.openUrl,
+            embedUrl: null,
+            audioUrl: firstWithAudio.audioUrl,
+          },
+        };
+        onChange(next);
+        radioPlaybackManager.toggle(next);
+        return;
+      }
+    }
+    radioPlaybackManager.toggle(radioSettings);
   };
 
   const selectEpisode = (ep: RadioEpisode) => {
@@ -153,11 +179,11 @@ export default function TsuyukusaRadio({
           )}
         </div>
 
-        {canPlay ? (
+        {canPlayInApp ? (
           <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
             <button
               type="button"
-              onClick={() => radioPlaybackManager.toggle(radioSettings)}
+              onClick={handlePlayToggle}
               style={{
                 display: "block",
                 padding: "14px",
@@ -178,47 +204,15 @@ export default function TsuyukusaRadio({
                 画面下部のプレイヤーで再生中（タブを切り替えても続きます）
               </div>
             )}
-            <a href={activeUrl} target="_blank" rel="noopener noreferrer" style={linkBtnStyle}>
-              Spotifyで開く ↗
-            </a>
-            {showEmbedUrl && (
-              <iframe
-                src={showEmbedUrl}
-                title={activeTitle}
-                allow="autoplay; clipboard-write; encrypted-media; fullscreen; picture-in-picture"
-                loading="lazy"
-                style={{
-                  width: "100%",
-                  height: 152,
-                  border: "none",
-                  borderRadius: 10,
-                  background: "#1a1410",
-                }}
-              />
-            )}
           </div>
         ) : (
           <a href={activeUrl} target="_blank" rel="noopener noreferrer" style={playLinkStyle}>
             ▶ {activeTitle} を開く
           </a>
         )}
-
-        <div style={{ marginTop: 14 }}>
-          <div style={sectionLabelStyle}>📋 エピソード一覧（Spotify）</div>
-          <iframe
-            src={TSUYUKUSA_RADIO_EPISODE_LIST_EMBED_URL}
-            title="つゆくさラジオ エピソード一覧"
-            allow="autoplay; clipboard-write; encrypted-media; fullscreen; picture-in-picture"
-            loading="lazy"
-            style={{
-              width: "100%",
-              height: 352,
-              border: "none",
-              borderRadius: 10,
-              background: "#1a1410",
-            }}
-          />
-        </div>
+        <a href={activeUrl} target="_blank" rel="noopener noreferrer" style={{ ...linkBtnStyle, marginTop: 8 }}>
+          外部アプリで開く ↗
+        </a>
 
         <div style={{ marginTop: 14 }}>
           <div style={sectionLabelStyle}>🎧 プレイリスト</div>
@@ -281,7 +275,7 @@ export default function TsuyukusaRadio({
         </div>
 
         <div style={{ marginTop: 12, paddingTop: 12, borderTop: "1px solid rgba(60,40,20,0.08)" }}>
-          <div style={sectionLabelStyle}>お気に入りを追加（YouTube / Spotify / Apple Podcasts）</div>
+          <div style={sectionLabelStyle}>お気に入りを追加（YouTube など）</div>
           <input
             type="text"
             placeholder="タイトル（任意）"

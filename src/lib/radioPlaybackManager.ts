@@ -4,8 +4,6 @@ import {
 } from "@/src/lib/backgroundAudioSession";
 import {
   normalizeRadioSettings,
-  toEmbedUrl,
-  TSUYUKUSA_RADIO_EMBED_URL,
   TSUYUKUSA_RADIO_TITLE,
   TSUYUKUSA_RADIO_URL,
   type RadioSettings,
@@ -38,7 +36,7 @@ function resolveSource(
       return {
         title: fav.title,
         openUrl: fav.url,
-        embedUrl: toEmbedUrl(fav.url),
+        embedUrl: null,
         audioUrl: null,
       };
     }
@@ -49,15 +47,15 @@ function resolveSource(
     return {
       title: ep.title,
       openUrl: ep.openUrl,
-      embedUrl: ep.embedUrl,
-      audioUrl: ep.embedUrl ? null : ep.audioUrl,
+      embedUrl: null,
+      audioUrl: ep.audioUrl,
     };
   }
 
   return {
     title: TSUYUKUSA_RADIO_TITLE,
     openUrl: TSUYUKUSA_RADIO_URL,
-    embedUrl: TSUYUKUSA_RADIO_EMBED_URL,
+    embedUrl: null,
     audioUrl: null,
   };
 }
@@ -108,7 +106,7 @@ function readRadioSettings(): RadioSettings {
 class RadioPlaybackManager {
   private isPlaying = false;
   private title = TSUYUKUSA_RADIO_TITLE;
-  private embedUrl: string | null = TSUYUKUSA_RADIO_EMBED_URL;
+  private embedUrl: string | null = null;
   private audioUrl: string | null = null;
   private openUrl = TSUYUKUSA_RADIO_URL;
   private activeFavoriteId: string | null = null;
@@ -149,6 +147,7 @@ class RadioPlaybackManager {
 
     const settings = readRadioSettings();
     const source = resolveSource(settings);
+    if (!source.audioUrl) return;
     this.activeFavoriteId = settings.activeFavoriteId;
     this.title = source.title;
     this.embedUrl = source.embedUrl;
@@ -163,6 +162,7 @@ class RadioPlaybackManager {
 
   async play(settings: RadioSettings): Promise<void> {
     const source = resolveSource(settings);
+    if (!source.audioUrl) return;
     this.activeFavoriteId = settings.activeFavoriteId;
     this.title = source.title;
     this.embedUrl = source.embedUrl;

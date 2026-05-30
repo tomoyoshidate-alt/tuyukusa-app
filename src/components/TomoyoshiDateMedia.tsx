@@ -21,21 +21,6 @@ export default function TomoyoshiDateMedia() {
         つゆくさラジオのホスト。アンビエント・音楽作品をお楽しみください。
       </div>
 
-      <div style={{ fontSize: 11, fontWeight: "bold", color: "#4a6741", marginBottom: 6 }}>Spotify</div>
-      <iframe
-        src={TOMOYOSHI_DATE.spotifyEmbedUrl}
-        title={`${TOMOYOSHI_DATE.name} on Spotify`}
-        allow="autoplay; clipboard-write; encrypted-media; fullscreen; picture-in-picture"
-        loading="lazy"
-        style={{
-          width: "100%",
-          height: 152,
-          border: "none",
-          borderRadius: 10,
-          background: "#1a1410",
-          marginBottom: 12,
-        }}
-      />
       <a
         href={TOMOYOSHI_DATE.spotifyUrl}
         target="_blank"
@@ -45,29 +30,11 @@ export default function TomoyoshiDateMedia() {
         Spotifyで開く ↗
       </a>
 
-      <div style={{ fontSize: 11, fontWeight: "bold", color: "#4a6741", margin: "14px 0 6px" }}>
-        Apple Music
-      </div>
-      <iframe
-        src={TOMOYOSHI_DATE.appleMusicEmbedUrl}
-        title={`${TOMOYOSHI_DATE.name} on Apple Music`}
-        allow="autoplay *; encrypted-media *; fullscreen *; clipboard-write"
-        sandbox="allow-forms allow-popups allow-same-origin allow-scripts allow-top-navigation-by-user-activation"
-        loading="lazy"
-        style={{
-          width: "100%",
-          height: 175,
-          border: "none",
-          borderRadius: 10,
-          background: "#1a1410",
-          marginBottom: 12,
-        }}
-      />
       <a
         href={TOMOYOSHI_DATE.appleMusicUrl}
         target="_blank"
         rel="noopener noreferrer"
-        style={linkBtnStyle}
+        style={{ ...linkBtnStyle, marginTop: 8 }}
       >
         Apple Musicで開く ↗
       </a>

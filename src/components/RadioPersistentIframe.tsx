@@ -19,7 +19,7 @@ const PLAYER_STYLE: CSSProperties = {
   boxShadow: "0 4px 20px rgba(26,20,16,0.15)",
 };
 
-/** Persistent Spotify embed / RSS audio – survives tab switches. Visible iframe required for Spotify autoplay. */
+/** Persistent RSS audio – survives tab switches. */
 export default function RadioPersistentIframe() {
   const [snap, setSnap] = useState<RadioPlaybackSnapshot>(() => radioPlaybackManager.getSnapshot());
   const audioRef = useRef<HTMLAudioElement | null>(null);
@@ -46,32 +46,15 @@ export default function RadioPersistentIframe() {
     audioRef.current?.pause();
   }, [snap.isPlaying]);
 
-  if (!snap.isPlaying) return null;
+  if (!snap.isPlaying || !snap.audioUrl) return null;
 
-  if (snap.embedUrl) {
-    return (
-      <iframe
-        key={snap.embedUrl}
-        src={snap.embedUrl}
-        title={snap.title}
-        allow="autoplay; clipboard-write; encrypted-media; fullscreen; picture-in-picture"
-        loading="eager"
-        style={PLAYER_STYLE}
-      />
-    );
-  }
-
-  if (snap.audioUrl) {
-    return (
-      <audio
-        ref={audioRef}
-        src={snap.audioUrl}
-        preload="auto"
-        playsInline
-        style={{ ...PLAYER_STYLE, width: 1, height: 1, opacity: 0, bottom: 108 }}
-      />
-    );
-  }
-
-  return null;
+  return (
+    <audio
+      ref={audioRef}
+      src={snap.audioUrl}
+      preload="auto"
+      playsInline
+      style={{ ...PLAYER_STYLE, width: 1, height: 1, opacity: 0, bottom: 108 }}
+    />
+  );
 }

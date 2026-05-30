@@ -12,7 +12,7 @@ export default function RadioMiniPlayer() {
 
   useEffect(() => radioPlaybackManager.subscribe(setSnap), []);
 
-  if (!snap.isPlaying) return null;
+  if (!snap.isPlaying || !snap.audioUrl) return null;
 
   return (
     <div

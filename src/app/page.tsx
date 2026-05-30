@@ -759,7 +759,7 @@ const USER_MANUAL_STEPS = [
   {
     icon: "📻",
     title: "つゆくさラジオ",
-    body: "Spotify埋め込みでつゆくさラジオを再生。YouTube・Spotify・Apple PodcastsのURLをお気に入り登録できます。ビート/タイマーと切り替え可能です。",
+    body: "RSSフィードからつゆくさラジオのエピソードを再生。YouTubeなどのURLをお気に入り登録できます。ビート/タイマーと切り替え可能です。",
   },
   {
     icon: "🎧",
