@@ -4,9 +4,7 @@ import { useEffect, useState, type CSSProperties } from "react";
 import TomoyoshiDateMedia from "@/src/components/TomoyoshiDateMedia";
 import {
   detectMediaPlatform,
-  TSUYUKUSA_RADIO_PODCASTERS_URL,
   TSUYUKUSA_RADIO_TITLE,
-  TSUYUKUSA_RADIO_URL,
   type MediaFavorite,
   type RadioActiveEpisode,
   type RadioEpisode,
@@ -68,10 +66,6 @@ export default function TsuyukusaRadio({
     activeFavorite?.title ??
     radioSettings.activeEpisode?.title ??
     TSUYUKUSA_RADIO_TITLE;
-  const activeUrl =
-    activeFavorite?.url ??
-    radioSettings.activeEpisode?.openUrl ??
-    (isShowDefault ? TSUYUKUSA_RADIO_PODCASTERS_URL : TSUYUKUSA_RADIO_URL);
   const canPlayInApp =
     !!radioSettings.activeEpisode?.audioUrl ||
     (isShowDefault && !!episodes.find(e => e.audioUrl));
@@ -206,13 +200,10 @@ export default function TsuyukusaRadio({
             )}
           </div>
         ) : (
-          <a href={activeUrl} target="_blank" rel="noopener noreferrer" style={playLinkStyle}>
-            ▶ {activeTitle} を開く
-          </a>
+          <div style={{ fontSize: 12, color: "#9a8b7a", padding: "10px 0", lineHeight: 1.6 }}>
+            {episodesLoading ? "エピソードを読み込み中..." : "再生できるエピソードがありません"}
+          </div>
         )}
-        <a href={activeUrl} target="_blank" rel="noopener noreferrer" style={{ ...linkBtnStyle, marginTop: 8 }}>
-          外部アプリで開く ↗
-        </a>
 
         <div style={{ marginTop: 14 }}>
           <div style={sectionLabelStyle}>🎧 プレイリスト</div>
@@ -375,31 +366,6 @@ const addBtnStyle: CSSProperties = {
   fontSize: 12,
   fontWeight: "bold",
   cursor: "pointer",
-};
-
-const linkBtnStyle: CSSProperties = {
-  display: "block",
-  padding: "8px 12px",
-  borderRadius: 8,
-  border: "1.5px solid rgba(60,40,20,0.12)",
-  background: "#f5f0e8",
-  color: "#8b5a2b",
-  textAlign: "center",
-  fontSize: 11,
-  fontWeight: "bold",
-  textDecoration: "none",
-};
-
-const playLinkStyle: CSSProperties = {
-  display: "block",
-  padding: "14px",
-  borderRadius: 10,
-  background: "#1a1410",
-  color: "#e8a86a",
-  textAlign: "center",
-  fontSize: 13,
-  fontWeight: "bold",
-  textDecoration: "none",
 };
 
 const switchBtnStyle: CSSProperties = {

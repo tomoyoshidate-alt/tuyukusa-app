@@ -5,7 +5,6 @@ import {
 import {
   normalizeRadioSettings,
   TSUYUKUSA_RADIO_TITLE,
-  TSUYUKUSA_RADIO_URL,
   type RadioSettings,
 } from "@/src/lib/radioFavorites";
 
@@ -54,7 +53,7 @@ function resolveSource(
 
   return {
     title: TSUYUKUSA_RADIO_TITLE,
-    openUrl: TSUYUKUSA_RADIO_URL,
+    openUrl: "",
     embedUrl: null,
     audioUrl: null,
   };
@@ -108,7 +107,7 @@ class RadioPlaybackManager {
   private title = TSUYUKUSA_RADIO_TITLE;
   private embedUrl: string | null = null;
   private audioUrl: string | null = null;
-  private openUrl = TSUYUKUSA_RADIO_URL;
+  private openUrl = "";
   private activeFavoriteId: string | null = null;
   private listeners = new Set<Listener>();
   private hydrated = false;
