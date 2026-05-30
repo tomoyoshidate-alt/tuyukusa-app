@@ -24,6 +24,9 @@ type UserProfile = {
   name: string;
   nickname: string;
   nameConfigured: boolean;
+  onboardingComplete: boolean;
+  birthDate?: string;
+  gender?: string;
 };
 
 type Props = {

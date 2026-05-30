@@ -48,6 +48,9 @@ import { LocalTodayTasksSection } from "@/src/components/LocalTodayTasksSection"
 import { DataManagementPanel } from "@/src/components/DataManagementPanel";
 import { SupabaseSyncPanel } from "@/src/components/SupabaseSyncPanel";
 import { ExternalIntegrationsPanel } from "@/src/components/ExternalIntegrationsPanel";
+import { OnboardingScreen } from "@/src/components/OnboardingScreen";
+import { AiChatPanel } from "@/src/components/AiChatPanel";
+import type { OnboardingFlowData } from "@/src/lib/onboarding";
 import {
   getTodayLocalTasks,
   INITIAL_LOCAL_TASKS,
@@ -777,12 +780,16 @@ type UserProfile = {
   name: string;
   nickname: string;
   nameConfigured: boolean;
+  onboardingComplete: boolean;
+  birthDate?: string;
+  gender?: string;
 };
 
 const INITIAL_USER_PROFILE: UserProfile = {
   name: DEFAULT_USER_NAME,
   nickname: "",
   nameConfigured: false,
+  onboardingComplete: false,
 };
 
 function getDisplayName(profile: UserProfile): string {
@@ -793,10 +800,15 @@ function normalizeUserProfile(data: unknown): UserProfile {
   if (!data || typeof data !== "object") return INITIAL_USER_PROFILE;
   const d = data as Partial<UserProfile>;
   const name = typeof d.name === "string" && d.name.trim() ? d.name.trim() : DEFAULT_USER_NAME;
+  const nameConfigured = !!d.nameConfigured;
+  const onboardingComplete = d.onboardingComplete === true || (nameConfigured && d.onboardingComplete !== false);
   return {
     name,
     nickname: typeof d.nickname === "string" ? d.nickname.trim() : "",
-    nameConfigured: !!d.nameConfigured,
+    nameConfigured,
+    onboardingComplete,
+    birthDate: typeof d.birthDate === "string" ? d.birthDate.trim() : undefined,
+    gender: typeof d.gender === "string" ? d.gender.trim() : undefined,
   };
 }
 
@@ -2199,7 +2211,6 @@ export default function TuyukusaApp() {
   const [reflectNotice, setReflectNotice] = useState("");
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const autoSuggestRef = useRef(false);
-  const firstLaunchRef = useRef(false);
   const scheduleTemplatesRef = useRef(scheduleTemplates);
   scheduleTemplatesRef.current = scheduleTemplates;
   const envContext = buildEnvironmentContext(weather);
@@ -2287,11 +2298,15 @@ export default function TuyukusaApp() {
     setTab("sound");
   };
 
-  useEffect(() => {
-    if (!storageReady || userProfile.nameConfigured || firstLaunchRef.current) return;
-    firstLaunchRef.current = true;
-    setTab("display");
-  }, [storageReady, userProfile.nameConfigured]);
+  const fetchOnboardingProposal = async (prompt: string): Promise<ChatReply> => {
+    return fetchChatReply(
+      [{ type: "user", text: prompt }],
+      envContext,
+      userKnowledgeContext,
+      healthContext,
+      appLocale
+    );
+  };
 
   useEffect(() => {
     if (goalsHydrated) setGoals(prev => normalizeGoals(prev));
@@ -3260,6 +3275,64 @@ ${buildHealthSummary(healthForm)}`;
     }
   };
 
+  const handleOnboardingComplete = async (
+    data: OnboardingFlowData,
+    reflection: ScheduleReflection | null
+  ) => {
+    const displayName = data.nickname?.trim() || data.name?.trim() || DEFAULT_USER_NAME;
+    setUserProfile(prev => ({
+      ...prev,
+      name: data.name?.trim() || displayName,
+      nickname: data.nickname?.trim() || data.name?.trim() || prev.nickname,
+      birthDate: data.birthDate,
+      gender: data.gender,
+      nameConfigured: true,
+      onboardingComplete: true,
+    }));
+    setChatKnowledge(prev => updateChatKnowledgeFromFlow(prev, data));
+    if (reflection) {
+      await applyScheduleReflection(reflection);
+    }
+    const opening = buildChatOpeningMessage(weather);
+    setChatMessages([
+      {
+        type: "ai",
+        text: `${displayName}さん、セットアップが完了しました🌿\n\n${opening.text}`,
+        choices: opening.choices,
+        step: "intro",
+      },
+    ]);
+    setChatFlowStep("intro");
+    setChatFlowData({
+      goal: data.goal,
+      returnHome: data.returnHome,
+      dinner: data.dinner,
+      bath: data.bath,
+      wake: data.wake,
+    });
+    setTab("home");
+  };
+
+  const renderAiChatPanel = (compact: boolean) => (
+    <AiChatPanel
+      compact={compact}
+      messages={chatMessages}
+      isLoading={isLoading}
+      chatInput={chatInput}
+      isComposing={isComposing}
+      onChatInputChange={setChatInput}
+      onCompositionStart={() => setIsComposing(true)}
+      onCompositionEnd={() => setIsComposing(false)}
+      onSend={() => void handleSend()}
+      onChoice={choice => void handleChoice(choice)}
+      onVoiceTranscript={text => void handleChatVoiceTranscript(text)}
+      onOpenReflection={(reflection, index) => openReflectionModal(reflection, index)}
+      onApplyAllSuggestions={index => applyAllSuggestionsToSchedule(index)}
+      onAddSuggestion={(msgIndex, sugId) => addSuggestionToSchedule(msgIndex, sugId)}
+      messagesEndRef={messagesEndRef}
+    />
+  );
+
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [chatMessages]);
@@ -3616,6 +3689,15 @@ ${buildHealthSummary(healthForm)}`;
     );
   }
 
+  if (!userProfile.onboardingComplete) {
+    return (
+      <OnboardingScreen
+        fetchProposal={fetchOnboardingProposal}
+        onComplete={(data, reflection) => void handleOnboardingComplete(data, reflection)}
+      />
+    );
+  }
+
   return (
     <div style={themeAppShellStyle}>
       
@@ -3651,33 +3733,12 @@ ${buildHealthSummary(healthForm)}`;
                 ✓ {healthImportMessage}
               </div>
             )}
+            {renderAiChatPanel(true)}
             {homeDisplay.sectionOrder
               .filter(sectionId => isSectionVisible(homeDisplay, sectionId))
               .map(sectionId => (
                 <div key={sectionId}>{renderHomeSection(sectionId)}</div>
               ))}
-            <button
-              type="button"
-              onClick={() => setTab("chat")}
-              aria-label={t("home.openAiConsult")}
-              style={{
-                position: "fixed",
-                right: 16,
-                bottom: 88,
-                zIndex: 50,
-                width: 56,
-                height: 56,
-                borderRadius: "50%",
-                border: "none",
-                background: "#1a1410",
-                color: "#f5f0e8",
-                fontSize: 22,
-                boxShadow: "0 4px 16px rgba(0,0,0,0.25)",
-                cursor: "pointer",
-              }}
-            >
-              💬
-            </button>
           </div>
         )}
 
@@ -3716,161 +3777,10 @@ ${buildHealthSummary(healthForm)}`;
                 )}
               </div>
             )}
-            <div style={{ flex: 1, overflowY: "auto", padding: 16, display: "flex", flexDirection: "column", gap: 12 }}>
-              {chatMessages.map((msg, i) => (
-                <div key={i}>
-                  <div style={{ display: "flex", justifyContent: msg.type === "user" ? "flex-end" : "flex-start" }}>
-                    <div style={{
-                      maxWidth: "78%",
-                      padding: "10px 14px",
-                      borderRadius: 18,
-                      fontSize: 13,
-                      lineHeight: 1.7,
-                      background: msg.type === "user" ? "#1a1410" : "white",
-                      color: msg.type === "user" ? "#f5f0e8" : "#1a1410",
-                      border: msg.type === "ai" ? "1px solid rgba(60,40,20,0.1)" : "none",
-                    }}>
-                      {msg.text.split('\n').map((line, j) => <span key={j}>{line}{j < msg.text.split('\n').length - 1 && <br />}</span>)}
-                    </div>
-                  </div>
-                  {msg.choices && (
-                    <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginTop: 8 }}>
-                      {msg.choices.map((c, j) => (
-                        <button key={j} onClick={() => handleChoice(c)} style={{ background: "#ede5d4", border: "1.5px solid rgba(60,40,20,0.12)", borderRadius: 20, padding: "7px 14px", fontSize: 12, cursor: "pointer", color: "#3d3228" }}>
-                          {c}
-                        </button>
-                      ))}
-                    </div>
-                  )}
-                  {msg.scheduleReflection && (
-                    <div style={{ display: "flex", flexDirection: "column", gap: 6, marginTop: 8, maxWidth: "85%" }}>
-                      {msg.scheduleReflection.schedule.map((item, j) => (
-                        <div
-                          key={`${item.time}-${j}`}
-                          style={{
-                            background: "#fdf0e4",
-                            border: "1.5px solid #c17f4a",
-                            borderRadius: 10,
-                            padding: "8px 12px",
-                            fontSize: 11,
-                            color: "#8b5a2b",
-                          }}
-                        >
-                          <div style={{ fontWeight: "bold" }}>{item.time} {item.title}</div>
-                          {item.memo && <div style={{ opacity: 0.75, marginTop: 2 }}>{item.memo}</div>}
-                        </div>
-                      ))}
-                      <button
-                        type="button"
-                        disabled={msg.reflected}
-                        onClick={() => openReflectionModal(msg.scheduleReflection!, i)}
-                        style={{
-                          textAlign: "center",
-                          background: msg.reflected ? "#e8f0e4" : "#1a1410",
-                          border: `1.5px solid ${msg.reflected ? "#6b8f62" : "#1a1410"}`,
-                          borderRadius: 12,
-                          padding: "12px 16px",
-                          fontSize: 13,
-                          fontWeight: "bold",
-                          cursor: msg.reflected ? "default" : "pointer",
-                          color: msg.reflected ? "#4a6741" : "#f5f0e8",
-                        }}
-                      >
-                        {msg.reflected ? t("reflectSchedule.applied") : t("reflectSchedule.applyButton")}
-                      </button>
-                    </div>
-                  )}
-                  {msg.scheduleSuggestions && msg.scheduleSuggestions.length > 0 && !msg.scheduleReflection && (
-                    <div style={{ display: "flex", flexDirection: "column", gap: 6, marginTop: 8, maxWidth: "85%" }}>
-                      {msg.showSchedule && (
-                        <button
-                          type="button"
-                          disabled={msg.scheduleSuggestions.every(s => msg.addedScheduleIds?.includes(s.id))}
-                          onClick={() => applyAllSuggestionsToSchedule(i)}
-                          style={{
-                            textAlign: "center",
-                            background: msg.scheduleSuggestions.every(s => msg.addedScheduleIds?.includes(s.id))
-                              ? "#e8f0e4"
-                              : "#1a1410",
-                            border: `1.5px solid ${msg.scheduleSuggestions.every(s => msg.addedScheduleIds?.includes(s.id)) ? "#6b8f62" : "#1a1410"}`,
-                            borderRadius: 12,
-                            padding: "12px 16px",
-                            fontSize: 13,
-                            fontWeight: "bold",
-                            cursor: msg.scheduleSuggestions.every(s => msg.addedScheduleIds?.includes(s.id)) ? "default" : "pointer",
-                            color: msg.scheduleSuggestions.every(s => msg.addedScheduleIds?.includes(s.id)) ? "#4a6741" : "#f5f0e8",
-                          }}
-                        >
-                          {msg.scheduleSuggestions.every(s => msg.addedScheduleIds?.includes(s.id))
-                            ? "✓ 今日のスケジュールに反映済み"
-                            : "📅 今日のスケジュールに反映する"}
-                        </button>
-                      )}
-                      {!msg.showSchedule &&
-                        msg.scheduleSuggestions.map(sug => {
-                        const added = msg.addedScheduleIds?.includes(sug.id);
-                        return (
-                          <button
-                            key={sug.id}
-                            type="button"
-                            disabled={added}
-                            onClick={() => addSuggestionToSchedule(i, sug.id)}
-                            style={{
-                              textAlign: "left",
-                              background: added ? "#e8f0e4" : "#fdf0e4",
-                              border: `1.5px solid ${added ? "#6b8f62" : "#c17f4a"}`,
-                              borderRadius: 10,
-                              padding: "8px 12px",
-                              fontSize: 11,
-                              cursor: added ? "default" : "pointer",
-                              color: added ? "#4a6741" : "#8b5a2b",
-                              opacity: added ? 0.85 : 1,
-                            }}
-                          >
-                            <div style={{ fontWeight: "bold", marginBottom: 2 }}>
-                              {added ? "✓ スケジュールに追加済み" : "📅 スケジュールに追加"}
-                            </div>
-                            <div>{sug.time} {sug.label}</div>
-                            {sug.sub && <div style={{ opacity: 0.75, marginTop: 2 }}>{sug.sub}</div>}
-                          </button>
-                        );
-                      })}
-                    </div>
-                  )}
-                </div>
-              ))}
-              {isLoading && (
-                <div style={{ background: "white", border: "1px solid rgba(60,40,20,0.1)", borderRadius: 18, padding: "12px 14px", width: 60 }}>
-                  <div style={{ display: "flex", gap: 4 }}>
-                    {[0,1,2].map(i => <div key={i} style={{ width: 6, height: 6, background: "#c17f4a", borderRadius: "50%", opacity: 0.5 }} />)}
-                  </div>
-                </div>
-              )}
-              <div ref={messagesEndRef} />
-            </div>
-            <div style={{ padding: "10px 16px", background: "#f5f0e8", borderTop: "1px solid rgba(60,40,20,0.1)", display: "flex", gap: 8, alignItems: "flex-end" }}>
-              <VoiceInputButton onTranscript={text => void handleChatVoiceTranscript(text)} disabled={isLoading} />
-              <textarea
-                style={{ flex: 1, background: "white", border: "1.5px solid rgba(60,40,20,0.12)", borderRadius: 22, padding: "10px 16px", fontSize: 13, outline: "none", resize: "none", minHeight: 42, maxHeight: 100, fontFamily: "sans-serif", lineHeight: 1.5 }}
-                placeholder="自由に入力できます..."
-                value={chatInput}
-                onChange={(e) => setChatInput(e.target.value)}
-                onCompositionStart={() => setIsComposing(true)}
-                onCompositionEnd={() => setIsComposing(false)}
-                onKeyDown={(e) => {
-                  if (e.key === "Enter" && !e.shiftKey && !isComposing) {
-                    e.preventDefault();
-                    handleSend();
-                  }
-                }}
-                rows={1}
-              />
-              <button onClick={handleSend} style={{ width: 42, height: 42, borderRadius: "50%", background: "#1a1410", border: "none", cursor: "pointer", color: "white", fontSize: 18, flexShrink: 0 }}>↑</button>
-            </div>
+            {renderAiChatPanel(false)}
           </div>
         )}
 
-        {/* 画面設定 */}
         {tab === "display" && (
           <ScreenSettingsTab
             userProfile={userProfile}

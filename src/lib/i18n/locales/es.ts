@@ -208,6 +208,27 @@ const es: TranslationSchema = {
     placeholder: "Escribe un mensaje...",
     send: "Enviar",
   },
+  onboarding: {
+    title: "Tsuyukusa AI Onboarding",
+    subtitle: "Let's build your personal life rhythm",
+    start: "Get started",
+    birthdateQuestion: "What is your date of birth?",
+    birthdatePlaceholder: "May 15, 1980",
+    genderQuestion: "What is your sex assigned at birth?",
+    goalQuestion: "Q1. What lifestyle do you want?",
+    goalFreeHint: "Describe in your own words.",
+    goalPlaceholder: "e.g. Sleep by 10pm",
+    nameQuestion: "What should we call you?",
+    namePlaceholder: "e.g. Alex",
+    skip: "Skip",
+    next: "Next",
+    generating: "Creating schedule…",
+    applyPrompt: "Apply this schedule to today.",
+    applyAndHome: "Apply & Home",
+    goHome: "Go to Home",
+    completeFallback: "Setup complete.",
+    proposalFailed: "Could not generate schedule.",
+  },
 };
 
 export default es;

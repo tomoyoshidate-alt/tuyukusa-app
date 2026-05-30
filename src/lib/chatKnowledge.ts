@@ -113,12 +113,14 @@ export function updateChatKnowledgeFromUserMessage(prev: ChatKnowledge, text: st
 
 export function buildUserKnowledgeContext(
   knowledge: ChatKnowledge,
-  profile: { name: string; nickname: string }
+  profile: { name: string; nickname: string; birthDate?: string; gender?: string }
 ): string {
   const parts: string[] = [];
 
   if (profile.nickname.trim()) parts.push(`呼び名（ニックネーム）: ${profile.nickname.trim()}`);
   if (profile.name.trim()) parts.push(`お名前: ${profile.name.trim()}`);
+  if (profile.birthDate?.trim()) parts.push(`生年月日: ${profile.birthDate.trim()}`);
+  if (profile.gender?.trim()) parts.push(`性別: ${profile.gender.trim()}`);
 
   if (knowledge.goals.length) {
     parts.push(`過去に伝えられた目標: ${[...new Set(knowledge.goals)].slice(0, 5).join("、")}`);

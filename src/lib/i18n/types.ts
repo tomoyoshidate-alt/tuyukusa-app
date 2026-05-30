@@ -74,4 +74,5 @@ export type TranslationSchema = {
   manual: Record<string, { title: string; body: string }>;
   binaural: Record<string, string>;
   chat: Record<string, string>;
+  onboarding: Record<string, string>;
 };

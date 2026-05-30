@@ -88,6 +88,9 @@ function isUserProfileStorageValid(data: unknown): boolean {
   if ("name" in d && d.name !== undefined && typeof d.name !== "string") return false;
   if ("nickname" in d && d.nickname !== undefined && typeof d.nickname !== "string") return false;
   if ("nameConfigured" in d && d.nameConfigured !== undefined && typeof d.nameConfigured !== "boolean") return false;
+  if ("onboardingComplete" in d && d.onboardingComplete !== undefined && typeof d.onboardingComplete !== "boolean") return false;
+  if ("birthDate" in d && d.birthDate !== undefined && typeof d.birthDate !== "string") return false;
+  if ("gender" in d && d.gender !== undefined && typeof d.gender !== "string") return false;
   return true;
 }
 

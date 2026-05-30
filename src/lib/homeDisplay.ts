@@ -29,12 +29,12 @@ export type HomeDisplaySettings = {
 };
 
 export const DEFAULT_SECTION_ORDER: HomeSectionId[] = [
-  "diagnosis",
   "schedule",
   "dailyGoal",
   "weather",
   "sunTimes",
   "todayTasks",
+  "diagnosis",
   "deadlineGoal",
   "monthlyGoal",
   "radio",

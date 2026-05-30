@@ -208,6 +208,27 @@ const zh: TranslationSchema = {
     placeholder: "输入消息...",
     send: "发送",
   },
+  onboarding: {
+    title: "Tsuyukusa AI 初次问诊",
+    subtitle: "一起打造适合您的生活节奏",
+    start: "开始",
+    birthdateQuestion: "请告诉我您的出生日期。（例：1980年5月15日）",
+    birthdatePlaceholder: "1980年5月15日",
+    genderQuestion: "请告诉我您的性别。（生理性别）",
+    goalQuestion: "Q1. 您想实现怎样的生活？",
+    goalFreeHint: "请自由描述您想实现的生活。",
+    goalPlaceholder: "例：22点前睡觉，早上清爽起床",
+    nameQuestion: "请告诉我您的名字（昵称）。",
+    namePlaceholder: "例：小明",
+    skip: "跳过",
+    next: "下一步",
+    generating: "正在为您制定日程…",
+    applyPrompt: "可以将此日程应用到今日。",
+    applyAndHome: "应用并进入首页",
+    goHome: "进入首页",
+    completeFallback: "设置完成。可随时从首页咨询AI。",
+    proposalFailed: "日程生成失败。可从首页重新咨询。",
+  },
 };
 
 export default zh;
