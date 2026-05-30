@@ -23,7 +23,7 @@ export const themeInputStyle: CSSProperties = {
 };
 
 export const themeFieldLabelStyle: CSSProperties = {
-  fontSize: "var(--t-font-size-base)",
+  fontSize: "var(--t-font-size-sm)",
   fontWeight: "var(--t-font-weight-bold)" as CSSProperties["fontWeight"],
   color: "var(--t-primary)",
   marginBottom: 10,
@@ -36,14 +36,14 @@ export const themeHomeActionBtnStyle: CSSProperties = {
   border: "none",
   background: "var(--t-header-bg)",
   color: "var(--t-text-inverse)",
-  fontSize: "var(--t-font-size-base)",
+  fontSize: "var(--t-font-size-btn)",
   fontWeight: "var(--t-font-weight-bold)" as CSSProperties["fontWeight"],
   cursor: "pointer",
   fontFamily: "var(--t-font-family)",
 };
 
 export const themeSectionTitleStyle: CSSProperties = {
-  fontSize: "var(--t-font-size-lg)",
+  fontSize: "var(--t-font-size-heading)",
   fontWeight: "var(--t-font-weight-bold)" as CSSProperties["fontWeight"],
   color: "var(--t-text)",
   marginBottom: 4,
@@ -75,10 +75,12 @@ export const themeHeaderStyle: CSSProperties = {
   background: "var(--t-header-bg)",
   color: "var(--t-text-inverse)",
   padding: "14px 20px 12px",
+  fontSize: "var(--t-font-size-xl)",
 };
 
 export const themeNavStyle: CSSProperties = {
   background: "var(--t-nav-bg)",
   display: "flex",
   borderTop: "1px solid var(--t-border)",
+  fontSize: "var(--t-font-size-sm)",
 };

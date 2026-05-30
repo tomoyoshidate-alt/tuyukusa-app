@@ -42,6 +42,14 @@ const zh: TranslationSchema = {
     dark: "深色模式",
     japanese: "和风",
   },
+  fontSize: {
+    title: "字体大小",
+    description: "更改应用全局文字大小（按钮、标签、正文、标题）",
+    small: "小（紧凑显示）",
+    standard: "标准（默认）",
+    large: "大（易读）",
+    xlarge: "特大（老年人·最大）",
+  },
   language: {
     title: "语言",
     description: "更改显示语言和AI回复语言",

@@ -42,6 +42,14 @@ const it: TranslationSchema = {
     dark: "Modalità scura",
     japanese: "Stile giapponese",
   },
+  fontSize: {
+    title: "Dimensione carattere",
+    description: "Modifica la dimensione del testo in tutta l'app",
+    small: "Piccolo (compatto)",
+    standard: "Standard (predefinito)",
+    large: "Grande (leggibile)",
+    xlarge: "Extra grande (accessibilità)",
+  },
   language: {
     title: "Lingua",
     description: "Cambia la lingua dell'app e delle risposte IA",

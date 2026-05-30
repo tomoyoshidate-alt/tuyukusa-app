@@ -10,6 +10,7 @@ import {
   type AppLocale,
 } from "@/src/lib/i18n/detectLocale";
 import { ThemeProvider } from "@/src/components/ThemeProvider";
+import { FontSizeProvider } from "@/src/components/FontSizeProvider";
 
 export default function AppProviders({ children }: { children: React.ReactNode }) {
   useEffect(() => {
@@ -35,7 +36,9 @@ export default function AppProviders({ children }: { children: React.ReactNode }
 
   return (
     <I18nextProvider i18n={i18n}>
-      <ThemeProvider>{children}</ThemeProvider>
+      <ThemeProvider>
+        <FontSizeProvider>{children}</FontSizeProvider>
+      </ThemeProvider>
     </I18nextProvider>
   );
 }

@@ -1,3 +1,4 @@
+import { applyFontSizeToDocument, readStoredFontSizeId } from "@/src/lib/fontSizeSettings";
 import { derivePaletteFromBase } from "./colorUtils";
 import { getThemePreset } from "./presets";
 import type { ThemeId, ThemeSettings } from "./types";
@@ -36,4 +37,5 @@ export function applyThemeToDocument(settings: ThemeSettings): void {
   for (const [key, value] of Object.entries(vars)) {
     root.style.setProperty(key, value);
   }
+  applyFontSizeToDocument(readStoredFontSizeId());
 }

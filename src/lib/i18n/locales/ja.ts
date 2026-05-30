@@ -40,6 +40,14 @@ const ja = {
     dark: "ダークモード",
     japanese: "和風",
   },
+  fontSize: {
+    title: "フォントサイズ",
+    description: "アプリ全体の文字サイズを変更します（ボタン・ラベル・本文・見出し）",
+    small: "小（コンパクト表示）",
+    standard: "標準（デフォルト）",
+    large: "大（見やすい）",
+    xlarge: "特大（高齢者向け・最大サイズ）",
+  },
   language: {
     title: "言語 / Language",
     description: "アプリの表示言語とAI相談の返答言語を変更します",

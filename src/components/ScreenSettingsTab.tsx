@@ -7,6 +7,7 @@ import {
   HOME_WEATHER_TOGGLE_I18N_OPTIONS,
   type HomeDisplaySettings,
 } from "@/src/lib/homeDisplay";
+import FontSizeSettingsPanel from "@/src/components/FontSizeSettingsPanel";
 import HealthKitBridge from "@/src/components/HealthKitBridge";
 import LanguageSettingsPanel from "@/src/components/LanguageSettingsPanel";
 import SectionOrderList from "@/src/components/SectionOrderList";
@@ -81,6 +82,7 @@ export default function ScreenSettingsTab({
   return (
     <div style={{ padding: 16 }}>
       <ThemeSettingsPanel />
+      <FontSizeSettingsPanel />
       <LanguageSettingsPanel />
 
       <div style={themeSectionTitleStyle}>👤 {t("screenSettings.profileTitle")}</div>
