@@ -28,6 +28,8 @@ import {
   VISUALIZER_EFFECTS,
 } from "@/src/lib/soundSystem/types";
 import SoundVisualizer from "@/src/components/sound/SoundVisualizer";
+import NatureVisualizer from "@/src/components/NatureVisualizer";
+import MoonCloudVisualizer from "@/src/components/MoonCloudVisualizer";
 import PomodoroTimer from "@/src/components/PomodoroTimer";
 import BinauralExplainPage from "@/src/components/BinauralExplainPage";
 
@@ -81,6 +83,8 @@ function SliderRow({
   );
 }
 
+type SceneVizMode = "default" | "moonWater" | "moonCloud";
+
 export default function SoundSystemPanel({
   diagnosis = "水滞",
   scheduleRemainingSec = 0,
@@ -98,6 +102,7 @@ export default function SoundSystemPanel({
   const [vizOverlays, setVizOverlays] = useState<OverlayOption[]>(DEFAULT_VISUALIZER_SETTINGS.overlays);
   const [screensaver, setScreensaver] = useState(false);
   const [analyser, setAnalyser] = useState<AnalyserNode | null>(null);
+  const [sceneViz, setSceneViz] = useState<SceneVizMode>("default");
 
   const updatePlaylist = (next: PlaylistSettings) => {
     soundSystemManager.setPlaylistSettings(next);
@@ -174,15 +179,23 @@ export default function SoundSystemPanel({
   if (screensaver) {
     return (
       <div style={{ position: "fixed", inset: 0, zIndex: 300, background: "#0a0806" }}>
-        <SoundVisualizer
-          analyser={analyser}
-          effect={vizEffect}
-          overlays={vizOverlays}
-          presetRemainingSec={snapshot.presetRemainingSec}
-          scheduleRemainingSec={scheduleRemainingSec}
-          fullscreen
-          onTap={() => setScreensaver(false)}
-        />
+        {sceneViz === "moonWater" ? (
+          <NatureVisualizer mode="moonWater" analyser={analyser} fullscreen onTap={() => setScreensaver(false)} />
+        ) : sceneViz === "moonCloud" ? (
+          <div style={{ height: "100vh", overflow: "auto" }} onClick={() => setScreensaver(false)} role="button" tabIndex={0}>
+            <MoonCloudVisualizer />
+          </div>
+        ) : (
+          <SoundVisualizer
+            analyser={analyser}
+            effect={vizEffect}
+            overlays={vizOverlays}
+            presetRemainingSec={snapshot.presetRemainingSec}
+            scheduleRemainingSec={scheduleRemainingSec}
+            fullscreen
+            onTap={() => setScreensaver(false)}
+          />
+        )}
       </div>
     );
   }
@@ -227,13 +240,19 @@ export default function SoundSystemPanel({
         />
       ) : (
         <>
-          <SoundVisualizer
-            analyser={analyser}
-            effect={vizEffect}
-            overlays={vizOverlays}
-            presetRemainingSec={snapshot.presetRemainingSec}
-            scheduleRemainingSec={scheduleRemainingSec}
-          />
+          {sceneViz === "moonWater" ? (
+            <NatureVisualizer mode="moonWater" analyser={analyser} height={160} />
+          ) : sceneViz === "moonCloud" ? (
+            <MoonCloudVisualizer />
+          ) : (
+            <SoundVisualizer
+              analyser={analyser}
+              effect={vizEffect}
+              overlays={vizOverlays}
+              presetRemainingSec={snapshot.presetRemainingSec}
+              scheduleRemainingSec={scheduleRemainingSec}
+            />
+          )}
 
           <div style={{ display: "flex", gap: 8, margin: "12px 0" }}>
             <button
@@ -578,6 +597,54 @@ export default function SoundSystemPanel({
 
           <SectionTitle>ビジュアライザー</SectionTitle>
           <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginBottom: 8 }}>
+            <button
+              type="button"
+              onClick={() => setSceneViz("default")}
+              style={{
+                padding: "6px 10px",
+                borderRadius: 14,
+                border: sceneViz === "default" ? "2px solid #e8a86a" : "1px solid rgba(255,255,255,0.1)",
+                background: "rgba(255,255,255,0.04)",
+                color: "#f5f0e8",
+                fontSize: 10,
+                cursor: "pointer",
+              }}
+            >
+              📊 スペクトラム
+            </button>
+            <button
+              type="button"
+              onClick={() => setSceneViz("moonWater")}
+              style={{
+                padding: "6px 10px",
+                borderRadius: 14,
+                border: sceneViz === "moonWater" ? "2px solid #7ec8e3" : "1px solid rgba(255,255,255,0.1)",
+                background: "rgba(255,255,255,0.04)",
+                color: "#f5f0e8",
+                fontSize: 10,
+                cursor: "pointer",
+              }}
+            >
+              🌙 月の水面
+            </button>
+            <button
+              type="button"
+              onClick={() => setSceneViz("moonCloud")}
+              style={{
+                padding: "6px 10px",
+                borderRadius: 14,
+                border: sceneViz === "moonCloud" ? "2px solid #c8d8e8" : "1px solid rgba(255,255,255,0.1)",
+                background: "rgba(255,255,255,0.04)",
+                color: "#f5f0e8",
+                fontSize: 10,
+                cursor: "pointer",
+              }}
+            >
+              🌙 月夜
+            </button>
+          </div>
+          {sceneViz === "default" && (
+          <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginBottom: 8 }}>
             {VISUALIZER_EFFECTS.map(e => (
               <button
                 key={e.id}
@@ -597,6 +664,8 @@ export default function SoundSystemPanel({
               </button>
             ))}
           </div>
+          )}
+          {sceneViz === "default" && (
           <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
             {OVERLAY_OPTIONS.map(o => (
               <button
@@ -617,6 +686,7 @@ export default function SoundSystemPanel({
               </button>
             ))}
           </div>
+          )}
         </>
       )}
     </div>
