@@ -75,4 +75,5 @@ export type TranslationSchema = {
   binaural: Record<string, string>;
   chat: Record<string, string>;
   onboarding: Record<string, string>;
+  integrationGuide: Record<string, string>;
 };

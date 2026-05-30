@@ -24,10 +24,10 @@ type OnboardingMessage = {
 
 type Props = {
   fetchProposal: (prompt: string) => Promise<ChatReply>;
-  onComplete: (data: OnboardingFlowData, reflection: ScheduleReflection | null) => void;
+  onQuestionnaireDone: (data: OnboardingFlowData, reflection: ScheduleReflection | null) => void;
 };
 
-export function OnboardingScreen({ fetchProposal, onComplete }: Props) {
+export function OnboardingScreen({ fetchProposal, onQuestionnaireDone }: Props) {
   const { t } = useTranslation();
   const [step, setStep] = useState<OnboardingStep>("welcome");
   const [flowData, setFlowData] = useState<OnboardingFlowData>({});
@@ -83,7 +83,7 @@ export function OnboardingScreen({ fetchProposal, onComplete }: Props) {
             {
               type: "ai",
               text: t("onboarding.applyPrompt"),
-              choices: [t("onboarding.applyAndHome")],
+              choices: [t("onboarding.applyAndContinue")],
             },
           ]);
         } else {
@@ -92,7 +92,7 @@ export function OnboardingScreen({ fetchProposal, onComplete }: Props) {
             {
               type: "ai",
               text: t("onboarding.completeFallback"),
-              choices: [t("onboarding.goHome")],
+              choices: [t("onboarding.continueToIntegrations")],
             },
           ]);
         }
@@ -124,9 +124,9 @@ export function OnboardingScreen({ fetchProposal, onComplete }: Props) {
       return;
     }
 
-    if (choice === t("onboarding.applyAndHome") || choice === t("onboarding.goHome")) {
+    if (choice === t("onboarding.applyAndContinue") || choice === t("onboarding.continueToIntegrations")) {
       const lastReflection = [...messages].reverse().find(m => m.scheduleReflection)?.scheduleReflection ?? null;
-      onComplete(flowData, lastReflection);
+      onQuestionnaireDone(flowData, lastReflection);
       return;
     }
 

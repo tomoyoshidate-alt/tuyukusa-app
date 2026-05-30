@@ -49,6 +49,7 @@ import { DataManagementPanel } from "@/src/components/DataManagementPanel";
 import { SupabaseSyncPanel } from "@/src/components/SupabaseSyncPanel";
 import { ExternalIntegrationsPanel } from "@/src/components/ExternalIntegrationsPanel";
 import { OnboardingScreen } from "@/src/components/OnboardingScreen";
+import { OnboardingIntegrationsScreen, type IntegrationFinishOptions } from "@/src/components/OnboardingIntegrationsScreen";
 import { AiChatPanel } from "@/src/components/AiChatPanel";
 import type { OnboardingFlowData } from "@/src/lib/onboarding";
 import {
@@ -2207,8 +2208,13 @@ export default function TuyukusaApp() {
   const [pendingReflection, setPendingReflection] = useState<ScheduleReflection | null>(null);
   const [reflectModalOpen, setReflectModalOpen] = useState(false);
   const [reflectingSchedule, setReflectingSchedule] = useState(false);
-  const [reflectMessageIndex, setReflectMessageIndex] = useState<number | null>(null);
   const [reflectNotice, setReflectNotice] = useState("");
+  const [reflectMessageIndex, setReflectMessageIndex] = useState<number | null>(null);
+  const [onboardingPhase, setOnboardingPhase] = useState<"questionnaire" | "integrations">("questionnaire");
+  const [pendingOnboarding, setPendingOnboarding] = useState<{
+    data: OnboardingFlowData;
+    reflection: ScheduleReflection | null;
+  } | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const autoSuggestRef = useRef(false);
   const scheduleTemplatesRef = useRef(scheduleTemplates);
@@ -2684,7 +2690,7 @@ ${buildHealthSummary(healthForm)}`;
     }
   };
 
-  const setupNotion = async () => {
+  const setupNotion = async (): Promise<boolean> => {
     setNotionMessage("");
     try {
       const res = await fetch("/api/notion", {
@@ -2708,12 +2714,15 @@ ${buildHealthSummary(healthForm)}`;
         scheduleDatabaseId: data.databaseIds?.schedule ?? prev.scheduleDatabaseId,
         communicationDatabaseId: data.databaseIds?.communication ?? prev.communicationDatabaseId,
         connected: true,
+        enabled: true,
         setupComplete: true,
       }));
       setNotionMessage(data.created ? "データベースを作成しました" : "既存のデータベースに接続しました");
       await syncNotion();
+      return true;
     } catch (err) {
       setNotionMessage(err instanceof Error ? err.message : "セットアップに失敗しました");
+      return false;
     }
   };
 
@@ -3275,9 +3284,20 @@ ${buildHealthSummary(healthForm)}`;
     }
   };
 
-  const handleOnboardingComplete = async (
+  const handleQuestionnaireDone = async (
     data: OnboardingFlowData,
     reflection: ScheduleReflection | null
+  ) => {
+    setPendingOnboarding({ data, reflection });
+    if (reflection) {
+      await applyScheduleReflection(reflection);
+    }
+    setOnboardingPhase("integrations");
+  };
+
+  const finishOnboarding = async (
+    data: OnboardingFlowData,
+    options: IntegrationFinishOptions
   ) => {
     const displayName = data.nickname?.trim() || data.name?.trim() || DEFAULT_USER_NAME;
     setUserProfile(prev => ({
@@ -3290,9 +3310,6 @@ ${buildHealthSummary(healthForm)}`;
       onboardingComplete: true,
     }));
     setChatKnowledge(prev => updateChatKnowledgeFromFlow(prev, data));
-    if (reflection) {
-      await applyScheduleReflection(reflection);
-    }
     const opening = buildChatOpeningMessage(weather);
     setChatMessages([
       {
@@ -3310,7 +3327,9 @@ ${buildHealthSummary(healthForm)}`;
       bath: data.bath,
       wake: data.wake,
     });
-    setTab("home");
+    setPendingOnboarding(null);
+    setOnboardingPhase("questionnaire");
+    setTab(options.openTab ?? "home");
   };
 
   const renderAiChatPanel = (compact: boolean) => (
@@ -3690,10 +3709,26 @@ ${buildHealthSummary(healthForm)}`;
   }
 
   if (!userProfile.onboardingComplete) {
+    if (onboardingPhase === "integrations" && pendingOnboarding) {
+      return (
+        <OnboardingIntegrationsScreen
+          supabaseSettings={supabaseSettings}
+          onSupabaseChange={patch => setSupabaseSettings(prev => ({ ...prev, ...patch }))}
+          notionSettings={notionSettings}
+          onNotionChange={patch => setNotionSettings(prev => ({ ...prev, ...patch, enabled: patch.enabled ?? true }))}
+          onNotionSetup={setupNotion}
+          googleCalendar={googleCalendar}
+          onGoogleCalendarChange={patch => setGoogleCalendar(prev => ({ ...prev, ...patch }))}
+          onGoogleConnect={connectGoogleCalendar}
+          healthData={healthData}
+          onFinish={options => void finishOnboarding(pendingOnboarding.data, options)}
+        />
+      );
+    }
     return (
       <OnboardingScreen
         fetchProposal={fetchOnboardingProposal}
-        onComplete={(data, reflection) => void handleOnboardingComplete(data, reflection)}
+        onQuestionnaireDone={(data, reflection) => void handleQuestionnaireDone(data, reflection)}
       />
     );
   }
