@@ -45,6 +45,14 @@ import ScreenSettingsTab from "@/src/components/ScreenSettingsTab";
 import TsuyukusaRadio from "@/src/components/TsuyukusaRadio";
 import VoiceInputButton from "@/src/components/VoiceInputButton";
 import VoiceTaskConfirmModal from "@/src/components/VoiceTaskConfirmModal";
+import { AiDailyInsightSection } from "@/src/components/AiDailyInsightSection";
+import { ScheduleReflectionModal } from "@/src/components/ScheduleReflectionModal";
+import {
+  isReflectIntent,
+  reflectionToScheduleUpdates,
+  type ScheduleReflection,
+} from "@/src/lib/scheduleReflection";
+import { registerTodayScheduleAlarms } from "@/src/lib/scheduleAlarms";
 import {
   themeAppShellStyle,
   themeCardStyle,
@@ -155,6 +163,7 @@ type ChatReply = {
   content: string;
   scheduleUpdate?: ScheduleUpdate | null;
   scheduleSuggestions?: ScheduleUpdate[];
+  scheduleReflection?: ScheduleReflection | null;
 };
 type ScheduleSuggestion = ScheduleUpdate & { id: string };
 const GOAL_CATEGORIES: GoalCategory[] = ["睡眠", "食事", "運動", "塩清療法", "その他"];
@@ -559,6 +568,14 @@ function buildScheduleSuggestions(
 }
 
 function createAiChatMessage(content: string, reply: ChatReply): Message {
+  if (reply.scheduleReflection) {
+    return {
+      type: "ai",
+      text: content,
+      scheduleReflection: reply.scheduleReflection,
+      showSchedule: true,
+    };
+  }
   const suggestions = buildScheduleSuggestions(content, reply.scheduleSuggestions, reply.scheduleUpdate);
   return {
     type: "ai",
@@ -575,6 +592,8 @@ type Message = {
   showSchedule?: boolean;
   multi?: boolean;
   scheduleSuggestions?: ScheduleSuggestion[];
+  scheduleReflection?: ScheduleReflection;
+  reflected?: boolean;
   addedScheduleIds?: string[];
 };
 
@@ -1114,16 +1133,16 @@ function buildChatOpeningMessage(weather: WeatherData | null): { text: string; c
 
   const text =
     `${greetingByBand[band]}${weatherLine}${tempComment}\n\n` +
-    "🌿 つゆくさ生活リズムAIです。\n\n" +
-    "どんな生活を目標にしたいですか？それが達成できる生活リズムをご提案します。";
+    "🌿 つゆくさAIです。漢方・養生の知恵をもとに、あなたの生活リズムを整えるお手伝いをします。\n\n" +
+    "眠れない・早起きしたい・集中力を上げたいなど、今の悩みや「こうしたい」を自由に教えてください。";
 
   return {
     text,
     choices: [
-      "🛏 22時には眠りたい",
-      "🌅 早起きしたい",
-      "⚖️ 食事の時間を整えたい",
-      "💬 自分で入力する",
+      "最近眠れない",
+      "22時に寝たい",
+      "集中力を上げたい",
+      "💬 自由に相談する",
     ],
   };
 }
@@ -1139,6 +1158,9 @@ type ChatFlowData = {
 };
 
 const CHAT_GOAL_FROM_CHOICE: Record<string, string> = {
+  "最近眠れない": "最近眠れない",
+  "22時に寝たい": "22時に寝たい",
+  "集中力を上げたい": "集中力を上げたい",
   "🛏 22時には眠りたい": "22時には眠りたい",
   "🌅 早起きしたい": "早起きしたい",
   "⚖️ 食事の時間を整えたい": "食事の時間を整えたい",
@@ -1182,7 +1204,7 @@ const FLOW_STEP_CONFIG: Record<
 
 function parseGoalFromChoice(choice: string): string | null {
   if (choice in CHAT_GOAL_FROM_CHOICE) return CHAT_GOAL_FROM_CHOICE[choice];
-  if (choice === "💬 自分で入力する") return null;
+  if (choice === "💬 自分で入力する" || choice === "💬 自由に相談する") return null;
   return choice.trim() || null;
 }
 
@@ -1197,7 +1219,7 @@ function buildScheduleProposalPrompt(data: ChatFlowData): string {
     `・起床時間: ${data.wake ?? "未設定"}`,
     "",
     "起床・朝食・塩湯・夕食・入浴・就寝前塩湯・就寝の時刻を含め、",
-    "SCHEDULE_SUGGESTIONS形式で5〜7項目返してください。",
+    "最終的にREFLECT_SCHEDULE形式のJSONで5〜7項目返してください（ユーザーが反映できるように）。",
   ].join("\n");
 }
 
@@ -2147,6 +2169,11 @@ export default function TuyukusaApp() {
   const [scheduleEdit, setScheduleEdit] = useState<ScheduleEditDraft | null>(null);
   const [templateEditDay, setTemplateEditDay] = useState(() => new Date().getDay());
   const [templateScheduleEdit, setTemplateScheduleEdit] = useState<ScheduleEditDraft | null>(null);
+  const [pendingReflection, setPendingReflection] = useState<ScheduleReflection | null>(null);
+  const [reflectModalOpen, setReflectModalOpen] = useState(false);
+  const [reflectingSchedule, setReflectingSchedule] = useState(false);
+  const [reflectMessageIndex, setReflectMessageIndex] = useState<number | null>(null);
+  const [reflectNotice, setReflectNotice] = useState("");
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const autoSuggestRef = useRef(false);
   const firstLaunchRef = useRef(false);
@@ -3001,6 +3028,18 @@ ${buildHealthSummary(healthForm)}`;
         setChatFlowStep("goal");
         return;
       }
+      if (trimmed === "💬 自由に相談する") {
+        setChatMessages([
+          ...userMessages,
+          {
+            type: "ai",
+            text: "どんなことでもお気軽にどうぞ。悩み・目標・願いをテキストまたは音声でお聞かせください。",
+            step: "free",
+          },
+        ]);
+        setChatFlowStep("free");
+        return;
+      }
       const goal = parseGoalFromChoice(trimmed);
       if (goal) startGoalFlow(goal, userMessages);
       return;
@@ -3075,6 +3114,129 @@ ${buildHealthSummary(healthForm)}`;
     );
   };
 
+  const openReflectionModal = (reflection: ScheduleReflection, messageIndex: number | null) => {
+    setPendingReflection(reflection);
+    setReflectMessageIndex(messageIndex);
+    setReflectModalOpen(true);
+  };
+
+  const applyScheduleReflection = async (reflection: ScheduleReflection) => {
+    const updates = reflectionToScheduleUpdates(reflection);
+    setSchedule(prev => {
+      const dayKey = getDayKey();
+      const base = prev.dayKey === dayKey ? prev : createFreshSchedule(dayKey, scheduleTemplates);
+      let items = [...base.items];
+      for (const update of updates) {
+        const time = normalizeScheduleTime(update.time);
+        const existingIdx = items.findIndex(i => i.time === time);
+        const newItem: ScheduleItem =
+          existingIdx >= 0
+            ? { ...items[existingIdx], label: update.label, sub: update.sub }
+            : {
+                id: `custom-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+                time,
+                label: update.label,
+                sub: update.sub,
+              };
+        items =
+          existingIdx >= 0
+            ? items.map((i, idx) => (idx === existingIdx ? newItem : i))
+            : sortByTime([...items, newItem]);
+      }
+      return { dayKey, items, alerts: syncScheduleAlerts(items) };
+    });
+
+    if (reflection.habits?.length) {
+      setGoals(prev => {
+        const normalized = normalizeGoals(prev);
+        const existing = new Set((normalized.deadlineGoals ?? []).map(g => g.text));
+        const newHabits = reflection.habits!
+          .filter(h => h.title && !existing.has(h.title))
+          .map(h => ({
+            id: `habit-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+            text: h.title,
+            category: "その他" as GoalCategory,
+            deadline: "",
+            goalType: "習慣" as DeadlineGoalType,
+            achieved: false,
+          }));
+        return {
+          ...normalized,
+          deadlineGoals: [...(normalized.deadlineGoals ?? []), ...newHabits],
+        };
+      });
+    }
+
+    const alarmCount = await registerTodayScheduleAlarms(
+      updates.map(u => ({ time: u.time, label: u.label, sub: u.sub }))
+    );
+
+    if (notionSettings.connected) {
+      const today = getDayKey();
+      try {
+        for (const item of reflection.schedule) {
+          await fetch("/api/notion", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              ...notionDbBody(notionSettings),
+              task: {
+                text: item.title,
+                type: "today",
+                category: "生活",
+                deadline: today,
+                time: item.time,
+              },
+            }),
+          });
+        }
+        for (const habit of reflection.habits ?? []) {
+          await fetch("/api/notion", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              ...notionDbBody(notionSettings),
+              task: {
+                text: habit.title,
+                type: "habit",
+                category: "習慣",
+                time: habit.time ?? null,
+              },
+            }),
+          });
+        }
+        await syncNotion();
+      } catch {
+        setNotionMessage("スケジュールのNotion同期に失敗しました");
+      }
+    }
+
+    if (reflectMessageIndex !== null) {
+      setChatMessages(prev =>
+        prev.map((m, idx) => (idx === reflectMessageIndex ? { ...m, reflected: true } : m))
+      );
+    }
+
+    const alarmNote =
+      alarmCount > 0
+        ? `${alarmCount}件のリマインダーを設定しました`
+        : t("reflectSchedule.alarmNotice");
+    setReflectNotice(`スケジュールを反映しました。${alarmNote}`);
+    setTimeout(() => setReflectNotice(""), 4000);
+  };
+
+  const confirmScheduleReflection = async () => {
+    if (!pendingReflection) return;
+    setReflectingSchedule(true);
+    try {
+      await applyScheduleReflection(pendingReflection);
+      setReflectModalOpen(false);
+      setPendingReflection(null);
+    } finally {
+      setReflectingSchedule(false);
+    }
+  };
+
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [chatMessages]);
@@ -3101,15 +3263,25 @@ ${buildHealthSummary(healthForm)}`;
     }
   };
 
-  const handleSend = async () => {
-    if (!chatInput.trim()) return;
-    const text = chatInput.trim();
-    setChatInput("");
-    setIsComposing(false);
+  const submitChatText = async (rawText: string) => {
+    const text = rawText.trim();
+    if (!text) return;
 
     if (chatFlowStep !== "free" && chatFlowStep !== "proposal") {
       await advanceChatFlow(text, chatFlowStep);
       return;
+    }
+
+    if (isReflectIntent(text)) {
+      const lastAiWithReflection = [...chatMessages]
+        .reverse()
+        .find(m => m.type === "ai" && m.scheduleReflection && !m.reflected);
+      if (lastAiWithReflection?.scheduleReflection) {
+        const idx = chatMessages.lastIndexOf(lastAiWithReflection);
+        setChatMessages(prev => [...prev, { type: "user", text }]);
+        openReflectionModal(lastAiWithReflection.scheduleReflection!, idx);
+        return;
+      }
     }
 
     recordChatKnowledge(text);
@@ -3119,7 +3291,11 @@ ${buildHealthSummary(healthForm)}`;
     setIsLoading(true);
     try {
       const reply = await fetchChatReply(updatedMessages, envContext, userKnowledgeContext, healthContext, appLocale);
-      setChatMessages(prev => [...prev, createAiChatMessage(reply.content, reply)]);
+      const aiMsg = createAiChatMessage(reply.content, reply);
+      setChatMessages(prev => [...prev, aiMsg]);
+      if (reply.scheduleReflection && isReflectIntent(text)) {
+        openReflectionModal(reply.scheduleReflection, updatedMessages.length);
+      }
     } catch {
       setChatMessages(prev => [
         ...prev,
@@ -3128,6 +3304,21 @@ ${buildHealthSummary(healthForm)}`;
     } finally {
       setIsLoading(false);
     }
+  };
+
+  const handleSend = async () => {
+    if (!chatInput.trim()) return;
+    const text = chatInput.trim();
+    setChatInput("");
+    setIsComposing(false);
+    await submitChatText(text);
+  };
+
+  const handleChatVoiceTranscript = async (transcript: string) => {
+    const text = transcript.trim();
+    if (!text) return;
+    setChatInput("");
+    await submitChatText(text);
   };
 
   const toggleSymptom = (symptom: string) => {
@@ -3269,21 +3460,18 @@ ${buildHealthSummary(healthForm)}`;
         );
       case "diagnosis":
         return (
-          <div style={{ background: "var(--t-diagnosis-bg)", color: "var(--t-diagnosis-text)", padding: "28px 20px", marginTop: 16 }}>
-            <div style={{ fontSize: "var(--t-font-size-base)", opacity: 0.6, marginBottom: 4 }}>{pickTimeGreeting()}</div>
-            <div style={{ fontSize: "var(--t-font-size-xl)", fontWeight: "bold", marginBottom: 16 }}>{getDisplayName(userProfile)}</div>
-            <div style={{ display: "inline-block", background: "rgba(193,127,74,0.2)", border: "1px solid rgba(193,127,74,0.3)", borderRadius: 20, padding: "6px 14px", fontSize: "var(--t-font-size-base)", color: "var(--t-nav-active)", marginBottom: 16 }}>
-              {t("home.todayDiagnosis")}：{MOCK_SCHEDULE.diagnosis}
-            </div>
-            <div style={{ fontSize: 13, lineHeight: 1.8, opacity: 0.8, borderLeft: "2px solid #c17f4a", paddingLeft: 12 }}>
-              {MOCK_SCHEDULE.advice}
-            </div>
-            {healthData.updatedAt && (
-              <div style={{ fontSize: 11, marginTop: 12, padding: "8px 10px", background: "rgba(74,103,65,0.2)", borderRadius: 8, color: "#c5d8be" }}>
-                ❤️ ヘルスケア: {formatHealthSummary(healthData)}
-              </div>
-            )}
-          </div>
+          <AiDailyInsightSection
+            displayName={getDisplayName(userProfile)}
+            timeGreeting={pickTimeGreeting()}
+            environmentContext={envContext}
+            healthContext={healthContext}
+            userKnowledgeContext={userKnowledgeContext}
+            healthSummary={
+              healthData.updatedAt ? `ヘルスケア: ${formatHealthSummary(healthData)}` : undefined
+            }
+            locale={appLocale}
+            onOpenChat={() => setTab("chat")}
+          />
         );
       case "schedule":
         return (
@@ -3444,6 +3632,28 @@ ${buildHealthSummary(healthForm)}`;
               .map(sectionId => (
                 <div key={sectionId}>{renderHomeSection(sectionId)}</div>
               ))}
+            <button
+              type="button"
+              onClick={() => setTab("chat")}
+              aria-label={t("home.openAiConsult")}
+              style={{
+                position: "fixed",
+                right: 16,
+                bottom: 88,
+                zIndex: 50,
+                width: 56,
+                height: 56,
+                borderRadius: "50%",
+                border: "none",
+                background: "#1a1410",
+                color: "#f5f0e8",
+                fontSize: 22,
+                boxShadow: "0 4px 16px rgba(0,0,0,0.25)",
+                cursor: "pointer",
+              }}
+            >
+              💬
+            </button>
           </div>
         )}
 
@@ -3508,7 +3718,45 @@ ${buildHealthSummary(healthForm)}`;
                       ))}
                     </div>
                   )}
-                  {msg.scheduleSuggestions && msg.scheduleSuggestions.length > 0 && (
+                  {msg.scheduleReflection && (
+                    <div style={{ display: "flex", flexDirection: "column", gap: 6, marginTop: 8, maxWidth: "85%" }}>
+                      {msg.scheduleReflection.schedule.map((item, j) => (
+                        <div
+                          key={`${item.time}-${j}`}
+                          style={{
+                            background: "#fdf0e4",
+                            border: "1.5px solid #c17f4a",
+                            borderRadius: 10,
+                            padding: "8px 12px",
+                            fontSize: 11,
+                            color: "#8b5a2b",
+                          }}
+                        >
+                          <div style={{ fontWeight: "bold" }}>{item.time} {item.title}</div>
+                          {item.memo && <div style={{ opacity: 0.75, marginTop: 2 }}>{item.memo}</div>}
+                        </div>
+                      ))}
+                      <button
+                        type="button"
+                        disabled={msg.reflected}
+                        onClick={() => openReflectionModal(msg.scheduleReflection!, i)}
+                        style={{
+                          textAlign: "center",
+                          background: msg.reflected ? "#e8f0e4" : "#1a1410",
+                          border: `1.5px solid ${msg.reflected ? "#6b8f62" : "#1a1410"}`,
+                          borderRadius: 12,
+                          padding: "12px 16px",
+                          fontSize: 13,
+                          fontWeight: "bold",
+                          cursor: msg.reflected ? "default" : "pointer",
+                          color: msg.reflected ? "#4a6741" : "#f5f0e8",
+                        }}
+                      >
+                        {msg.reflected ? t("reflectSchedule.applied") : t("reflectSchedule.applyButton")}
+                      </button>
+                    </div>
+                  )}
+                  {msg.scheduleSuggestions && msg.scheduleSuggestions.length > 0 && !msg.scheduleReflection && (
                     <div style={{ display: "flex", flexDirection: "column", gap: 6, marginTop: 8, maxWidth: "85%" }}>
                       {msg.showSchedule && (
                         <button
@@ -3577,7 +3825,7 @@ ${buildHealthSummary(healthForm)}`;
               <div ref={messagesEndRef} />
             </div>
             <div style={{ padding: "10px 16px", background: "#f5f0e8", borderTop: "1px solid rgba(60,40,20,0.1)", display: "flex", gap: 8, alignItems: "flex-end" }}>
-              <VoiceInputButton onTranscript={text => void handleVoiceTranscript(text)} disabled={voiceParsing} />
+              <VoiceInputButton onTranscript={text => void handleChatVoiceTranscript(text)} disabled={isLoading} />
               <textarea
                 style={{ flex: 1, background: "white", border: "1.5px solid rgba(60,40,20,0.12)", borderRadius: 22, padding: "10px 16px", fontSize: 13, outline: "none", resize: "none", minHeight: 42, maxHeight: 100, fontFamily: "sans-serif", lineHeight: 1.5 }}
                 placeholder="自由に入力できます..."
@@ -4554,6 +4802,39 @@ ${buildHealthSummary(healthForm)}`;
           onConfirm={() => void confirmVoiceTask()}
           onCancel={() => setPendingVoiceTask(null)}
         />
+      )}
+
+      <ScheduleReflectionModal
+        reflection={pendingReflection}
+        open={reflectModalOpen}
+        applying={reflectingSchedule}
+        onConfirm={() => void confirmScheduleReflection()}
+        onCancel={() => {
+          setReflectModalOpen(false);
+          setPendingReflection(null);
+        }}
+      />
+
+      {reflectNotice && (
+        <div
+          style={{
+            position: "fixed",
+            bottom: 100,
+            left: "50%",
+            transform: "translateX(-50%)",
+            zIndex: 10001,
+            background: "#4a6741",
+            color: "#f5f0e8",
+            padding: "10px 16px",
+            borderRadius: 12,
+            fontSize: 12,
+            boxShadow: "0 4px 16px rgba(0,0,0,0.2)",
+            maxWidth: "90%",
+            textAlign: "center",
+          }}
+        >
+          {reflectNotice}
+        </div>
       )}
 
       <BinauralGlobalAlarm />

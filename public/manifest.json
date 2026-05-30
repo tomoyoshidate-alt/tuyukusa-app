@@ -1,7 +1,7 @@
 {
   "name": "つゆくさ生活リズム",
   "short_name": "つゆくさ",
-  "description": "和の暮らしに寄り添う、生活リズム診断アプリ",
+  "description": "24時間、つゆくさAIが漢方・養生の知恵で生活リズムを整えるアプリ",
   "start_url": "/",
   "display": "standalone",
   "background_color": "#f5f0e8",

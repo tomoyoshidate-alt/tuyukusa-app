@@ -22,7 +22,7 @@ const notoSerif = Noto_Serif_JP({
 
 export const metadata: Metadata = {
   title: "つゆくさ生活リズム",
-  description: "和の暮らしに寄り添う、生活リズム診断アプリ",
+  description: "24時間、つゆくさAIが漢方・養生の知恵で生活リズムを整えるアプリ",
   manifest: "/manifest.json",
   appleWebApp: {
     capable: true,

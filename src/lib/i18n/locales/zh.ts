@@ -118,6 +118,17 @@ const zh: TranslationSchema = {
     aiAdded: "AI添加",
     customAdded: "添加",
   },
+  reflectSchedule: {
+    confirmTitle: "Apply this schedule?",
+    confirmBody: "This sets today's schedule, schedules reminders, and syncs to Notion when connected.",
+    habitsTitle: "Save as habits",
+    apply: "Apply",
+    cancel: "Cancel",
+    applying: "Applying…",
+    applied: "✓ Schedule applied",
+    applyButton: "📅 Apply this schedule",
+    alarmNotice: "Allow notifications to receive reminders at each time",
+  },
   notion: {
     title: "Notion任务",
     notConnected: "未连接 · 请在设置中连接",

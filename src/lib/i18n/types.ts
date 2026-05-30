@@ -55,6 +55,17 @@ export type TranslationSchema = {
   screenSettings: Record<string, string>;
   homeSections: Record<string, string>;
   home: Record<string, string>;
+  reflectSchedule: {
+    confirmTitle: string;
+    confirmBody: string;
+    habitsTitle: string;
+    apply: string;
+    cancel: string;
+    applying: string;
+    applied: string;
+    applyButton: string;
+    alarmNotice: string;
+  };
   notion: Record<string, string>;
   settings: Record<string, string>;
   manual: Record<string, { title: string; body: string }>;

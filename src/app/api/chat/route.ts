@@ -2,6 +2,11 @@ import Anthropic from '@anthropic-ai/sdk';
 import { NextRequest, NextResponse } from 'next/server';
 import { getChatSystemPrompt } from '@/src/lib/i18n/prompts';
 import { isAppLocale } from '@/src/lib/i18n/detectLocale';
+import {
+  parseReflectScheduleFromText,
+  reflectionToScheduleUpdates,
+  type ScheduleReflection,
+} from '@/src/lib/scheduleReflection';
 
 const client = new Anthropic({
   apiKey: process.env.ANTHROPIC_API_KEY,
@@ -15,9 +20,21 @@ function normalizeScheduleTime(time: string): string {
   return `${m[1].padStart(2, "0")}:${m[2]}`;
 }
 
-function parseScheduleMeta(text: string): { content: string; scheduleSuggestions: ScheduleUpdate[] } {
-  let content = text.trim();
+function parseScheduleMeta(text: string): {
+  content: string;
+  scheduleSuggestions: ScheduleUpdate[];
+  scheduleReflection: ScheduleReflection | null;
+} {
+  const { content: afterReflect, reflection } = parseReflectScheduleFromText(text);
+  let content = afterReflect.trim();
   const suggestions: ScheduleUpdate[] = [];
+
+  if (reflection) {
+    for (const item of reflectionToScheduleUpdates(reflection)) {
+      suggestions.push(item);
+    }
+    return { content, scheduleSuggestions: suggestions, scheduleReflection: reflection };
+  }
 
   const suggestionsIdx = content.lastIndexOf("SCHEDULE_SUGGESTIONS:");
   if (suggestionsIdx >= 0) {
@@ -58,7 +75,7 @@ function parseScheduleMeta(text: string): { content: string; scheduleSuggestions
     }
   }
 
-  return { content, scheduleSuggestions: suggestions };
+  return { content, scheduleSuggestions: suggestions, scheduleReflection: null };
 }
 
 export async function POST(request: NextRequest) {
@@ -78,17 +95,18 @@ export async function POST(request: NextRequest) {
 
   const response = await client.messages.create({
     model: 'claude-haiku-4-5-20251001',
-    max_tokens: 500,
+    max_tokens: 900,
     system,
     messages,
   });
 
   const raw = response.content[0].type === 'text' ? response.content[0].text : '';
-  const { content, scheduleSuggestions } = parseScheduleMeta(raw);
+  const { content, scheduleSuggestions, scheduleReflection } = parseScheduleMeta(raw);
 
   return NextResponse.json({
     content,
     scheduleSuggestions,
     scheduleUpdate: scheduleSuggestions[0] ?? null,
+    scheduleReflection,
   });
 }

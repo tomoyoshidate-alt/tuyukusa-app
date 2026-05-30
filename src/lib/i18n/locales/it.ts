@@ -118,6 +118,17 @@ const it: TranslationSchema = {
     aiAdded: "Aggiunto da IA",
     customAdded: "Aggiunto",
   },
+  reflectSchedule: {
+    confirmTitle: "Apply this schedule?",
+    confirmBody: "This sets today's schedule, schedules reminders, and syncs to Notion when connected.",
+    habitsTitle: "Save as habits",
+    apply: "Apply",
+    cancel: "Cancel",
+    applying: "Applying…",
+    applied: "✓ Schedule applied",
+    applyButton: "📅 Apply this schedule",
+    alarmNotice: "Allow notifications to receive reminders at each time",
+  },
   notion: {
     title: "Compiti Notion",
     notConnected: "Non connesso · Connetti in Impostazioni",
