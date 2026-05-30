@@ -55,6 +55,7 @@ export type NotionSettings = {
   scheduleDatabaseId: string;
   communicationDatabaseId: string;
   connected: boolean;
+  enabled: boolean;
   lastSyncAt?: number;
   setupComplete?: boolean;
 };
@@ -71,6 +72,7 @@ export const INITIAL_NOTION_SETTINGS: NotionSettings = {
   scheduleDatabaseId: NOTION_DATABASE_IDS.schedule,
   communicationDatabaseId: NOTION_DATABASE_IDS.communication,
   connected: false,
+  enabled: false,
 };
 
 export const NOTION_SYNC_INTERVAL_MS = 5 * 60 * 1000;
@@ -98,6 +100,7 @@ export function normalizeNotionSettings(data: unknown): NotionSettings {
         ? d.communicationDatabaseId
         : NOTION_DATABASE_IDS.communication,
     connected: d.connected === true,
+    enabled: d.enabled === true,
     lastSyncAt: typeof d.lastSyncAt === "number" ? d.lastSyncAt : undefined,
     setupComplete: d.setupComplete === true,
   };

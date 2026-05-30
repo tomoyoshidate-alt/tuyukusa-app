@@ -1,7 +1,7 @@
 export type HomeSectionId =
   | "weather"
   | "sunTimes"
-  | "notionTodayTasks"
+  | "todayTasks"
   | "dailyGoal"
   | "deadlineGoal"
   | "monthlyGoal"
@@ -16,7 +16,7 @@ export type HomeDisplaySettings = {
   humidityChart: boolean;
   moonPhase: boolean;
   sunTimes: boolean;
-  notionTodayTasks: boolean;
+  todayTasks: boolean;
   dailyGoal: boolean;
   deadlineGoal: boolean;
   monthlyGoal: boolean;
@@ -34,7 +34,7 @@ export const DEFAULT_SECTION_ORDER: HomeSectionId[] = [
   "dailyGoal",
   "weather",
   "sunTimes",
-  "notionTodayTasks",
+  "todayTasks",
   "deadlineGoal",
   "monthlyGoal",
   "radio",
@@ -47,7 +47,7 @@ export const DEFAULT_HOME_DISPLAY: HomeDisplaySettings = {
   humidityChart: true,
   moonPhase: true,
   sunTimes: true,
-  notionTodayTasks: true,
+  todayTasks: true,
   dailyGoal: true,
   deadlineGoal: true,
   monthlyGoal: false,
@@ -62,7 +62,7 @@ export const DEFAULT_HOME_DISPLAY: HomeDisplaySettings = {
 export const HOME_SECTION_I18N_KEYS: Record<HomeSectionId, string> = {
   weather: "homeSections.weatherChart",
   sunTimes: "homeSections.sunTimes",
-  notionTodayTasks: "homeSections.notionTodayTasks",
+  todayTasks: "homeSections.todayTasks",
   dailyGoal: "homeSections.dailyGoal",
   deadlineGoal: "homeSections.deadlineGoal",
   monthlyGoal: "homeSections.monthlyGoal",
@@ -81,7 +81,7 @@ export const HOME_WEATHER_I18N_KEYS = {
 
 export const HOME_SECTION_TOGGLE_I18N_KEYS: { key: Exclude<HomeSectionId, "weather">; labelKey: string }[] = [
   { key: "sunTimes", labelKey: "homeSections.sunTimes" },
-  { key: "notionTodayTasks", labelKey: "homeSections.notionTodayTasks" },
+  { key: "todayTasks", labelKey: "homeSections.todayTasks" },
   { key: "dailyGoal", labelKey: "homeSections.dailyGoal" },
   { key: "deadlineGoal", labelKey: "homeSections.deadlineGoal" },
   { key: "monthlyGoal", labelKey: "homeSections.monthlyGoal" },
@@ -102,7 +102,7 @@ export const HOME_WEATHER_TOGGLE_I18N_OPTIONS = [
 export const HOME_SECTION_LABELS: Record<HomeSectionId, string> = {
   weather: "天気グラフ",
   sunTimes: "日の出・日の入り",
-  notionTodayTasks: "今日のタスク（Notion）",
+  todayTasks: "今日のタスク",
   dailyGoal: "今日の目標",
   deadlineGoal: "期限付き目標",
   monthlyGoal: "今月の目標",
@@ -121,7 +121,7 @@ export const HOME_WEATHER_TOGGLE_OPTIONS = [
 
 export const HOME_SECTION_TOGGLE_OPTIONS: { key: Exclude<HomeSectionId, "weather">; label: string }[] = [
   { key: "sunTimes", label: "日の出・日の入り" },
-  { key: "notionTodayTasks", label: "今日のタスク（Notion）" },
+  { key: "todayTasks", label: "今日のタスク" },
   { key: "dailyGoal", label: "今日の目標" },
   { key: "deadlineGoal", label: "期限付き目標" },
   { key: "monthlyGoal", label: "今月の目標" },
@@ -138,8 +138,8 @@ export function isSectionVisible(settings: HomeDisplaySettings, section: HomeSec
       return settings.weatherChart || settings.humidityChart || settings.moonPhase;
     case "sunTimes":
       return settings.sunTimes;
-    case "notionTodayTasks":
-      return settings.notionTodayTasks;
+    case "todayTasks":
+      return settings.todayTasks;
     case "dailyGoal":
       return settings.dailyGoal;
     case "deadlineGoal":
@@ -161,21 +161,31 @@ export function isSectionVisible(settings: HomeDisplaySettings, section: HomeSec
   }
 }
 
-type LegacyHomeDisplay = Partial<HomeDisplaySettings> & { weeklyGoal?: boolean };
+type LegacyHomeDisplay = Partial<HomeDisplaySettings> & {
+  weeklyGoal?: boolean;
+  notionTodayTasks?: boolean;
+};
 
 export function normalizeHomeDisplay(data: unknown): HomeDisplaySettings {
   if (!data || typeof data !== "object") return DEFAULT_HOME_DISPLAY;
   const d = data as LegacyHomeDisplay;
   const deadlineGoal =
     d.deadlineGoal ?? (typeof d.weeklyGoal === "boolean" ? d.weeklyGoal : DEFAULT_HOME_DISPLAY.deadlineGoal);
-  const merged: HomeDisplaySettings = { ...DEFAULT_HOME_DISPLAY, ...d, deadlineGoal };
+  const todayTasks =
+    d.todayTasks ?? (typeof d.notionTodayTasks === "boolean" ? d.notionTodayTasks : DEFAULT_HOME_DISPLAY.todayTasks);
+  const merged: HomeDisplaySettings = { ...DEFAULT_HOME_DISPLAY, ...d, deadlineGoal, todayTasks };
+  delete (merged as LegacyHomeDisplay).notionTodayTasks;
+
   const validIds = new Set<HomeSectionId>(DEFAULT_SECTION_ORDER);
   const rawOrder = Array.isArray(d.sectionOrder) ? d.sectionOrder : [];
   const order = rawOrder
-    .map(id => (String(id) === "weeklyGoal" ? "deadlineGoal" : id))
+    .map(id => {
+      if (String(id) === "weeklyGoal") return "deadlineGoal";
+      if (String(id) === "notionTodayTasks") return "todayTasks";
+      return id;
+    })
     .filter((id): id is HomeSectionId => validIds.has(id as HomeSectionId));
   const missing = DEFAULT_SECTION_ORDER.filter(id => !order.includes(id));
-  merged.notionTodayTasks = merged.notionTodayTasks ?? true;
   merged.sectionOrder = [...order, ...missing];
   return merged;
 }

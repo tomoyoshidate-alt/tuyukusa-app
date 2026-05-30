@@ -39,7 +39,7 @@ export default function BinauralGlobalAlarm() {
       <button
         type="button"
         onClick={() => {
-          window.dispatchEvent(new CustomEvent("tuyukusa:open-notion-tasks"));
+          window.dispatchEvent(new CustomEvent("tuyukusa:open-today-tasks"));
           binauralPlaybackManager.stopAlarm();
         }}
         style={{

@@ -14,6 +14,8 @@ export const TUYUKUSA_STORAGE_KEYS = [
   "tuyukusa-location",
   "tuyukusa-radio",
   "tuyukusa-health-data",
+  "tuyukusa-local-tasks",
+  "tuyukusa-supabase",
 ] as const;
 
 let migrationRan = false;
@@ -128,6 +130,16 @@ function isRadioStorageValid(data: unknown): boolean {
   return !!data && typeof data === "object";
 }
 
+function isLocalTasksStorageValid(data: unknown): boolean {
+  if (!data || typeof data !== "object") return false;
+  const d = data as Record<string, unknown>;
+  return !("tasks" in d) || Array.isArray(d.tasks);
+}
+
+function isSupabaseStorageValid(data: unknown): boolean {
+  return !!data && typeof data === "object";
+}
+
 function isStoredDataValid(): boolean {
   const validators: Record<(typeof TUYUKUSA_STORAGE_KEYS)[number], (data: unknown) => boolean> = {
     "tuyukusa-goals": isGoalsStorageValid,
@@ -142,6 +154,8 @@ function isStoredDataValid(): boolean {
     "tuyukusa-location": isLocationStorageValid,
     "tuyukusa-radio": isRadioStorageValid,
     "tuyukusa-health-data": isHealthDataStorageValid,
+    "tuyukusa-local-tasks": isLocalTasksStorageValid,
+    "tuyukusa-supabase": isSupabaseStorageValid,
   };
 
   for (const key of TUYUKUSA_STORAGE_KEYS) {

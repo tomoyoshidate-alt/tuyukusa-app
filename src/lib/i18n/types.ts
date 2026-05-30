@@ -68,6 +68,9 @@ export type TranslationSchema = {
   };
   notion: Record<string, string>;
   settings: Record<string, string>;
+  dataManagement: Record<string, string>;
+  supabase: Record<string, string>;
+  integrations: Record<string, string>;
   manual: Record<string, { title: string; body: string }>;
   binaural: Record<string, string>;
   chat: Record<string, string>;

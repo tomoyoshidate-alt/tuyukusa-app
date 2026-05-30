@@ -37,9 +37,6 @@ import AddToHomeScreen from "@/src/components/AddToHomeScreen";
 import BinauralGlobalAlarm from "@/src/components/BinauralGlobalAlarm";
 import HealthKitBridge from "@/src/components/HealthKitBridge";
 import LanguageSettingsPanel from "@/src/components/LanguageSettingsPanel";
-import NotionHomeBar from "@/src/components/NotionHomeBar";
-import NotionManualPage from "@/src/components/NotionManualPage";
-import NotionTodayTasksSection from "@/src/components/NotionTodayTasksSection";
 import RadioMiniPlayer from "@/src/components/RadioMiniPlayer";
 import ScreenSettingsTab from "@/src/components/ScreenSettingsTab";
 import TsuyukusaRadio from "@/src/components/TsuyukusaRadio";
@@ -47,6 +44,22 @@ import VoiceInputButton from "@/src/components/VoiceInputButton";
 import VoiceTaskConfirmModal from "@/src/components/VoiceTaskConfirmModal";
 import { AiDailyInsightSection } from "@/src/components/AiDailyInsightSection";
 import { ScheduleReflectionModal } from "@/src/components/ScheduleReflectionModal";
+import { LocalTodayTasksSection } from "@/src/components/LocalTodayTasksSection";
+import { DataManagementPanel } from "@/src/components/DataManagementPanel";
+import { SupabaseSyncPanel } from "@/src/components/SupabaseSyncPanel";
+import { ExternalIntegrationsPanel } from "@/src/components/ExternalIntegrationsPanel";
+import {
+  getTodayLocalTasks,
+  INITIAL_LOCAL_TASKS,
+  newLocalTask,
+  normalizeLocalTasks,
+  type LocalTasksStorage,
+} from "@/src/lib/localTasks";
+import {
+  INITIAL_SUPABASE_SETTINGS,
+  normalizeSupabaseSettings,
+  type SupabaseSettings,
+} from "@/src/lib/supabaseSync";
 import {
   isReflectIntent,
   reflectionToScheduleUpdates,
@@ -2143,6 +2156,16 @@ export default function TuyukusaApp() {
     INITIAL_HEALTH_DATA,
     normalizeHealthData
   );
+  const [localTasksStorage, setLocalTasksStorage, localTasksHydrated] = useLocalStorage<LocalTasksStorage>(
+    "tuyukusa-local-tasks",
+    INITIAL_LOCAL_TASKS,
+    normalizeLocalTasks
+  );
+  const [supabaseSettings, setSupabaseSettings, supabaseHydrated] = useLocalStorage<SupabaseSettings>(
+    "tuyukusa-supabase",
+    INITIAL_SUPABASE_SETTINGS,
+    normalizeSupabaseSettings
+  );
   const [healthImportMessage, setHealthImportMessage] = useState("");
   const [calendarMessage, setCalendarMessage] = useState("");
   const [chatFlowStep, setChatFlowStep] = useState<ChatFlowStep>("intro");
@@ -2187,13 +2210,17 @@ export default function TuyukusaApp() {
   const dayKey = getDayKey();
   const notionTodayTasks = getTodayNotionTasks(notionTasks, dayKey);
   const notionTodayScheduleEvents = getTodayNotionScheduleEvents(notionScheduleEvents, dayKey);
-  const notionScheduleItems: ScheduleItem[] = notionTodayScheduleEvents.map(e => ({
-    id: `notion-schedule-${e.id}`,
-    time: e.time ?? "09:00",
-    label: e.title,
-    sub: `Notion · ${scheduleEventLabel(e.eventType)}`,
-  }));
+  const notionScheduleItems: ScheduleItem[] =
+    notionSettings.enabled && notionSettings.connected
+      ? notionTodayScheduleEvents.map(e => ({
+          id: `notion-schedule-${e.id}`,
+          time: e.time ?? "09:00",
+          label: e.title,
+          sub: `Notion · ${scheduleEventLabel(e.eventType)}`,
+        }))
+      : [];
   const mergedTimelineItems = sortByTime([...timelineItems, ...notionScheduleItems]);
+  const todayLocalTasks = getTodayLocalTasks(localTasksStorage.tasks, dayKey);
   const scheduleRemainingSec = (() => {
     const now = new Date();
     const nowMin = now.getHours() * 60 + now.getMinutes();
@@ -2217,7 +2244,9 @@ export default function TuyukusaApp() {
     chatKnowledgeHydrated &&
     locationHydrated &&
     radioHydrated &&
-    healthHydrated;
+    healthHydrated &&
+    localTasksHydrated &&
+    supabaseHydrated;
 
   useEffect(() => {
     runTuyukusaStorageMigration();
@@ -2760,34 +2789,28 @@ ${buildHealthSummary(healthForm)}`;
 
   useEffect(() => {
     if (!notionHydrated || notionAutoConnectRef.current) return;
+    if (!notionSettings.enabled || !notionSettings.connected) return;
     notionAutoConnectRef.current = true;
-    void (async () => {
-      if (notionSettings.connected) {
-        await syncNotion();
-        return;
-      }
-      const ok = await syncNotion();
-      if (!ok) await setupNotion();
-    })();
-  }, [notionHydrated, notionSettings.connected]);
+    void syncNotion();
+  }, [notionHydrated, notionSettings.enabled, notionSettings.connected]);
 
   useEffect(() => {
-    if (!notionHydrated || !notionSettings.connected) return;
+    if (!notionHydrated || !notionSettings.enabled || !notionSettings.connected) return;
     const timer = setInterval(() => {
       void syncNotion();
     }, NOTION_SYNC_INTERVAL_MS);
     return () => clearInterval(timer);
-  }, [notionHydrated, notionSettings.connected, notionSettings.apiKey, notionSettings.taskDatabaseId, notionSettings.scheduleDatabaseId, notionSettings.communicationDatabaseId]);
+  }, [notionHydrated, notionSettings.enabled, notionSettings.connected, notionSettings.apiKey, notionSettings.taskDatabaseId, notionSettings.scheduleDatabaseId, notionSettings.communicationDatabaseId]);
 
   useEffect(() => {
-    const openNotionTasks = () => {
+    const openTodayTasks = () => {
       setTab("home");
       window.setTimeout(() => {
-        document.getElementById("notion-today-tasks")?.scrollIntoView({ behavior: "smooth", block: "start" });
+        document.getElementById("today-tasks")?.scrollIntoView({ behavior: "smooth", block: "start" });
       }, 100);
     };
-    window.addEventListener("tuyukusa:open-notion-tasks", openNotionTasks);
-    return () => window.removeEventListener("tuyukusa:open-notion-tasks", openNotionTasks);
+    window.addEventListener("tuyukusa:open-today-tasks", openTodayTasks);
+    return () => window.removeEventListener("tuyukusa:open-today-tasks", openTodayTasks);
   }, []);
 
   useEffect(() => {
@@ -3171,7 +3194,7 @@ ${buildHealthSummary(healthForm)}`;
       updates.map(u => ({ time: u.time, label: u.label, sub: u.sub }))
     );
 
-    if (notionSettings.connected) {
+    if (notionSettings.connected && notionSettings.enabled) {
       const today = getDayKey();
       try {
         for (const item of reflection.schedule) {
@@ -3207,7 +3230,7 @@ ${buildHealthSummary(healthForm)}`;
         }
         await syncNotion();
       } catch {
-        setNotionMessage("スケジュールのNotion同期に失敗しました");
+        /* Notion sync is optional — fail silently on schedule apply */
       }
     }
 
@@ -3370,17 +3393,30 @@ ${buildHealthSummary(healthForm)}`;
             </div>
           </div>
         );
-      case "notionTodayTasks":
+      case "todayTasks":
         return (
-          <NotionTodayTasksSection
-            tasks={notionTodayTasks}
-            scheduleEvents={notionTodayScheduleEvents}
-            connected={notionSettings.connected}
-            lastSyncAt={notionSettings.lastSyncAt}
-            syncing={notionSyncing}
-            onToggleTask={toggleNotionTask}
-            onToggleScheduleEvent={toggleNotionScheduleEvent}
-            onSync={() => void syncNotion()}
+          <LocalTodayTasksSection
+            tasks={todayLocalTasks}
+            onToggle={task => {
+              setLocalTasksStorage(prev => ({
+                ...prev,
+                tasks: prev.tasks.map(t =>
+                  t.id === task.id ? { ...t, status: t.status === "done" ? "pending" : "done" } : t
+                ),
+              }));
+            }}
+            onAdd={(text, category) => {
+              setLocalTasksStorage(prev => ({
+                ...prev,
+                tasks: [...prev.tasks, newLocalTask(text, dayKey, category)],
+              }));
+            }}
+            onRemove={id => {
+              setLocalTasksStorage(prev => ({
+                ...prev,
+                tasks: prev.tasks.filter(t => t.id !== id),
+              }));
+            }}
           />
         );
       case "dailyGoal":
@@ -3610,18 +3646,6 @@ ${buildHealthSummary(healthForm)}`;
           <div>
             <AddToHomeScreen />
             <HealthKitBridge healthData={healthData} />
-            <NotionHomeBar
-              connected={notionSettings.connected}
-              lastSyncAt={notionSettings.lastSyncAt}
-              syncing={notionSyncing || voiceParsing}
-              onSync={() => void syncNotion()}
-              onVoice={text => void handleVoiceTranscript(text)}
-            />
-            {notionMessage && (
-              <div style={{ margin: "8px 16px 0", padding: "8px 12px", borderRadius: 8, fontSize: 11, color: notionMessage.includes("失敗") ? "#c44a4a" : "#4a6741", background: notionMessage.includes("失敗") ? "rgba(196,74,74,0.08)" : "#e8f0e4" }}>
-                {notionMessage}
-              </div>
-            )}
             {healthImportMessage && (
               <div style={{ margin: "8px 16px 0", padding: "10px 12px", background: "#e8f0e4", borderRadius: 10, fontSize: 12, color: "#4a6741", textAlign: "center" }}>
                 ✓ {healthImportMessage}
@@ -3949,187 +3973,42 @@ ${buildHealthSummary(healthForm)}`;
               ))}
             </div>
 
-            <div style={{ fontSize: 15, fontWeight: "bold", color: "#3d3228", marginBottom: 4, paddingTop: 12, borderTop: "1px solid rgba(60,40,20,0.12)", marginTop: 8 }}>📆 Googleカレンダー連携</div>
-            <div style={{ ...cardStyle, marginBottom: 12, background: "#fdf8f0", border: "1px solid rgba(193,127,74,0.25)" }}>
-              <div style={{ fontSize: 13, fontWeight: "bold", color: "#3d3228", marginBottom: 8 }}>🔒 安全に連携する方法</div>
-              <div style={{ fontSize: 12, color: "#3d3228", lineHeight: 1.7, marginBottom: 10 }}>
-                Googleカレンダーを一般公開せずに連携できます。
-              </div>
-              <ol style={{ fontSize: 12, color: "#3d3228", lineHeight: 1.8, paddingLeft: 20, margin: "0 0 12px" }}>
-                <li>Googleカレンダーを開く</li>
-                <li>連携したいカレンダー名の横の「⋮」をタップ</li>
-                <li>「設定と共有」を選択</li>
-                <li>画面を一番下までスクロール</li>
-                <li>「カレンダーの統合」の中の「非公開のアドレス（iCal形式）」のURLをコピー</li>
-                <li>下のテキストボックスに貼り付けて「連携する」をタップ</li>
-              </ol>
-              <div style={{ fontSize: 11, color: "#c44a4a", lineHeight: 1.6, padding: "8px 10px", background: "rgba(196,74,74,0.08)", borderRadius: 8 }}>
-                ⚠️ このURLは他人に教えないでください。カレンダーの全予定が見られるURLです。
-              </div>
-            </div>
-            <div style={{ ...cardStyle, marginBottom: 12 }}>
-              <div style={fieldLabelStyle}>iCalフィードURL（非公開アドレス）</div>
-              <input
-                type="url"
-                placeholder="https://calendar.google.com/calendar/ical/..."
-                value={googleCalendar.icalUrl}
-                onChange={e => setGoogleCalendar(prev => ({ ...prev, icalUrl: e.target.value, connected: false }))}
-                onBlur={() => {
-                  const url = googleCalendar.icalUrl.trim();
-                  if (url && isValidIcalFeedUrl(url) && !googleCalendar.connected) {
-                    void connectGoogleCalendar();
-                  }
-                }}
-                style={{ ...inputStyle, marginBottom: 10 }}
-              />
-              <div style={{ fontSize: 10, color: "#9a8b7a", marginBottom: 12, lineHeight: 1.6 }}>
-                「仕事」「休日」「プライベート」などの予定名に合わせてスケジュールを自動調整。接続後は1時間ごとに自動更新します。
-              </div>
-              <div style={{ display: "flex", gap: 8 }}>
-                <button
-                  type="button"
-                  onClick={connectGoogleCalendar}
-                  style={{
-                    flex: 1,
-                    padding: "10px",
-                    borderRadius: 10,
-                    border: "none",
-                    background: "#1a1410",
-                    color: "#f5f0e8",
-                    fontSize: 13,
-                    fontWeight: "bold",
-                    cursor: "pointer",
-                  }}
-                >
-                  {googleCalendar.connected ? "再同期" : "連携する"}
-                </button>
-                {googleCalendar.connected && (
-                  <button
-                    type="button"
-                    onClick={disconnectGoogleCalendar}
-                    style={{
-                      padding: "10px 14px",
-                      borderRadius: 10,
-                      border: "1.5px solid rgba(60,40,20,0.12)",
-                      background: "white",
-                      color: "#9a8b7a",
-                      fontSize: 13,
-                      cursor: "pointer",
-                    }}
-                  >
-                    解除
-                  </button>
-                )}
-              </div>
-              {googleCalendar.connected && (
-                <div style={{ fontSize: 11, color: "#4a6741", marginTop: 10 }}>
-                  ✓ 接続済み
-                  {googleCalendar.lastSyncAt
-                    ? ` · 最終更新 ${new Date(googleCalendar.lastSyncAt).toLocaleTimeString("ja-JP", { hour: "2-digit", minute: "2-digit" })}`
-                    : ""}
-                </div>
-              )}
-              {calendarMessage && (
-                <div
-                  style={{
-                    fontSize: 11,
-                    color: calendarMessage.includes("失敗") || calendarMessage.includes("できません") ? "#c44a4a" : "#4a6741",
-                    marginTop: 10,
-                    lineHeight: 1.5,
-                  }}
-                >
-                  {calendarMessage}
-                </div>
-              )}
-            </div>
+            <DataManagementPanel onImported={() => {}} />
 
-            <div style={{ fontSize: 15, fontWeight: "bold", color: "#3d3228", marginBottom: 4, paddingTop: 12, borderTop: "1px solid rgba(60,40,20,0.12)", marginTop: 8 }}>🔗 Notion連携</div>
-            <div style={{ ...cardStyle, marginBottom: 12, background: "#eef4fb", border: "1px solid rgba(126,200,227,0.35)" }}>
-              <div style={{ fontSize: 13, fontWeight: "bold", color: "#3d3228", marginBottom: 8 }}>タスク管理をNotionと同期</div>
-              <div style={{ fontSize: 12, color: "#3d3228", lineHeight: 1.7, marginBottom: 10 }}>
-                音声入力でタスクを追加できます。APIキーを入力して自動セットアップするだけで使えます。
-              </div>
-              <button
-                type="button"
-                onClick={() => setShowNotionManual(true)}
-                style={{
-                  width: "100%",
-                  marginBottom: 10,
-                  padding: "8px 12px",
-                  borderRadius: 8,
-                  border: "1px solid rgba(126,200,227,0.5)",
-                  background: "white",
-                  color: "#4a6741",
-                  fontSize: 12,
-                  cursor: "pointer",
-                  textAlign: "left",
-                }}
-              >
-                📖 Notion連携の設定方法
-              </button>
-              <div style={fieldLabelStyle}>Notion APIキー（シークレット）</div>
-              <input
-                type="password"
-                placeholder="secret_... （空欄の場合はサーバー設定を使用）"
-                value={notionSettings.apiKey}
-                onChange={e => setNotionSettings(prev => ({ ...prev, apiKey: e.target.value, connected: false }))}
-                style={{ ...inputStyle, marginBottom: 10 }}
-              />
-              {notionSettings.taskDatabaseId && (
-                <div style={{ fontSize: 10, color: "#9a8b7a", marginBottom: 10, lineHeight: 1.6 }}>
-                  タスク: {notionSettings.taskDatabaseId.slice(0, 8)}… · スケジュール: {notionSettings.scheduleDatabaseId.slice(0, 8)}… · コミュニケーション: {notionSettings.communicationDatabaseId.slice(0, 8)}…
-                </div>
-              )}
-              <div style={{ display: "flex", gap: 8 }}>
-                <button
-                  type="button"
-                  onClick={() => void setupNotion()}
-                  style={{
-                    flex: 1,
-                    padding: "10px",
-                    borderRadius: 10,
-                    border: "none",
-                    background: "#4a6741",
-                    color: "#f5f0e8",
-                    fontSize: 13,
-                    fontWeight: "bold",
-                    cursor: "pointer",
-                  }}
-                >
-                  {notionSettings.connected ? "再接続" : "自動セットアップ"}
-                </button>
-                <button
-                  type="button"
-                  onClick={() => void syncNotion()}
-                  disabled={!notionSettings.connected}
-                  style={{
-                    padding: "10px 14px",
-                    borderRadius: 10,
-                    border: "1.5px solid rgba(60,40,20,0.12)",
-                    background: "white",
-                    color: "#9a8b7a",
-                    fontSize: 13,
-                    cursor: notionSettings.connected ? "pointer" : "default",
-                    opacity: notionSettings.connected ? 1 : 0.5,
-                  }}
-                >
-                  同期
-                </button>
-              </div>
-              {notionSettings.connected && (
-                <div style={{ fontSize: 11, color: "#4a6741", marginTop: 10 }}>
-                  ✓ 接続済み · 5分ごとに自動同期
-                  {notionSettings.lastSyncAt
-                    ? ` · 最終 ${new Date(notionSettings.lastSyncAt).toLocaleTimeString("ja-JP", { hour: "2-digit", minute: "2-digit" })}`
-                    : ""}
-                </div>
-              )}
-              {notionMessage && tab === "settings" && (
-                <div style={{ fontSize: 11, color: notionMessage.includes("失敗") ? "#c44a4a" : "#4a6741", marginTop: 10, lineHeight: 1.5 }}>
-                  {notionMessage}
-                </div>
-              )}
-            </div>
+            <SupabaseSyncPanel
+              settings={supabaseSettings}
+              onChange={patch => setSupabaseSettings(prev => ({ ...prev, ...patch }))}
+              onSynced={() => window.location.reload()}
+            />
+
+            <ExternalIntegrationsPanel
+              cardStyle={cardStyle}
+              fieldLabelStyle={fieldLabelStyle}
+              inputStyle={inputStyle}
+              googleCalendar={{
+                connected: googleCalendar.connected,
+                icalUrl: googleCalendar.icalUrl,
+                syncing: false,
+                message: calendarMessage,
+                onIcalUrlChange: url =>
+                  setGoogleCalendar(prev => ({ ...prev, icalUrl: url, connected: false })),
+                onConnect: () => void connectGoogleCalendar(),
+                onDisconnect: disconnectGoogleCalendar,
+                onSync: () => void syncGoogleCalendar(),
+              }}
+              notion={{
+                settings: notionSettings,
+                syncing: notionSyncing,
+                message: notionMessage,
+                showManual: showNotionManual,
+                onShowManual: setShowNotionManual,
+                onSettingsChange: patch => setNotionSettings(prev => ({ ...prev, ...patch })),
+                onSetup: () => void setupNotion(),
+                onSync: () => void syncNotion(),
+                onToggleEnabled: enabled =>
+                  setNotionSettings(prev => ({ ...prev, enabled, connected: enabled ? prev.connected : false })),
+              }}
+            />
 
             <div style={{ fontSize: 15, fontWeight: "bold", color: "#3d3228", marginBottom: 4, paddingTop: 12, borderTop: "1px solid rgba(60,40,20,0.12)", marginTop: 8 }}>🎯 目標設定</div>
             <div style={{ fontSize: 11, color: "#3d3228", opacity: 0.6, marginBottom: 8, lineHeight: 1.5 }}>
@@ -4782,16 +4661,6 @@ ${buildHealthSummary(healthForm)}`;
           diagnosis={MOCK_SCHEDULE.diagnosis}
           initialPanelMode={binauralPanelMode}
           onClose={() => setShowBinauralPanel(false)}
-        />
-      )}
-
-      {showNotionManual && (
-        <NotionManualPage
-          onClose={() => setShowNotionManual(false)}
-          onOpenSettings={() => {
-            setShowNotionManual(false);
-            setTab("settings");
-          }}
         />
       )}
 
