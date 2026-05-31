@@ -1,16 +1,12 @@
-let _audioCtx: AudioContext | null = null;
+/** Single shared AudioContext — created once at module load in the browser. */
+export const audioCtx =
+  typeof window !== "undefined"
+    ? new (window.AudioContext ||
+        (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext)()
+    : null;
 
-export function getAudioContext(): AudioContext {
-  if (!_audioCtx || _audioCtx.state === "closed") {
-    _audioCtx = new AudioContext();
+export async function resumeAudioCtx(): Promise<void> {
+  if (audioCtx && audioCtx.state === "suspended") {
+    await audioCtx.resume();
   }
-  return _audioCtx;
-}
-
-export async function resumeAudioContext(): Promise<AudioContext> {
-  const ctx = getAudioContext();
-  if (ctx.state === "suspended") {
-    await ctx.resume();
-  }
-  return ctx;
 }

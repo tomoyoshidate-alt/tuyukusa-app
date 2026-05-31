@@ -5,41 +5,15 @@ import {
   sharedBackgroundAudioSession,
 } from "@/src/lib/backgroundAudioSession";
 import { binauralPlaybackManager } from "@/src/lib/binauralPlaybackManager";
+import { audioCtx, resumeAudioCtx } from "@/src/lib/audioContext";
 import { getDemoBuffer } from "@/src/lib/soundSystem/demoSources";
 import { GranularEngine } from "@/src/lib/soundSystem/granularEngine";
-import { getAudioContext, resumeAudioContext } from "@/src/lib/audioContext";
 import { normalizeGranularParams } from "@/src/lib/soundSystem/types";
 import {
   readBinauralPlayerSettings,
   resolveBeatPreset,
 } from "@/src/lib/binauralPlayerSettings";
 import { resolveStudioAudioUrl } from "@mac/lib/audioStorage";
-
-const audioBufferCache = new Map<string, AudioBuffer>();
-
-async function loadAudioFileBuffer(ctx: AudioContext, filename: string): Promise<AudioBuffer | null> {
-  const key = filename;
-  const cached = audioBufferCache.get(key);
-  if (cached) return cached;
-  try {
-    const url = resolveStudioAudioUrl(filename);
-    const res = await fetch(url);
-    if (!res.ok) {
-      const fallback = await fetch(`/audio/${encodeURIComponent(filename)}`);
-      if (!fallback.ok) return null;
-      const data = await fallback.arrayBuffer();
-      const buffer = await ctx.decodeAudioData(data.slice(0));
-      audioBufferCache.set(key, buffer);
-      return buffer;
-    }
-    const data = await res.arrayBuffer();
-    const buffer = await ctx.decodeAudioData(data.slice(0));
-    audioBufferCache.set(key, buffer);
-    return buffer;
-  } catch {
-    return null;
-  }
-}
 import {
   readPlaylistSettings,
   readPresets,
@@ -54,6 +28,33 @@ import type {
 } from "@/src/lib/soundSystem/types";
 import { defaultPresetChannels } from "@/src/lib/soundSystem/types";
 
+const audioBufferCache = new Map<string, AudioBuffer>();
+
+async function loadAudioFileBuffer(filename: string): Promise<AudioBuffer | null> {
+  if (!audioCtx) return null;
+  const key = filename;
+  const cached = audioBufferCache.get(key);
+  if (cached) return cached;
+  try {
+    const url = resolveStudioAudioUrl(filename);
+    const res = await fetch(url);
+    if (!res.ok) {
+      const fallback = await fetch(`/audio/${encodeURIComponent(filename)}`);
+      if (!fallback.ok) return null;
+      const data = await fallback.arrayBuffer();
+      const buffer = await audioCtx.decodeAudioData(data.slice(0));
+      audioBufferCache.set(key, buffer);
+      return buffer;
+    }
+    const data = await res.arrayBuffer();
+    const buffer = await audioCtx.decodeAudioData(data.slice(0));
+    audioBufferCache.set(key, buffer);
+    return buffer;
+  } catch {
+    return null;
+  }
+}
+
 type Listener = (snapshot: SoundSystemSnapshot) => void;
 
 function cloneChannels(ch: [ChannelConfig, ChannelConfig, ChannelConfig]) {
@@ -61,7 +62,6 @@ function cloneChannels(ch: [ChannelConfig, ChannelConfig, ChannelConfig]) {
 }
 
 class SoundSystemManager {
-  private ctx: AudioContext | null = null;
   private masterGain: GainNode | null = null;
   private analyser: AnalyserNode | null = null;
   private channelGains: [GainNode | null, GainNode | null, GainNode | null] = [null, null, null];
@@ -82,7 +82,7 @@ class SoundSystemManager {
   private isPlaylistActive = false;
   private transitionToken = 0;
   private readonly bgResumeHandler = (): void => {
-    void this.ctx?.resume();
+    void audioCtx?.resume();
     void this.binauralEngine?.resumeIfSuspended();
   };
 
@@ -155,8 +155,8 @@ class SoundSystemManager {
 
   setMasterVolume(value: number): void {
     this.masterVolume = Math.max(0, Math.min(1, value));
-    if (this.masterGain && this.ctx) {
-      const t = this.ctx.currentTime;
+    if (this.masterGain && audioCtx) {
+      const t = audioCtx.currentTime;
       this.masterGain.gain.cancelScheduledValues(t);
       this.masterGain.gain.setValueAtTime(this.masterGain.gain.value, t);
       this.masterGain.gain.linearRampToValueAtTime(this.masterVolume, t + 0.2);
@@ -212,47 +212,40 @@ class SoundSystemManager {
     this.emit();
   }
 
-  private setupAudioGraph(ctx: AudioContext): void {
-    this.masterGain = ctx.createGain();
+  private setupAudioGraph(): void {
+    if (!audioCtx) return;
+    this.masterGain = audioCtx.createGain();
     this.masterGain.gain.value = this.masterVolume;
-    this.analyser = ctx.createAnalyser();
+    this.analyser = audioCtx.createAnalyser();
     this.analyser.fftSize = 2048;
     this.analyser.smoothingTimeConstant = 0.82;
     this.masterGain.connect(this.analyser);
-    this.analyser.connect(ctx.destination);
+    this.analyser.connect(audioCtx.destination);
     for (let i = 0; i < 3; i++) {
-      const g = ctx.createGain();
+      const g = audioCtx.createGain();
       g.gain.value = this.channels[i].volume;
       g.connect(this.masterGain);
       this.channelGains[i] = g;
     }
   }
 
-  private async ensureContext(): Promise<AudioContext> {
+  private async ensureAudio(): Promise<boolean> {
+    if (!audioCtx) return false;
     binauralPlaybackManager.stop({ silent: true });
-    const ctx = getAudioContext();
-    this.ctx = ctx;
-
-    if (!this.masterGain || this.masterGain.context !== ctx) {
-      this.masterGain = null;
-      this.analyser = null;
-      this.channelGains = [null, null, null];
-      this.setupAudioGraph(ctx);
-    }
-
-    await resumeAudioContext();
+    await resumeAudioCtx();
+    if (!this.masterGain) this.setupAudioGraph();
     configurePlaybackAudioSession();
     await sharedBackgroundAudioSession.acquire(this.bgResumeHandler);
     this.ctxUnregister?.();
-    this.ctxUnregister = sharedBackgroundAudioSession.registerAudioContext(ctx);
-    sharedBackgroundAudioSession.bindAudioContext(ctx);
-    return ctx;
+    this.ctxUnregister = sharedBackgroundAudioSession.registerAudioContext(audioCtx);
+    sharedBackgroundAudioSession.bindAudioContext(audioCtx);
+    return true;
   }
 
   private async applyBinauralChannel(index: 0): Promise<void> {
     const ch = this.channels[index];
     if (ch.type !== "binaural") return;
-    const ctx = await this.ensureContext();
+    if (!(await this.ensureAudio())) return;
     const gain = this.channelGains[index];
     if (!gain) return;
 
@@ -278,7 +271,7 @@ class SoundSystemManager {
 
     const engine = new BinauralAudioEngine();
     this.binauralEngine = engine;
-    await engine.start(preset, ch.binauralAmbientId, { ctx, destination: gain, fadeInSec: settings.fadeSec });
+    await engine.start(preset, ch.binauralAmbientId, { destination: gain, fadeInSec: settings.fadeSec });
     engine.setMasterVolume(1);
     engine.setBinauralVolume(0.55);
     engine.setAmbientVolume(0.45);
@@ -287,7 +280,7 @@ class SoundSystemManager {
   private async applyGranularChannel(index: 1 | 2): Promise<void> {
     const ch = this.channels[index];
     if (ch.type !== "granular") return;
-    const ctx = await this.ensureContext();
+    if (!(await this.ensureAudio())) return;
     const gain = this.channelGains[index];
     if (!gain) return;
 
@@ -295,15 +288,13 @@ class SoundSystemManager {
     this.granularEngines[slot]?.stop();
     gain.gain.value = ch.volume;
 
-    const engine = new GranularEngine(ctx, gain, normalizeGranularParams(ch.granular));
+    const engine = new GranularEngine(gain, normalizeGranularParams(ch.granular));
     this.granularEngines[slot] = engine;
-    const buffer = ch.audioFile
-      ? await loadAudioFileBuffer(ctx, ch.audioFile)
-      : getDemoBuffer(ctx, ch.sourceId);
+    const buffer = ch.audioFile ? await loadAudioFileBuffer(ch.audioFile) : getDemoBuffer(ch.sourceId);
     engine.setBuffer(buffer);
     const hasSource = ch.audioFile ? !!buffer : ch.sourceId !== "silent";
     if (ch.volume > 0 && ch.granular.volume > 0 && hasSource) {
-      engine.start();
+      await engine.start();
     }
   }
 
@@ -319,7 +310,7 @@ class SoundSystemManager {
     await this.applyBinauralChannel(0);
     await this.applyGranularChannel(1);
     await this.applyGranularChannel(2);
-    if (this.masterGain && this.ctx) {
+    if (this.masterGain) {
       this.masterGain.gain.value = this.masterVolume;
     }
   }
@@ -375,11 +366,10 @@ class SoundSystemManager {
   private async crossfadeToPreset(preset: SoundPreset): Promise<void> {
     const token = ++this.transitionToken;
     const fadeSec = this.playlistSettings.fadeSec;
-    const ctx = await this.ensureContext();
-    if (!this.masterGain) return;
+    if (!(await this.ensureAudio()) || !this.masterGain || !audioCtx) return;
 
     if (fadeSec > 0) {
-      const t = ctx.currentTime;
+      const t = audioCtx.currentTime;
       this.masterGain.gain.cancelScheduledValues(t);
       this.masterGain.gain.setValueAtTime(this.masterGain.gain.value, t);
       this.masterGain.gain.linearRampToValueAtTime(0, t + fadeSec);
@@ -390,8 +380,8 @@ class SoundSystemManager {
     this.loadPreset(preset);
     await this.rebuildAll();
 
-    if (fadeSec > 0 && this.masterGain) {
-      const t2 = ctx.currentTime;
+    if (fadeSec > 0 && this.masterGain && audioCtx) {
+      const t2 = audioCtx.currentTime;
       this.masterGain.gain.cancelScheduledValues(t2);
       this.masterGain.gain.setValueAtTime(0, t2);
       this.masterGain.gain.linearRampToValueAtTime(this.masterVolume, t2 + fadeSec);
@@ -416,7 +406,7 @@ class SoundSystemManager {
 
   async start(): Promise<void> {
     if (this.isPlaying) return;
-    await this.ensureContext();
+    if (!(await this.ensureAudio())) return;
     this.isPlaying = true;
     await this.rebuildAll();
     if (this.isPlaylistActive) {
@@ -446,7 +436,6 @@ class SoundSystemManager {
     this.emit();
   }
 
-  /** Stop playback when the sound panel unmounts (AudioContext stays open). */
   dispose(): void {
     if (this.isPlaying) this.stop();
   }

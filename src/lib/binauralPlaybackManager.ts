@@ -1,4 +1,4 @@
-import { resumeAudioContext } from "@/src/lib/audioContext";
+import { resumeAudioCtx } from "@/src/lib/audioContext";
 import { AlarmEngine } from "@/src/lib/alarmEngine";
 import {
   configurePlaybackAudioSession,
@@ -106,7 +106,7 @@ class BinauralPlaybackManager {
     const resolved = this.resolvePreset(preset);
     const engine = new BinauralAudioEngine();
     this.engine = engine;
-    await resumeAudioContext();
+    await resumeAudioCtx();
     await engine.start(resolved, ambientId, { fadeInSec: fadeSec });
     engine.setMasterVolume(volumes.master);
     engine.setBinauralVolume(volumes.binaural);

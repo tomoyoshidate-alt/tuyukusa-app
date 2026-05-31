@@ -1,4 +1,4 @@
-import { getAudioContext, resumeAudioContext } from "@/src/lib/audioContext";
+import { audioCtx, resumeAudioCtx } from "@/src/lib/audioContext";
 import { normalizeGranularParams, type GranularParams, type LfoShape } from "@/src/lib/soundSystem/types";
 
 const LFO_DEPTH_FADE_SEC = 0.1;
@@ -15,7 +15,6 @@ export class GranularEngine {
   private buffer: AudioBuffer | null = null;
   private params: GranularParams = normalizeGranularParams({});
   private output: GainNode;
-  private ctx: AudioContext;
   private running = false;
   private grainTimer: ReturnType<typeof setInterval> | null = null;
   private lfoTickTimer: ReturnType<typeof setInterval> | null = null;
@@ -30,8 +29,7 @@ export class GranularEngine {
   private depthFadeStartMs = 0;
   private depthFadeDurMs = 0;
 
-  constructor(_ctx: AudioContext, output: GainNode, params: GranularParams) {
-    this.ctx = getAudioContext();
+  constructor(output: GainNode, params: GranularParams) {
     this.output = output;
     this.params = normalizeGranularParams(params);
     this.effectiveLfoDepth = this.params.lfoEnabled ? this.params.lfoDepth : 0;
@@ -118,14 +116,11 @@ export class GranularEngine {
   }
 
   private spawnGrain(): void {
-    if (!this.buffer || !this.running || this.params.volume <= 0) return;
+    if (!audioCtx || !this.buffer || !this.running || this.params.volume <= 0) return;
     if (this.buffer.duration < 0.05) return;
 
-    const ctx = getAudioContext();
-    if (this.output.context !== ctx) return;
-
     const dur = Math.max(0.01, Math.min(0.5, this.params.grainSizeMs / 1000));
-    const src = ctx.createBufferSource();
+    const src = audioCtx.createBufferSource();
     src.buffer = this.buffer;
 
     const maxOffset = Math.max(0, this.buffer.duration - dur);
@@ -136,8 +131,8 @@ export class GranularEngine {
     const pitch = this.currentPitchSemitones();
     src.playbackRate.value = Math.pow(2, pitch / 12);
 
-    const env = ctx.createGain();
-    const t = ctx.currentTime;
+    const env = audioCtx.createGain();
+    const t = audioCtx.currentTime;
     const vol = this.params.volume / 100;
     env.gain.setValueAtTime(0, t);
     env.gain.linearRampToValueAtTime(vol, t + dur * 0.15);
@@ -150,11 +145,10 @@ export class GranularEngine {
     src.stop(t + dur + 0.01);
   }
 
-  start(): void {
+  async start(): Promise<void> {
     if (this.running) return;
-    void resumeAudioContext();
-    this.ctx = getAudioContext();
-    if (this.output.context !== this.ctx) return;
+    await resumeAudioCtx();
+    if (!audioCtx) return;
     this.running = true;
     this.lfoPhase = 0;
     this.lfoModSemis = 0;

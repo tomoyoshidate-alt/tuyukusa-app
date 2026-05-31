@@ -1,9 +1,7 @@
-import { getAudioContext, resumeAudioContext } from "@/src/lib/audioContext";
+import { audioCtx, resumeAudioCtx } from "@/src/lib/audioContext";
 import type { BBPreset } from "./types";
 
 export class BBEngine {
-  private ctx: AudioContext | null = null;
-  private master: GainNode | null = null;
   private leftOsc: OscillatorNode | null = null;
   private rightOsc: OscillatorNode | null = null;
   private merger: ChannelMergerNode | null = null;
@@ -18,38 +16,42 @@ export class BBEngine {
 
   async start(preset: BBPreset, outputGain: GainNode, volume01: number): Promise<void> {
     await this.stop();
+    if (!audioCtx) return;
+    await resumeAudioCtx();
+
     this.preset = preset;
     this.volume = volume01;
-    const ctx = getAudioContext();
-    await resumeAudioContext();
-    this.ctx = ctx;
-    this.master = ctx.createGain();
-    this.analyser = ctx.createAnalyser();
-    this.analyser.fftSize = 2048;
-    this.gain = ctx.createGain();
+
+    this.gain = audioCtx.createGain();
     this.gain.gain.value = 0;
-    this.merger = ctx.createChannelMerger(2);
-    this.leftOsc = ctx.createOscillator();
-    this.rightOsc = ctx.createOscillator();
+    this.merger = audioCtx.createChannelMerger(2);
+    this.analyser = audioCtx.createAnalyser();
+    this.analyser.fftSize = 2048;
+
+    this.leftOsc = audioCtx.createOscillator();
+    this.rightOsc = audioCtx.createOscillator();
     this.leftOsc.type = preset.waveform;
     this.rightOsc.type = preset.waveform;
     this.leftOsc.frequency.value = preset.leftHz;
     this.rightOsc.frequency.value = preset.rightHz;
-    const leftGain = ctx.createGain();
-    const rightGain = ctx.createGain();
+
+    const leftGain = audioCtx.createGain();
+    const rightGain = audioCtx.createGain();
     leftGain.gain.value = 0.5 * (preset.masterVolume / 100);
     rightGain.gain.value = 0.5 * (preset.masterVolume / 100);
+
     this.leftOsc.connect(leftGain);
     this.rightOsc.connect(rightGain);
     leftGain.connect(this.merger, 0, 0);
     rightGain.connect(this.merger, 0, 1);
     this.merger.connect(this.gain);
-    this.gain.connect(this.master);
-    this.master.connect(this.analyser);
+    this.gain.connect(this.analyser);
     this.analyser.connect(outputGain);
+
     this.leftOsc.start();
     this.rightOsc.start();
-    const now = ctx.currentTime;
+
+    const now = audioCtx.currentTime;
     const target = volume01 * (preset.masterVolume / 100);
     this.gain.gain.setValueAtTime(0, now);
     this.gain.gain.linearRampToValueAtTime(target, now + preset.fadeInSec);
@@ -57,17 +59,17 @@ export class BBEngine {
 
   setVolume(volume01: number): void {
     this.volume = volume01;
-    if (!this.gain || !this.ctx || !this.preset) return;
-    this.gain.gain.setTargetAtTime(volume01 * (this.preset.masterVolume / 100), this.ctx.currentTime, 0.05);
+    if (!this.gain || !audioCtx || !this.preset) return;
+    this.gain.gain.setTargetAtTime(volume01 * (this.preset.masterVolume / 100), audioCtx.currentTime, 0.05);
   }
 
   async stop(): Promise<void> {
-    if (!this.ctx || !this.gain || !this.preset) {
+    if (!audioCtx || !this.gain || !this.preset) {
       this.disposeNodes();
       return;
     }
     const fade = this.preset.fadeOutSec;
-    const now = this.ctx.currentTime;
+    const now = audioCtx.currentTime;
     this.gain.gain.cancelScheduledValues(now);
     this.gain.gain.setValueAtTime(this.gain.gain.value, now);
     this.gain.gain.linearRampToValueAtTime(0, now + fade);
@@ -86,14 +88,11 @@ export class BBEngine {
     });
     this.merger?.disconnect();
     this.gain?.disconnect();
-    this.master?.disconnect();
     this.analyser?.disconnect();
-    this.ctx = null;
     this.leftOsc = null;
     this.rightOsc = null;
     this.merger = null;
     this.gain = null;
-    this.master = null;
     this.analyser = null;
     this.preset = null;
   }

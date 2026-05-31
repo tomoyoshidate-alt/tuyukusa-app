@@ -1,8 +1,7 @@
-import { getAudioContext, resumeAudioContext } from "@/src/lib/audioContext";
+import { audioCtx, resumeAudioCtx } from "@/src/lib/audioContext";
 import type { AmbientSoundId, BinauralBeatPreset } from "@/src/lib/binauralBeats";
 
 type EngineNodes = {
-  ctx: AudioContext;
   master: GainNode;
   binauralGain: GainNode;
   ambientGain: GainNode;
@@ -48,10 +47,11 @@ function connectNoiseLoop(
 }
 
 export function buildAmbient(
-  ctx: AudioContext,
   ambientGain: GainNode,
   ambientId: AmbientSoundId
 ): { cleanup: () => void; timers: ReturnType<typeof setInterval>[] } {
+  if (!audioCtx) return { cleanup: () => {}, timers: [] };
+  const ctx = audioCtx;
   const cleanups: (() => void)[] = [];
   const timers: ReturnType<typeof setInterval>[] = [];
 
@@ -296,12 +296,13 @@ export class BinauralAudioEngine {
   async start(
     preset: BinauralBeatPreset,
     ambientId: AmbientSoundId,
-    options?: { fadeInSec?: number; ctx?: AudioContext; destination?: AudioNode }
+    options?: { fadeInSec?: number; destination?: AudioNode }
   ): Promise<void> {
     this.stop();
+    if (!audioCtx) return;
+    await resumeAudioCtx();
+    const ctx = audioCtx;
     const fadeInSec = options?.fadeInSec ?? 0;
-    const ctx = options?.ctx ?? getAudioContext();
-    await resumeAudioContext();
 
     const master = ctx.createGain();
     const t = ctx.currentTime;
@@ -337,7 +338,7 @@ export class BinauralAudioEngine {
     leftOsc.start();
     rightOsc.start();
 
-    const { cleanup: ambientCleanup, timers: ambientTimers } = buildAmbient(ctx, ambientGain, ambientId);
+    const { cleanup: ambientCleanup, timers: ambientTimers } = buildAmbient(ambientGain, ambientId);
     this.currentAmbientId = ambientId;
 
     this.ctxStateCleanup?.();
@@ -345,7 +346,6 @@ export class BinauralAudioEngine {
     this.pausedByInterrupt = false;
 
     this.nodes = {
-      ctx,
       master,
       binauralGain,
       ambientGain,
@@ -395,9 +395,10 @@ export class BinauralAudioEngine {
       this.stop();
       return;
     }
+    if (!this.nodes || !audioCtx) return;
     this.transitioning = true;
-    const { ctx, master } = this.nodes;
-    const t = ctx.currentTime;
+    const { master } = this.nodes;
+    const t = audioCtx.currentTime;
     master.gain.cancelScheduledValues(t);
     master.gain.setValueAtTime(master.gain.value, t);
     master.gain.linearRampToValueAtTime(0, t + fadeSec);
@@ -412,10 +413,10 @@ export class BinauralAudioEngine {
 
   swapAmbient(ambientId: AmbientSoundId): void {
     if (!this.nodes || this.currentAmbientId === ambientId) return;
-    const { ctx, ambientGain, ambientCleanup, ambientTimers } = this.nodes;
+    const { ambientGain, ambientCleanup, ambientTimers } = this.nodes;
     ambientTimers.forEach(t => clearInterval(t));
     ambientCleanup();
-    const built = buildAmbient(ctx, ambientGain, ambientId);
+    const built = buildAmbient(ambientGain, ambientId);
     this.nodes.ambientCleanup = built.cleanup;
     this.nodes.ambientTimers = built.timers;
     this.currentAmbientId = ambientId;
@@ -443,8 +444,9 @@ export class BinauralAudioEngine {
       return;
     }
 
-    const { ctx, master } = this.nodes;
-    let t = ctx.currentTime;
+    const { master } = this.nodes;
+    if (!audioCtx) return;
+    let t = audioCtx.currentTime;
     master.gain.cancelScheduledValues(t);
     master.gain.setValueAtTime(master.gain.value, t);
     master.gain.linearRampToValueAtTime(0, t + fadeSec);
@@ -457,7 +459,7 @@ export class BinauralAudioEngine {
 
     apply();
 
-    t = this.nodes.ctx.currentTime;
+    t = audioCtx.currentTime;
     this.nodes.master.gain.cancelScheduledValues(t);
     this.nodes.master.gain.setValueAtTime(0, t);
     this.nodes.master.gain.linearRampToValueAtTime(this.targetMaster, t + fadeSec);
@@ -468,9 +470,9 @@ export class BinauralAudioEngine {
 
   setMasterVolume(value: number): void {
     this.targetMaster = Math.max(0, Math.min(1, value));
-    if (!this.nodes) return;
-    const { ctx, master } = this.nodes;
-    const t = ctx.currentTime;
+    if (!this.nodes || !audioCtx) return;
+    const { master } = this.nodes;
+    const t = audioCtx.currentTime;
     master.gain.cancelScheduledValues(t);
     master.gain.setValueAtTime(master.gain.value, t);
     master.gain.linearRampToValueAtTime(this.targetMaster, t + 0.3);
@@ -489,11 +491,10 @@ export class BinauralAudioEngine {
   }
 
   async resumeIfSuspended(): Promise<void> {
-    if (!this.nodes) return;
-    const { ctx } = this.nodes;
-    if (ctx.state === "suspended" || (ctx.state as string) === "interrupted") {
+    if (!this.nodes || !audioCtx) return;
+    if (audioCtx.state === "suspended" || (audioCtx.state as string) === "interrupted") {
       try {
-        await ctx.resume();
+        await audioCtx.resume();
       } catch {
         /* ignore */
       }
@@ -501,57 +502,56 @@ export class BinauralAudioEngine {
   }
 
   getAudioContext(): AudioContext | null {
-    return this.nodes?.ctx ?? null;
+    return audioCtx;
   }
 
   bindContextStateHandler(onInterrupt: () => void, onResume: () => void): void {
-    const ctx = this.getAudioContext();
-    if (!ctx) return;
+    if (!audioCtx) return;
     this.ctxStateCleanup?.();
     let interrupted = false;
     const handler = () => {
-      const state = ctx.state as string;
+      const state = audioCtx!.state as string;
       if (state === "interrupted") {
         if (!interrupted) {
           interrupted = true;
           this.pauseForInterrupt();
           onInterrupt();
         }
-      } else if (ctx.state === "running" && interrupted) {
+      } else if (audioCtx!.state === "running" && interrupted) {
         interrupted = false;
         void this.resumeAfterInterrupt();
         onResume();
       }
     };
-    ctx.addEventListener("statechange", handler);
-    this.ctxStateCleanup = () => ctx.removeEventListener("statechange", handler);
+    audioCtx.addEventListener("statechange", handler);
+    this.ctxStateCleanup = () => audioCtx!.removeEventListener("statechange", handler);
   }
 
   pauseForInterrupt(): void {
-    if (!this.nodes || this.pausedByInterrupt) return;
+    if (!this.nodes || this.pausedByInterrupt || !audioCtx) return;
     this.pausedByInterrupt = true;
-    const { ctx, master } = this.nodes;
+    const { master } = this.nodes;
     this.preInterruptMaster = master.gain.value;
-    master.gain.setValueAtTime(0, ctx.currentTime);
-    void ctx.suspend();
+    master.gain.setValueAtTime(0, audioCtx.currentTime);
+    void audioCtx.suspend();
   }
 
   async resumeAfterInterrupt(): Promise<void> {
-    if (!this.nodes || !this.pausedByInterrupt) return;
+    if (!this.nodes || !this.pausedByInterrupt || !audioCtx) return;
     this.pausedByInterrupt = false;
-    const { ctx, master } = this.nodes;
+    const { master } = this.nodes;
     try {
-      await ctx.resume();
+      await audioCtx.resume();
     } catch {
       /* ignore */
     }
-    master.gain.setValueAtTime(this.preInterruptMaster || this.targetMaster, ctx.currentTime);
+    master.gain.setValueAtTime(this.preInterruptMaster || this.targetMaster, audioCtx.currentTime);
   }
 
   updatePreset(preset: BinauralBeatPreset): void {
-    if (!this.nodes) return;
-    const { ctx, leftOsc, rightOsc } = this.nodes;
-    const t = ctx.currentTime;
+    if (!this.nodes || !audioCtx) return;
+    const { leftOsc, rightOsc } = this.nodes;
+    const t = audioCtx.currentTime;
     leftOsc.frequency.setValueAtTime(preset.carrierHz, t);
     rightOsc.frequency.setValueAtTime(preset.carrierHz + preset.beatHz, t);
   }

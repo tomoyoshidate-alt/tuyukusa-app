@@ -1,3 +1,4 @@
+import { audioCtx } from "@/src/lib/audioContext";
 import type { DemoSourceId } from "@/src/lib/soundSystem/types";
 
 function noiseBuffer(ctx: AudioContext, seconds: number, pink = false): AudioBuffer {
@@ -97,11 +98,12 @@ export function generateDemoBuffer(ctx: AudioContext, sourceId: DemoSourceId): A
 
 const cache = new Map<string, AudioBuffer>();
 
-export function getDemoBuffer(ctx: AudioContext, sourceId: DemoSourceId): AudioBuffer {
-  const key = `${ctx.sampleRate}-${sourceId}`;
+export function getDemoBuffer(sourceId: DemoSourceId): AudioBuffer | null {
+  if (!audioCtx) return null;
+  const key = `${audioCtx.sampleRate}-${sourceId}`;
   const hit = cache.get(key);
   if (hit) return hit;
-  const buf = generateDemoBuffer(ctx, sourceId);
+  const buf = generateDemoBuffer(audioCtx, sourceId);
   cache.set(key, buf);
   return buf;
 }

@@ -1,7 +1,6 @@
-import { getAudioContext, resumeAudioContext } from "@/src/lib/audioContext";
+import { audioCtx, resumeAudioCtx } from "@/src/lib/audioContext";
 
 export class AlarmEngine {
-  private ctx: AudioContext | null = null;
   private pulseTimer: ReturnType<typeof setInterval> | null = null;
   private vibrateTimer: ReturnType<typeof setInterval> | null = null;
   private active = false;
@@ -9,8 +8,7 @@ export class AlarmEngine {
   start(): void {
     this.stop();
     this.active = true;
-    this.ctx = getAudioContext();
-    void resumeAudioContext();
+    void resumeAudioCtx();
     this.playPulse();
     this.pulseTimer = setInterval(() => this.playPulse(), 1400);
     this.triggerVibrate();
@@ -27,7 +25,6 @@ export class AlarmEngine {
       clearInterval(this.vibrateTimer);
       this.vibrateTimer = null;
     }
-    this.ctx = null;
     if (typeof navigator !== "undefined" && "vibrate" in navigator) {
       navigator.vibrate(0);
     }
@@ -44,22 +41,21 @@ export class AlarmEngine {
   }
 
   private playPulse(): void {
-    if (!this.active || !this.ctx) return;
-    const ctx = this.ctx;
-    const now = ctx.currentTime;
+    if (!this.active || !audioCtx) return;
+    const now = audioCtx.currentTime;
 
-    const master = ctx.createGain();
+    const master = audioCtx.createGain();
     master.gain.setValueAtTime(0.0001, now);
     master.gain.exponentialRampToValueAtTime(0.85, now + 0.02);
     master.gain.exponentialRampToValueAtTime(0.0001, now + 0.55);
-    master.connect(ctx.destination);
+    master.connect(audioCtx.destination);
 
     const freqs = [880, 988, 784, 880];
     freqs.forEach((freq, i) => {
-      const osc = ctx.createOscillator();
+      const osc = audioCtx!.createOscillator();
       osc.type = "square";
       osc.frequency.value = freq;
-      const g = ctx.createGain();
+      const g = audioCtx!.createGain();
       g.gain.value = 0.22;
       osc.connect(g);
       g.connect(master);

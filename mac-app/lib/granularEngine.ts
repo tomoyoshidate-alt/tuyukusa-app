@@ -1,4 +1,4 @@
-import { getAudioContext, resumeAudioContext } from "@/src/lib/audioContext";
+import { audioCtx, resumeAudioCtx } from "@/src/lib/audioContext";
 import type { GranularPreset } from "./types";
 import { resolveStudioAudioUrl } from "./audioStorage";
 
@@ -7,7 +7,6 @@ function semitoneRatio(semitones: number): number {
 }
 
 export class GranularEngine {
-  private ctx: AudioContext | null = null;
   private buffer: AudioBuffer | null = null;
   private output: GainNode | null = null;
   private analyser: AnalyserNode | null = null;
@@ -22,29 +21,31 @@ export class GranularEngine {
   }
 
   async loadBuffer(audioUrl: string): Promise<void> {
-    const ctx = getAudioContext();
+    if (!audioCtx) return;
     const res = await fetch(audioUrl);
     const arr = await res.arrayBuffer();
-    this.buffer = await ctx.decodeAudioData(arr.slice(0));
+    this.buffer = await audioCtx.decodeAudioData(arr.slice(0));
   }
 
   async start(preset: GranularPreset, outputGain: GainNode, volume01: number, audioBaseUrl?: string): Promise<void> {
     await this.stop();
-    if (!preset.audioFile) return;
+    if (!preset.audioFile || !audioCtx) return;
+    await resumeAudioCtx();
+
     this.preset = preset;
     this.volume = volume01;
-    const ctx = getAudioContext();
-    await resumeAudioContext();
-    this.ctx = ctx;
-    this.output = ctx.createGain();
-    this.analyser = ctx.createAnalyser();
+    this.output = audioCtx.createGain();
+    this.analyser = audioCtx.createAnalyser();
     this.analyser.fftSize = 2048;
     this.output.gain.value = volume01 * (preset.volume / 100);
+
     const audioUrl = resolveStudioAudioUrl(preset.audioFile, audioBaseUrl || undefined);
     await this.loadBuffer(audioUrl);
     if (!this.buffer) return;
+
     this.output.connect(this.analyser);
     this.analyser.connect(outputGain);
+
     const grainIntervalMs = Math.max(20, 1000 / preset.grainDensity);
     this.spawnGrain(preset);
     this.interval = setInterval(() => this.spawnGrain(preset), grainIntervalMs);
@@ -55,13 +56,13 @@ export class GranularEngine {
 
   setVolume(volume01: number): void {
     this.volume = volume01;
-    if (!this.output || !this.ctx || !this.preset) return;
-    this.output.gain.setTargetAtTime(volume01 * (this.preset.volume / 100), this.ctx.currentTime, 0.05);
+    if (!this.output || !audioCtx || !this.preset) return;
+    this.output.gain.setTargetAtTime(volume01 * (this.preset.volume / 100), audioCtx.currentTime, 0.05);
   }
 
   private applyLfo(preset: GranularPreset): void {
-    if (!this.output || !this.ctx) return;
-    const t = this.ctx.currentTime;
+    if (!this.output || !audioCtx) return;
+    const t = audioCtx.currentTime;
     let mod = 0;
     if (preset.lfoWaveform === "random") {
       mod = (Math.random() * 2 - 1) * preset.lfoDepthSemis;
@@ -73,27 +74,30 @@ export class GranularEngine {
   }
 
   private spawnGrain(preset: GranularPreset): void {
-    if (!this.ctx || !this.buffer || !this.output) return;
+    if (!audioCtx || !this.buffer || !this.output) return;
     const duration = preset.grainSizeMs / 1000;
     const rand = (preset.randomnessPct / 100) * (Math.random() - 0.5);
     const startNorm = Math.min(0.99, Math.max(0, preset.positionPct / 100 + rand * 0.1));
     const startTime = startNorm * (this.buffer.duration - duration);
-    const src = this.ctx.createBufferSource();
+
+    const src = audioCtx.createBufferSource();
     src.buffer = this.buffer;
     src.playbackRate.value = semitoneRatio(preset.pitchSemis + (Math.random() - 0.5) * (preset.randomnessPct / 20));
-    const grainGain = this.ctx.createGain();
+
+    const grainGain = audioCtx.createGain();
     const overlap = preset.overlapPct / 100;
     const attack = duration * overlap * 0.5;
     const release = duration * (1 - overlap * 0.5);
-    const now = this.ctx.currentTime;
+    const now = audioCtx.currentTime;
     grainGain.gain.setValueAtTime(0, now);
     grainGain.gain.linearRampToValueAtTime(0.4 * (preset.volume / 100), now + attack);
     grainGain.gain.linearRampToValueAtTime(0, now + release);
     src.connect(grainGain);
+
     if (preset.reverbPct > 0) {
-      const delay = this.ctx.createDelay(0.5);
+      const delay = audioCtx.createDelay(0.5);
       delay.delayTime.value = 0.12 + (preset.reverbPct / 100) * 0.2;
-      const fb = this.ctx.createGain();
+      const fb = audioCtx.createGain();
       fb.gain.value = (preset.reverbPct / 100) * 0.35;
       grainGain.connect(delay);
       delay.connect(fb);
@@ -126,7 +130,6 @@ export class GranularEngine {
     this.activeSources = [];
     this.output?.disconnect();
     this.analyser?.disconnect();
-    this.ctx = null;
     this.buffer = null;
     this.output = null;
     this.analyser = null;

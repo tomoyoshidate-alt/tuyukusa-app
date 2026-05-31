@@ -1,6 +1,6 @@
 "use client";
 import { useEffect, useRef, useState, useCallback } from "react";
-import { getAudioContext, resumeAudioContext } from "@/src/lib/audioContext";
+import { audioCtx, resumeAudioCtx } from "@/src/lib/audioContext";
 
 interface CloudPreset {
   name: string;
@@ -108,24 +108,24 @@ export default function MoonCloudVisualizer() {
   }, []);
 
   const initAudio = useCallback(async () => {
-    const ctx = getAudioContext();
-    await resumeAudioContext();
+    if (!audioCtx) return;
+    await resumeAudioCtx();
     if (!analyserRef.current) {
-      const analyser = ctx.createAnalyser();
+      const analyser = audioCtx.createAnalyser();
       analyser.fftSize = 256;
       freqRef.current = new Uint8Array(analyser.frequencyBinCount);
       analyserRef.current = analyser;
-      const master = ctx.createGain();
+      const master = audioCtx.createGain();
       master.gain.value = 0.15;
       master.connect(analyser);
-      analyser.connect(ctx.destination);
+      analyser.connect(audioCtx.destination);
       masterGainRef.current = master;
     }
     const master = masterGainRef.current;
     if (!master) return;
 
     const add = (freq: number, type: OscillatorType, gain: number, detune = 0) => {
-      const o = ctx.createOscillator(); const g = ctx.createGain();
+      const o = audioCtx!.createOscillator(); const g = audioCtx!.createGain();
       o.type = type; o.frequency.value = freq; if (detune) o.detune.value = detune;
       g.gain.value = gain; o.connect(g); g.connect(master); o.start();
       oscsRef.current.push({ osc: o, gain: g, base: freq, baseG: gain });
@@ -141,7 +141,7 @@ export default function MoonCloudVisualizer() {
     let run = true;
     const lfo = () => {
       if (!run) return;
-      const now = ctx.currentTime;
+      const now = audioCtx!.currentTime;
       oscsRef.current.forEach((item, i) => {
         const sp = 0.08 + i * 0.05;
         const lv = Math.sin(now * sp) * 0.25 + Math.sin(now * sp * 0.41) * 0.12;
