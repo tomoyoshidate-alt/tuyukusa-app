@@ -300,10 +300,10 @@ export function SupabaseSetupWizard({ isOpen, onClose, onComplete }: Props) {
                   {projectUrlError}
                 </div>
               )}
-              <label style={labelStyle}>Supabase anon key</label>
+              <label style={labelStyle}>Supabase Publishable key</label>
               <input
                 type="password"
-                placeholder="eyJ..."
+                placeholder="sb_publishable_..."
                 value={anonKey}
                 onChange={e => setAnonKey(e.target.value)}
                 style={inputStyle}
