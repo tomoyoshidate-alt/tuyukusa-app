@@ -8,7 +8,6 @@ import {
   type StudioAudioEntry,
 } from "@mac/lib/audioStorage";
 import {
-  fetchBbPresetsFromSupabase,
   fetchGranularPresetsFromSupabase,
   isSupabaseConfigured,
   saveBbPresetsToSupabase,
@@ -25,15 +24,7 @@ export function assetUrl(relativePath: string): string {
 }
 
 export async function fetchBbPresets(): Promise<PresetStore<BBPreset>> {
-  if (isSupabaseConfigured()) {
-    try {
-      const store = await fetchBbPresetsFromSupabase();
-      if (store.presets.length > 0) return store;
-    } catch (err) {
-      console.error("[fetchBbPresets supabase]", err);
-    }
-  }
-  const res = await fetch(macApiUrl("/api/presets/bb"));
+  const res = await fetch(macApiUrl("/api/presets/bb"), { cache: "no-store" });
   const data = (await res.json()) as PresetStore<BBPreset>;
   return { presets: Array.isArray(data.presets) ? data.presets : [] };
 }

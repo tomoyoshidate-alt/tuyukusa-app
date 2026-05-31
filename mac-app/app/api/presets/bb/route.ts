@@ -6,6 +6,7 @@ import {
   isSupabaseConfigured,
   saveBbPresetsToSupabase,
 } from "@mac/lib/presetSupabase";
+import { mergeBbPresetStores } from "@mac/lib/presetMerge";
 import { IS_VERCEL, presetsDir } from "@mac/lib/paths";
 import type { PresetStore, BBPreset } from "@mac/lib/types";
 
@@ -17,18 +18,34 @@ function readStore(): PresetStore<BBPreset> {
   return JSON.parse(fs.readFileSync(filePath, "utf8")) as PresetStore<BBPreset>;
 }
 
+async function readJsonStore(): Promise<PresetStore<BBPreset>> {
+  if (IS_VERCEL) {
+    const origin =
+      process.env.NEXT_PUBLIC_ASSET_ORIGIN ||
+      (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : "https://tuyukusa-app.vercel.app");
+    try {
+      const url = new URL("/presets/bb-presets.json", origin);
+      const res = await fetch(url, { cache: "no-store" });
+      if (res.ok) return (await res.json()) as PresetStore<BBPreset>;
+    } catch (err) {
+      console.error("[bb presets readJsonStore]", err);
+    }
+  }
+  return readStore();
+}
+
 export async function GET() {
   try {
+    const jsonStore = await readJsonStore();
     if (isSupabaseConfigured()) {
-      const store = await fetchBbPresetsFromSupabase();
-      if (store.presets.length > 0) return NextResponse.json(store);
+      try {
+        const remoteStore = await fetchBbPresetsFromSupabase();
+        return NextResponse.json(mergeBbPresetStores(jsonStore, remoteStore));
+      } catch (err) {
+        console.error("[bb presets GET supabase]", err);
+      }
     }
-    if (IS_VERCEL) {
-      const url = new URL("/presets/bb-presets.json", process.env.NEXT_PUBLIC_ASSET_ORIGIN || "https://tuyukusa-app.vercel.app");
-      const res = await fetch(url, { cache: "no-store" });
-      if (res.ok) return NextResponse.json(await res.json());
-    }
-    return NextResponse.json(readStore());
+    return NextResponse.json(jsonStore);
   } catch (err) {
     console.error("[bb presets GET]", err);
     return NextResponse.json({ presets: [] });

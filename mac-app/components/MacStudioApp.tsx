@@ -60,9 +60,11 @@ export function MacStudioApp() {
 
   const loadAll = useCallback(async () => {
     const [bb, gr, catalog] = await Promise.all([fetchBbPresets(), fetchGranularPresets(), fetchAudioCatalog()]);
-    setBbPresets(bb.presets ?? []);
+    const presets = bb.presets ?? [];
+    setBbPresets(presets);
     setGranularPresets(gr.presets ?? []);
     setAudioCatalog(catalog);
+    setSlot1BbId(prev => prev || presets[0]?.id || "");
   }, []);
 
   const onAudioUploaded = useCallback((entry: StudioAudioEntry) => {
