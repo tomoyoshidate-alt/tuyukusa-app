@@ -73,7 +73,7 @@ export const themeAppShellStyle: CSSProperties = {
 
 export const themeHeaderStyle: CSSProperties = {
   background: "var(--t-header-bg)",
-  color: "var(--t-text-inverse)",
+  color: "var(--t-header-text, var(--t-text-inverse))",
   padding: "14px 20px 12px",
   fontSize: "var(--t-font-size-xl)",
 };

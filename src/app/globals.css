@@ -10,34 +10,36 @@
   --ink: #3d3429;
   --ink-muted: #6b5f52;
 
-  /* Theme tokens (defaults = natural) */
-  --t-bg: #f5f0e8;
-  --t-bg-gradient-start: #ebe4d4;
-  --t-bg-gradient-end: #f5f0e8;
-  --t-bg-gradient: linear-gradient(165deg, #ebe4d4 0%, #f7f3eb 45%, #f5f0e8 100%);
+  /* Theme tokens (defaults = natural light) */
+  --t-bg: #faf8f4;
+  --t-bg-gradient-start: #faf8f4;
+  --t-bg-gradient-end: #faf8f4;
+  --t-bg-gradient: #faf8f4;
   --t-card-bg: #ffffff;
-  --t-text: #3d3228;
-  --t-text-muted: #9a8b7a;
-  --t-text-inverse: #f5f0e8;
-  --t-primary: #4a6741;
-  --t-primary-light: #6b8f62;
-  --t-primary-bg: #e8f0e4;
-  --t-accent: #c17f4a;
-  --t-accent-bg: #fdf0e4;
-  --t-border: rgba(60, 40, 20, 0.1);
-  --t-border-strong: rgba(60, 40, 20, 0.12);
-  --t-header-bg: #1a1410;
-  --t-nav-bg: #1a1410;
-  --t-nav-active: #e8a86a;
-  --t-nav-inactive: rgba(245, 240, 232, 0.45);
+  --t-text: #2c2016;
+  --t-text-muted: #6b5d4f;
+  --t-text-inverse: #faf8f4;
+  --t-primary: #7a9e7e;
+  --t-primary-light: #96b69a;
+  --t-primary-bg: #f5f1eb;
+  --t-accent: #7a9e7e;
+  --t-accent-bg: #eef4ef;
+  --t-border: #e8e0d4;
+  --t-border-strong: #e8e0d4;
+  --t-header-bg: #f0ebe3;
+  --t-header-text: #2c2016;
+  --t-nav-bg: #f0ebe3;
+  --t-nav-text: #2c2016;
+  --t-nav-active: #7a9e7e;
+  --t-nav-inactive: #6b5d4f;
   --t-error: #c44a4a;
-  --t-success: #4a6741;
+  --t-success: #7a9e7e;
   --t-notion-bg: #eef4fb;
   --t-notion-border: rgba(126, 200, 227, 0.35);
   --t-radius-sm: 8px;
   --t-radius-md: 12px;
   --t-radius-lg: 14px;
-  --t-shadow: 0 2px 8px rgba(60, 40, 20, 0.08);
+  --t-shadow: 0 2px 8px rgba(44, 32, 22, 0.06);
   --t-font-family: var(--font-noto-sans), "Hiragino Sans", "Yu Gothic", sans-serif;
   --t-font-size-sm: 11px;
   --t-font-size-base: 13px;
@@ -46,10 +48,25 @@
   --t-font-size-btn: 13px;
   --t-font-size-heading: 15px;
   --t-font-weight-bold: 700;
-  --t-checkbox-accent: #c17f4a;
-  --t-input-bg: #f5f0e8;
-  --t-diagnosis-bg: linear-gradient(160deg, #1a1410, #2d2218);
-  --t-diagnosis-text: #f5f0e8;
+  --t-checkbox-accent: #7a9e7e;
+  --t-input-bg: #f5f1eb;
+  --t-diagnosis-bg: linear-gradient(160deg, #f0ebe3, #e8e0d4);
+  --t-diagnosis-text: #2c2016;
+}
+
+html.tuyukusa-theme-transition {
+  transition: background-color 2s ease;
+}
+
+html.tuyukusa-theme-transition body {
+  transition: background-color 2s ease, color 2s ease;
+}
+
+html.tuyukusa-theme-transition .app-header--desktop,
+html.tuyukusa-theme-transition .app-bottom-nav,
+html.tuyukusa-theme-transition .app-sidebar,
+html.tuyukusa-theme-transition .app-main-scroll {
+  transition: background-color 2s ease, color 2s ease, border-color 2s ease;
 }
 
 @theme inline {
@@ -107,11 +124,11 @@ body {
     width: 220px;
     flex-shrink: 0;
     background: var(--t-nav-bg);
-    color: var(--t-text-inverse);
+    color: var(--t-nav-text, var(--t-text-inverse));
     display: flex;
     flex-direction: column;
     padding: 20px 12px;
-    border-right: 1px solid rgba(255, 255, 255, 0.08);
+    border-right: 1px solid var(--t-border);
     min-height: 100vh;
   }
 
@@ -143,12 +160,12 @@ body {
   }
 
   .app-sidebar__item:hover {
-    background: rgba(255, 255, 255, 0.06);
-    color: var(--t-text-inverse);
+    background: color-mix(in srgb, var(--t-text) 6%, transparent);
+    color: var(--t-nav-text, var(--t-text-inverse));
   }
 
   .app-sidebar__item--active {
-    background: rgba(232, 168, 106, 0.18);
+    background: color-mix(in srgb, var(--t-accent) 18%, transparent);
     color: var(--t-nav-active);
     font-weight: bold;
   }

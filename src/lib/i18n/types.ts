@@ -33,6 +33,14 @@ export type TranslationSchema = {
     dark: string;
     japanese: string;
   };
+  themeMode: {
+    title: string;
+    description: string;
+    natural: string;
+    time: string;
+    light: string;
+    dark: string;
+  };
   fontSize: {
     title: string;
     description: string;

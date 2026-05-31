@@ -42,6 +42,14 @@ const it: TranslationSchema = {
     dark: "Modalità scura",
     japanese: "Stile giapponese",
   },
+  themeMode: {
+    title: "Color Theme",
+    description: "Choose background and accent colors. \"Time of day\" shifts automatically.",
+    natural: "Natural (default)",
+    time: "Time of day (auto)",
+    light: "Light",
+    dark: "Dark",
+  },
   fontSize: {
     title: "Dimensione carattere",
     description: "Modifica la dimensione del testo in tutta l'app",

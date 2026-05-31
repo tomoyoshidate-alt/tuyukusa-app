@@ -42,6 +42,14 @@ const zh: TranslationSchema = {
     dark: "深色模式",
     japanese: "和风",
   },
+  themeMode: {
+    title: "配色主题",
+    description: "选择背景与强调色。「时之色」会随时间段自动变化。",
+    natural: "自然（默认）",
+    time: "时之色（自动）",
+    light: "浅色",
+    dark: "深色",
+  },
   fontSize: {
     title: "字体大小",
     description: "更改应用全局文字大小（按钮、标签、正文、标题）",

@@ -1,39 +1,39 @@
 import { applyFontSizeToDocument, readStoredFontSizeId } from "@/src/lib/fontSizeSettings";
-import { derivePaletteFromBase } from "./colorUtils";
-import { getThemePreset } from "./presets";
-import type { ThemeId, ThemeSettings } from "./types";
+import { getThemeModeVars } from "./modes";
+import { getTimePeriod } from "./timeTheme";
+import type { ThemeMode, ThemeSettings } from "./types";
+
+const THEME_TRANSITION_CLASS = "tuyukusa-theme-transition";
 
 export function normalizeThemeSettings(data: unknown): ThemeSettings {
   if (!data || typeof data !== "object") {
-    return { themeId: "natural", baseColor: "#4a6741", useCustomBaseColor: false };
+    return { themeMode: "natural" };
   }
-  const d = data as Partial<ThemeSettings>;
-  const validIds: ThemeId[] = [
-    "natural", "cute", "philosophical", "kids", "senior",
-    "minimal-bw", "simple", "gradient", "dark", "japanese",
-  ];
-  const themeId = validIds.includes(d.themeId as ThemeId) ? (d.themeId as ThemeId) : "natural";
-  return {
-    themeId,
-    baseColor: typeof d.baseColor === "string" && /^#[0-9a-fA-F]{6}$/.test(d.baseColor) ? d.baseColor : "#4a6741",
-    useCustomBaseColor: d.useCustomBaseColor === true,
-  };
+  const d = data as Partial<ThemeSettings> & { themeId?: string };
+  const modes: ThemeMode[] = ["natural", "time", "light", "dark"];
+  if (d.themeMode && modes.includes(d.themeMode)) {
+    return { themeMode: d.themeMode };
+  }
+  if (d.themeId === "dark") return { themeMode: "dark" };
+  if (d.themeId === "simple" || d.themeId === "minimal-bw") return { themeMode: "light" };
+  return { themeMode: "natural" };
 }
 
-export function buildThemeCssVars(settings: ThemeSettings): Record<string, string> {
-  const preset = getThemePreset(settings.themeId);
-  const vars = { ...preset.vars };
-  if (settings.useCustomBaseColor) {
-    Object.assign(vars, derivePaletteFromBase(settings.baseColor));
-  }
-  return vars;
+export function buildThemeCssVars(settings: ThemeSettings, date = new Date()): Record<string, string> {
+  return getThemeModeVars(settings.themeMode, date);
 }
 
-export function applyThemeToDocument(settings: ThemeSettings): void {
+export function applyThemeToDocument(settings: ThemeSettings, date = new Date()): void {
   if (typeof document === "undefined") return;
   const root = document.documentElement;
-  const vars = buildThemeCssVars(settings);
-  root.dataset.theme = settings.themeId;
+  const vars = buildThemeCssVars(settings, date);
+  root.dataset.themeMode = settings.themeMode;
+  if (settings.themeMode === "time") {
+    root.dataset.timePeriod = getTimePeriod(date);
+  } else {
+    delete root.dataset.timePeriod;
+  }
+  root.classList.add(THEME_TRANSITION_CLASS);
   for (const [key, value] of Object.entries(vars)) {
     root.style.setProperty(key, value);
   }
