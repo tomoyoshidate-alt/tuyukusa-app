@@ -10,7 +10,11 @@ function getAppPageUrl(): string {
   return window.location.origin;
 }
 
-export default function AddToHomeScreen() {
+type Props = {
+  variant?: "home" | "settings";
+};
+
+export default function AddToHomeScreen({ variant = "home" }: Props) {
   const { t } = useTranslation();
   const { canPromptInstall, installed, promptInstall } = usePwaInstall();
   const [showGuide, setShowGuide] = useState(false);
@@ -71,24 +75,30 @@ export default function AddToHomeScreen() {
   }, [t]);
 
   const showIphoneGuide = isIosDevice();
+  const isSettings = variant === "settings";
 
   if (installed) return null;
-  if (dismissed && !canPromptInstall) return null;
+  if (!isSettings && dismissed && !canPromptInstall) return null;
 
   return (
     <>
-      <div className="pwa-home-banner">
-        <div style={{ fontSize: 12, fontWeight: "bold", color: "#3d3228", marginBottom: 4 }}>
+      <div style={isSettings ? settingsCardStyle : undefined} className={isSettings ? undefined : "pwa-home-banner"}>
+        <div style={{ fontSize: isSettings ? 13 : 12, fontWeight: "bold", color: "#3d3228", marginBottom: 4 }}>
           {canPromptInstall ? t("pwa.installButton") : t("pwa.homeBannerTitle")}
         </div>
         <div style={{ fontSize: 11, color: "#9a8b7a", marginBottom: 10, lineHeight: 1.5 }}>
           {canPromptInstall ? t("pwa.homeBannerInstall") : t("pwa.homeBannerBody")}
         </div>
         <div style={{ display: "flex", gap: 8 }}>
-          <button type="button" onClick={() => void handleInstall()} className="pwa-home-banner__primary">
+          <button
+            type="button"
+            onClick={() => void handleInstall()}
+            className={isSettings ? undefined : "pwa-home-banner__primary"}
+            style={isSettings ? settingsPrimaryBtnStyle : undefined}
+          >
             {canPromptInstall ? t("pwa.installButton") : t("pwa.homeBannerAction")}
           </button>
-          {!canPromptInstall && (
+          {!canPromptInstall && !isSettings && (
             <button type="button" onClick={dismiss} className="pwa-home-banner__secondary">
               {t("pwa.later")}
             </button>
@@ -143,6 +153,26 @@ export default function AddToHomeScreen() {
     </>
   );
 }
+
+const settingsCardStyle: CSSProperties = {
+  background: "white",
+  borderRadius: 12,
+  padding: 14,
+  border: "1px solid rgba(60,40,20,0.1)",
+  marginBottom: 12,
+};
+
+const settingsPrimaryBtnStyle: CSSProperties = {
+  width: "100%",
+  padding: "12px 14px",
+  borderRadius: 12,
+  border: "none",
+  background: "#1a1410",
+  color: "#f5f0e8",
+  fontSize: 14,
+  fontWeight: "bold",
+  cursor: "pointer",
+};
 
 const sectionTitleStyle: CSSProperties = {
   fontSize: 13,

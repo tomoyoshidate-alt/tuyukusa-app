@@ -5,7 +5,6 @@ import { useTranslation } from "react-i18next";
 import { SupabaseSetupWizard } from "@/src/components/SupabaseSetupWizard";
 import { readIntegrationSkipFlags } from "@/src/lib/integrationSkipFlags";
 import type { GoogleCalendarSettings } from "@/src/lib/googleCalendar";
-import type { HealthData } from "@/src/lib/healthData";
 import type { NotionSettings } from "@/src/lib/notion";
 import { isSupabaseConfigured, type SupabaseSettings } from "@/src/lib/supabaseSync";
 
@@ -14,9 +13,7 @@ type Props = {
   onSupabaseComplete: (url: string, anonKey: string, syncKey: string) => void;
   notionSettings: NotionSettings;
   googleCalendar: GoogleCalendarSettings;
-  healthData: HealthData;
   onOpenSettings: () => void;
-  onOpenDisplaySettings: () => void;
   isHomeActive?: boolean;
 };
 
@@ -69,9 +66,7 @@ export function HomeIntegrationCards({
   onSupabaseComplete,
   notionSettings,
   googleCalendar,
-  healthData,
   onOpenSettings,
-  onOpenDisplaySettings,
   isHomeActive = true,
 }: Props) {
   const { t } = useTranslation();
@@ -81,14 +76,13 @@ export function HomeIntegrationCards({
   useEffect(() => {
     if (!isHomeActive) return;
     setSkipFlags(readIntegrationSkipFlags());
-  }, [isHomeActive, supabaseSettings, notionSettings.connected, googleCalendar.connected, healthData.updatedAt]);
+  }, [isHomeActive, supabaseSettings, notionSettings.connected, googleCalendar.connected]);
 
   const showSupabase = !skipFlags.supabase && !isSupabaseConfigured(supabaseSettings);
   const showNotion = !skipFlags.notion && !notionSettings.connected;
   const showGoogle = !skipFlags.googleCalendar && !googleCalendar.connected;
-  const showHealth = !skipFlags.healthkit && !healthData.updatedAt;
 
-  if (!showSupabase && !showNotion && !showGoogle && !showHealth) return null;
+  if (!showSupabase && !showNotion && !showGoogle) return null;
 
   return (
     <>
@@ -121,16 +115,6 @@ export function HomeIntegrationCards({
           body={t("integrationGuide.cardGoogleBody")}
           setupLabel={t("integrationGuide.setupNow")}
           onSetup={onOpenSettings}
-        />
-      )}
-
-      {showHealth && (
-        <PromptCard
-          emoji="❤️"
-          title={t("integrationGuide.cardHealthTitle")}
-          body={t("integrationGuide.cardHealthBody")}
-          setupLabel={t("integrationGuide.setupNow")}
-          onSetup={onOpenDisplaySettings}
         />
       )}
 

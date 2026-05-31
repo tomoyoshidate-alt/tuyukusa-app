@@ -33,9 +33,8 @@ import {
   parseHealthFromSearchParams,
   type HealthData,
 } from "@/src/lib/healthData";
-import AddToHomeScreen from "@/src/components/AddToHomeScreen";
+import { SettingsConvenientUsageSection } from "@/src/components/SettingsConvenientUsageSection";
 import { AppSidebar } from "@/src/components/AppSidebar";
-import { PwaInstallSection } from "@/src/components/PwaInstallSection";
 import { PwaInstallGuideModal } from "@/src/components/PwaInstallGuideModal";
 import { useDesktopLayout } from "@/src/hooks/useDesktopLayout";
 import { usePwaInstall } from "@/src/hooks/usePwaInstall";
@@ -3984,25 +3983,22 @@ ${buildHealthSummary(healthForm)}`;
         {/* ホーム */}
         {tab === "home" && (
           <div>
-            <AddToHomeScreen />
-            {healthImportMessage && (
-              <div style={{ margin: "8px 16px 0", padding: "10px 12px", background: "#e8f0e4", borderRadius: 10, fontSize: 12, color: "#4a6741", textAlign: "center" }}>
-                {healthImportMessage}
-              </div>
-            )}
             <HomeAiChatTeaser
               latestMessage={latestAiChatLine}
               onOpenChat={() => openChatFromHome()}
               onSubmit={text => openChatFromHome(text)}
             />
+            {healthImportMessage && (
+              <div style={{ margin: "8px 16px 0", padding: "10px 12px", background: "#e8f0e4", borderRadius: 10, fontSize: 12, color: "#4a6741", textAlign: "center" }}>
+                {healthImportMessage}
+              </div>
+            )}
             <HomeIntegrationCards
               isHomeActive={tab === "home"}
               supabaseSettings={supabaseSettings}
               notionSettings={notionSettings}
               googleCalendar={googleCalendar}
-              healthData={healthData}
               onOpenSettings={() => setTab("settings")}
-              onOpenDisplaySettings={() => setTab("display")}
               onSupabaseComplete={(url, anonKey, syncKey) => {
                 const next = applySupabaseConnection(url, anonKey, syncKey);
                 setSupabaseSettings(next);
@@ -4072,8 +4068,8 @@ ${buildHealthSummary(healthForm)}`;
         {/* 設定 */}
         {tab === "settings" && (
           <div style={{ padding: isDesktop ? "8px 16px 24px" : 16 }}>
-            <PwaInstallSection variant="settings" />
-            <div style={{ fontSize: 15, fontWeight: "bold", color: "#3d3228", marginBottom: 4 }}>使い方ガイド</div>
+            <SettingsConvenientUsageSection healthData={healthData} />
+            <div style={{ fontSize: 15, fontWeight: "bold", color: "#3d3228", marginBottom: 4, paddingTop: 8, borderTop: "1px solid rgba(60,40,20,0.12)" }}>使い方ガイド</div>
             <div style={{ fontSize: 11, color: "#9a8b7a", marginBottom: 12, lineHeight: 1.5 }}>
               つゆくさ生活リズムアプリの主な機能と設定手順
             </div>

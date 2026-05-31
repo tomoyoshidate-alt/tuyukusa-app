@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { handleChatTextareaKeyDown, isMacPlatform as detectMacPlatform } from "@/src/lib/chatSubmitKeyboard";
 
@@ -9,6 +9,16 @@ type Props = {
   onOpenChat: () => void;
   onSubmit?: (text: string) => void;
 };
+
+const PLACEHOLDER_KEYS = [
+  "home.homeAiChatPlaceholderHealth",
+  "home.homeAiChatPlaceholderSchedule",
+  "home.homeAiChatPlaceholderSupabase",
+  "home.homeAiChatPlaceholderSound",
+  "home.homeAiChatPlaceholderWellness",
+] as const;
+
+const PLACEHOLDER_ROTATE_MS = 4000;
 
 function truncateOneLine(text: string, max = 48): string {
   const line = text.replace(/\s+/g, " ").trim();
@@ -19,6 +29,20 @@ export function HomeAiChatTeaser({ latestMessage, onOpenChat, onSubmit }: Props)
   const { t } = useTranslation();
   const [input, setInput] = useState("");
   const [isComposing, setIsComposing] = useState(false);
+  const [placeholderIndex, setPlaceholderIndex] = useState(0);
+
+  const placeholders = useMemo(
+    () => PLACEHOLDER_KEYS.map(key => t(key)),
+    [t],
+  );
+
+  useEffect(() => {
+    if (input.trim()) return;
+    const timer = window.setInterval(() => {
+      setPlaceholderIndex(i => (i + 1) % placeholders.length);
+    }, PLACEHOLDER_ROTATE_MS);
+    return () => window.clearInterval(timer);
+  }, [input, placeholders.length]);
 
   const handleSend = () => {
     const text = input.trim();
@@ -29,6 +53,8 @@ export function HomeAiChatTeaser({ latestMessage, onOpenChat, onSubmit }: Props)
     onSubmit?.(text);
     setInput("");
   };
+
+  const rotatingPlaceholder = placeholders[placeholderIndex] ?? t("home.homeAiChatPlaceholder");
 
   return (
     <div style={{ margin: "12px 16px 0", background: "var(--t-card-bg)", border: "1px solid var(--t-border)", borderRadius: "var(--t-radius-md)", padding: "14px 16px" }}>
@@ -48,7 +74,7 @@ export function HomeAiChatTeaser({ latestMessage, onOpenChat, onSubmit }: Props)
         <textarea
           value={input}
           onChange={e => setInput(e.target.value)}
-          placeholder={t("home.homeAiChatPlaceholder")}
+          placeholder={input.trim() ? t("home.homeAiChatPlaceholder") : rotatingPlaceholder}
           onCompositionStart={() => setIsComposing(true)}
           onCompositionEnd={() => setIsComposing(false)}
           onKeyDown={e => handleChatTextareaKeyDown(e, handleSend, isComposing)}
