@@ -7,6 +7,7 @@ import {
 import { binauralPlaybackManager } from "@/src/lib/binauralPlaybackManager";
 import { getDemoBuffer } from "@/src/lib/soundSystem/demoSources";
 import { GranularEngine } from "@/src/lib/soundSystem/granularEngine";
+import { resolveStudioAudioUrl } from "@mac/lib/audioStorage";
 
 const audioBufferCache = new Map<string, AudioBuffer>();
 
@@ -15,8 +16,16 @@ async function loadAudioFileBuffer(ctx: AudioContext, filename: string): Promise
   const cached = audioBufferCache.get(key);
   if (cached) return cached;
   try {
-    const res = await fetch(`/audio/${encodeURIComponent(filename)}`);
-    if (!res.ok) return null;
+    const url = resolveStudioAudioUrl(filename);
+    const res = await fetch(url);
+    if (!res.ok) {
+      const fallback = await fetch(`/audio/${encodeURIComponent(filename)}`);
+      if (!fallback.ok) return null;
+      const data = await fallback.arrayBuffer();
+      const buffer = await ctx.decodeAudioData(data.slice(0));
+      audioBufferCache.set(key, buffer);
+      return buffer;
+    }
     const data = await res.arrayBuffer();
     const buffer = await ctx.decodeAudioData(data.slice(0));
     audioBufferCache.set(key, buffer);

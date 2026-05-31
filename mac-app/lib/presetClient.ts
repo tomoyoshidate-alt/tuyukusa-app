@@ -2,6 +2,10 @@
 
 import { getMacBasePath, macApiUrl } from "@mac/lib/macBasePath";
 import {
+  listStorageAudioFiles,
+  uploadAudioToStorage,
+} from "@mac/lib/audioStorage";
+import {
   fetchBbPresetsFromSupabase,
   fetchGranularPresetsFromSupabase,
   isSupabaseConfigured,
@@ -92,9 +96,34 @@ export function exportJson(filename: string, data: unknown): void {
 }
 
 export async function fetchAudioFiles(): Promise<string[]> {
+  if (isSupabaseConfigured()) {
+    try {
+      const remote = await listStorageAudioFiles();
+      const res = await fetch(macApiUrl("/api/audio"));
+      const json = (await res.json()) as { files: string[] };
+      const local = json.files ?? [];
+      return [...new Set([...local, ...remote])].sort((a, b) => a.localeCompare(b));
+    } catch (err) {
+      console.error("[fetchAudioFiles supabase]", err);
+    }
+  }
   const res = await fetch(macApiUrl("/api/audio"));
   const json = (await res.json()) as { files: string[] };
   return json.files ?? [];
 }
 
+export async function uploadAudioFile(file: File): Promise<{ ok: boolean; filename?: string; message?: string }> {
+  if (!isSupabaseConfigured()) {
+    return { ok: false, message: "Supabase が未設定です" };
+  }
+  try {
+    const { filename } = await uploadAudioToStorage(file);
+    return { ok: true, filename, message: `${filename} をアップロードしました` };
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    return { ok: false, message: msg };
+  }
+}
+
 export { isSupabaseConfigured, STUDIO_PRESETS_SETUP_SQL } from "@mac/lib/presetSupabase";
+export { STUDIO_AUDIO_STORAGE_SQL } from "@mac/lib/audioStorage";

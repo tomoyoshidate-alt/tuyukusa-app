@@ -15,6 +15,7 @@ import {
   saveGranularPresets,
   isSupabaseConfigured,
 } from "@mac/lib/presetClient";
+import { AudioUploader } from "@mac/components/AudioUploader";
 import {
   DEFAULT_BB_PRESET,
   DEFAULT_GRANULAR_PRESET,
@@ -50,12 +51,26 @@ export function MacStudioApp() {
   const bbDiff = useMemo(() => getBbDiffHz(bbDraft.leftHz, bbDraft.rightHz), [bbDraft.leftHz, bbDraft.rightHz]);
   const brainwave = useMemo(() => classifyBrainwave(bbDiff), [bbDiff]);
 
+  const refreshAudioFiles = useCallback(async () => {
+    const files = await fetchAudioFiles();
+    setAudioFiles(files);
+  }, []);
+
   const loadAll = useCallback(async () => {
     const [bb, gr, files] = await Promise.all([fetchBbPresets(), fetchGranularPresets(), fetchAudioFiles()]);
     setBbPresets(bb.presets ?? []);
     setGranularPresets(gr.presets ?? []);
     setAudioFiles(files);
   }, []);
+
+  const onAudioUploaded = useCallback(
+    async (filename: string) => {
+      await refreshAudioFiles();
+      setGrDraft(prev => ({ ...prev, audioFile: filename }));
+      setStatus(`${filename} をアップロードしました`);
+    },
+    [refreshAudioFiles]
+  );
 
   useEffect(() => {
     void loadAll();
@@ -247,6 +262,8 @@ export function MacStudioApp() {
               <input className="mac-input" value={grDraft.icon ?? ""} onChange={e => setGrDraft({ ...grDraft, icon: e.target.value })} placeholder="icon" maxLength={2} style={{ width: 48 }} />
               <input className="mac-input flex-1" value={grDraft.name} onChange={e => setGrDraft({ ...grDraft, name: e.target.value })} placeholder="プリセット名" />
             </div>
+            <label className="block mb-2 text-xs text-[#a8a8a8]">音源アップロード</label>
+            <AudioUploader onUploaded={filename => void onAudioUploaded(filename)} />
             <label className="block mb-4 text-xs text-[#a8a8a8]">
               音源ファイル
               <select className="mac-input w-full mt-1" value={grDraft.audioFile} onChange={e => setGrDraft({ ...grDraft, audioFile: e.target.value })}>
@@ -329,9 +346,9 @@ export function MacStudioApp() {
         </div>
         <WaveformVisualizer active={playing} getAnalyser={() => mixerRef.current.getAnalyser()} />
         <p className="text-[10px] text-[#666] mt-4 font-mono leading-relaxed">
-          音源: ../public/audio/
+          音源: Supabase Storage (audio) / public/audio/
           <br />
-          プリセット: ../public/presets/
+          プリセット: Supabase / public/presets/
         </p>
       </aside>
     </div>

@@ -1,5 +1,5 @@
 import type { GranularPreset } from "./types";
-import { macApiUrl } from "./macBasePath";
+import { resolveStudioAudioUrl } from "./audioStorage";
 
 function semitoneRatio(semitones: number): number {
   return Math.pow(2, semitones / 12);
@@ -38,9 +38,7 @@ export class GranularEngine {
     this.analyser.fftSize = 2048;
     this.output.gain.value = volume01 * (preset.volume / 100);
     const file = preset.audioFile.replace(/^audio\//, "");
-    const audioUrl = audioBaseUrl
-      ? `${audioBaseUrl.replace(/\/$/, "")}/api/audio/${encodeURIComponent(file)}`
-      : macApiUrl(`/api/audio/${encodeURIComponent(file)}`);
+    const audioUrl = resolveStudioAudioUrl(file, audioBaseUrl || undefined);
     await this.loadBuffer(audioUrl);
     if (!this.buffer) return;
     this.output.connect(this.analyser);

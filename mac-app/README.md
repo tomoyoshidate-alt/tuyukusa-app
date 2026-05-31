@@ -22,6 +22,11 @@ Studio プリセットは Supabase に保存され、スタジオ Mac・自宅 M
 3. Vercel / `.env.local` に以下を設定:
    - `NEXT_PUBLIC_SUPABASE_URL`
    - `NEXT_PUBLIC_SUPABASE_ANON_KEY`
+4. SQL Editor で `supabase/studio_audio_storage.sql` を実行（音源 Storage バケット）
+
+### 音源アップロード
+
+Studio のグラニュライザータブから MP3/WAV をドラッグ＆ドロップで Supabase Storage の `audio` バケットにアップロードできます。
 
 ### 本体アプリと同一ドメイン（推奨）
 
