@@ -81,14 +81,14 @@ create policy "Allow anon sync"
   },
   {
     label: "キー入力",
-    ai: "最後に接続情報をつゆくさに入力します。\n\n① 左メニュー下部の「Project Settings」をクリック\n② 左メニューの「API」をクリック\n③ 「Project URL」の右にある「Copy」をクリック\n④ 「Project API keys」の「anon public」の右「Copy」をクリック\n⑤ つゆくさアプリのフォームに貼り付け\n\n同期キーは好きな文字列でOKです（例: my-tuyukusa-2024）",
+    ai: "最後に接続情報をつゆくさに入力します。\n\n① 左メニューの「Settings」をクリック\n② 「Integrations」→「Data API」をクリック\n③ 「Project URL」をコピー\n④ 左メニューの「API Keys」をクリック\n⑤ 「Publishable key」の右のコピーボタンをクリック\n   ※これが anon key です\n⑥ つゆくさアプリのフォームに貼り付け\n\n同期キーは好きな文字列でOKです（例: my-tuyukusa-2024）",
     links: [{ label: "🔗 API 設定", url: "https://app.supabase.com/project/_/settings/api" }],
     quickQs: ["Project URLどこ？", "anon keyってどれ？", "同期キーって何？"],
     qa: {
       "Project URLどこ？":
         "Settings → API の一番上に「Project URL」があります。https://xxxxxx.supabase.co という形式です。",
       "anon keyってどれ？":
-        "同じページの「Project API Keys」にある「anon public」というキーです。eyJ... から始まる長い文字列です。",
+        "Settings → API Keys の「Publishable key」がanon keyです。sb_publishable_ から始まる文字列をコピーしてください。",
       "同期キーって何？":
         "複数の端末で同じデータを見るための合言葉です。スマホとPCで同じキーを入力すれば、データが共有されます。自分で決めてOKです。",
     },
