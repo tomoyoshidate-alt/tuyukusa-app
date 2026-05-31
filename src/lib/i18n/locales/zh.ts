@@ -207,7 +207,7 @@ const zh: TranslationSchema = {
     openSound: "打开声音",
     placeholder: "输入消息...",
     send: "发送",
-    sendMac: "发送 (⌘+Enter)",
+    sendMac: "发送 (Cmd+Enter)",
     sendWin: "发送 (Ctrl+Enter)",
   },
   onboarding: {

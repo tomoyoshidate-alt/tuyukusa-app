@@ -207,7 +207,7 @@ const es: TranslationSchema = {
     openSound: "Abrir sonido",
     placeholder: "Escribe un mensaje...",
     send: "Enviar",
-    sendMac: "Enviar (⌘+Enter)",
+    sendMac: "Enviar (Cmd+Enter)",
     sendWin: "Enviar (Ctrl+Enter)",
   },
   onboarding: {

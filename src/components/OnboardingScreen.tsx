@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
+import { handleChatTextareaKeyDown, isMacPlatform as detectMacPlatform } from "@/src/lib/chatSubmitKeyboard";
 import {
   buildOnboardingProposalPrompt,
   GENDER_CHOICES,
@@ -52,6 +53,7 @@ export function OnboardingScreen({ fetchProposal, onQuestionnaireDone, onDeferTo
   const [progress, setProgress] = useState<OnboardingProgress>(() => saved ?? buildProgressFromFlowData({}));
   const [messages, setMessages] = useState<OnboardingMessage[]>(() => buildWelcomeMessages(t));
   const [input, setInput] = useState("");
+  const [isComposing, setIsComposing] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [freeGoalMode, setFreeGoalMode] = useState(false);
   const [showVoiceHint, setShowVoiceHint] = useState(() => !hasVoiceHintBeenShown());
@@ -312,17 +314,47 @@ export function OnboardingScreen({ fetchProposal, onQuestionnaireDone, onDeferTo
         </div>
       )}
 
-      <div style={{ padding: "12px 16px 24px", background: "white", borderTop: "1px solid rgba(60,40,20,0.1)", display: "flex", gap: 8 }}>
-        <input
-          type="text"
+      <div style={{ padding: "12px 16px 24px", background: "white", borderTop: "1px solid rgba(60,40,20,0.1)", display: "flex", gap: 8, alignItems: "flex-end" }}>
+        <textarea
           value={input}
           onChange={e => setInput(e.target.value)}
           placeholder={t("onboarding.messagePlaceholder")}
-          onKeyDown={e => { if (e.key === "Enter") void handleSend(); }}
-          style={{ flex: 1, padding: "12px 14px", borderRadius: 12, border: "1.5px solid rgba(60,40,20,0.12)", fontSize: 14 }}
+          onCompositionStart={() => setIsComposing(true)}
+          onCompositionEnd={() => setIsComposing(false)}
+          onKeyDown={e => handleChatTextareaKeyDown(e, () => void handleSend(), isComposing)}
+          rows={2}
+          style={{
+            flex: 1,
+            padding: "12px 14px",
+            borderRadius: 12,
+            border: "1.5px solid rgba(60,40,20,0.12)",
+            fontSize: 14,
+            resize: "none",
+            minHeight: 44,
+            maxHeight: 100,
+            lineHeight: 1.5,
+            fontFamily: "inherit",
+          }}
         />
-        <button type="button" onClick={() => void handleSend()} disabled={!input.trim() || isLoading} style={{ padding: "12px 18px", borderRadius: 12, border: "none", background: input.trim() && !isLoading ? "#1a1410" : "#9a8b7a", color: "#f5f0e8", fontSize: 14, fontWeight: "bold", cursor: input.trim() && !isLoading ? "pointer" : "default" }}>
-          {t("onboarding.next")}
+        <button
+          type="button"
+          onClick={() => void handleSend()}
+          disabled={!input.trim() || isLoading}
+          style={{
+            padding: "12px 14px",
+            minHeight: 44,
+            borderRadius: 12,
+            border: "none",
+            background: input.trim() && !isLoading ? "#1a1410" : "#9a8b7a",
+            color: "#f5f0e8",
+            fontSize: 12,
+            fontWeight: "bold",
+            cursor: input.trim() && !isLoading ? "pointer" : "default",
+            whiteSpace: "nowrap",
+            flexShrink: 0,
+          }}
+        >
+          {detectMacPlatform() ? t("chat.sendMac") : t("chat.sendWin")}
         </button>
       </div>
     </div>
