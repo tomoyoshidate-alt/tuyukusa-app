@@ -1,6 +1,11 @@
 import { NextResponse } from "next/server";
 import fs from "fs";
 import path from "path";
+import {
+  fetchBbPresetsFromSupabase,
+  isSupabaseConfigured,
+  saveBbPresetsToSupabase,
+} from "@mac/lib/presetSupabase";
 import { IS_VERCEL, presetsDir } from "@mac/lib/paths";
 import type { PresetStore, BBPreset } from "@mac/lib/types";
 
@@ -14,6 +19,9 @@ function readStore(): PresetStore<BBPreset> {
 
 export async function GET() {
   try {
+    if (isSupabaseConfigured()) {
+      return NextResponse.json(await fetchBbPresetsFromSupabase());
+    }
     if (IS_VERCEL) {
       const url = new URL("/presets/bb-presets.json", process.env.NEXT_PUBLIC_ASSET_ORIGIN || "https://tuyukusa-app.vercel.app");
       const res = await fetch(url, { cache: "no-store" });
@@ -29,10 +37,14 @@ export async function GET() {
 export async function POST(req: Request) {
   try {
     const body = (await req.json()) as PresetStore<BBPreset>;
+    if (isSupabaseConfigured()) {
+      await saveBbPresetsToSupabase(body);
+      return NextResponse.json({ ok: true, message: "クラウドに保存しました" });
+    }
     if (IS_VERCEL) {
       return NextResponse.json({
         ok: false,
-        message: "Vercel上ではファイル直接書き込み不可。エクスポートして public/presets にコミットしてください。",
+        message: "Supabase未設定のため保存できません。NEXT_PUBLIC_SUPABASE_URL / ANON_KEY を設定するか、JSONをエクスポートしてください。",
         data: body,
       });
     }

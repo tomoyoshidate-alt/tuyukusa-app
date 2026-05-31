@@ -13,6 +13,16 @@ npm run dev:mac   # http://localhost:3001
 
 ## Vercel デプロイ
 
+### クラウド同期（Supabase）
+
+Studio プリセットは Supabase に保存され、スタジオ Mac・自宅 Mac・つゆくさアプリで共有されます。
+
+1. [Supabase](https://supabase.com) でプロジェクトを作成
+2. SQL Editor で `supabase/studio_presets.sql` を実行
+3. Vercel / `.env.local` に以下を設定:
+   - `NEXT_PUBLIC_SUPABASE_URL`
+   - `NEXT_PUBLIC_SUPABASE_ANON_KEY`
+
 ### 本体アプリと同一ドメイン（推奨）
 
 ルートの `vercel.json` で `NEXT_PUBLIC_MAC_BASE_PATH=/mac` を設定済みです。  

@@ -13,6 +13,7 @@ import {
   fetchGranularPresets,
   saveBbPresets,
   saveGranularPresets,
+  isSupabaseConfigured,
 } from "@mac/lib/presetClient";
 import {
   DEFAULT_BB_PRESET,
@@ -134,7 +135,9 @@ export function MacStudioApp() {
       <aside className="w-[240px] shrink-0 bg-[#242424] border-r border-[#333] flex flex-col">
         <div className="p-4 border-b border-[#333]">
           <h1 className="text-sm font-bold text-[#5DCAA5] tracking-wide">つゆくさ Studio</h1>
-          <p className="text-[10px] text-[#888] mt-1 font-mono">Mac Preset Editor</p>
+          <p className="text-[10px] text-[#888] mt-1 font-mono">
+            {isSupabaseConfigured() ? "☁️ クラウド同期 ON" : "Mac Preset Editor"}
+          </p>
         </div>
         <div className="p-3 flex gap-2">
           <button type="button" onClick={newBb} className="flex-1 mac-btn text-xs">

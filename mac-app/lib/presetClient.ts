@@ -1,10 +1,14 @@
 "use client";
 
 import { getMacBasePath, macApiUrl } from "@mac/lib/macBasePath";
+import {
+  fetchBbPresetsFromSupabase,
+  fetchGranularPresetsFromSupabase,
+  isSupabaseConfigured,
+  saveBbPresetsToSupabase,
+  saveGranularPresetsToSupabase,
+} from "@mac/lib/presetSupabase";
 import type { PresetStore, BBPreset, GranularPreset } from "@mac/lib/types";
-
-const BB_KEY = "tuyukusa-mac-bb-presets";
-const GR_KEY = "tuyukusa-mac-granular-presets";
 
 export function assetUrl(relativePath: string): string {
   const origin = process.env.NEXT_PUBLIC_ASSET_ORIGIN ?? "";
@@ -15,25 +19,41 @@ export function assetUrl(relativePath: string): string {
 }
 
 export async function fetchBbPresets(): Promise<PresetStore<BBPreset>> {
+  if (isSupabaseConfigured()) {
+    try {
+      return await fetchBbPresetsFromSupabase();
+    } catch (err) {
+      console.error("[fetchBbPresets supabase]", err);
+    }
+  }
   const res = await fetch(macApiUrl("/api/presets/bb"));
   const data = (await res.json()) as PresetStore<BBPreset>;
-  if (typeof window !== "undefined" && data.presets?.length) {
-    localStorage.setItem(BB_KEY, JSON.stringify(data));
-  }
-  return data;
+  return { presets: Array.isArray(data.presets) ? data.presets : [] };
 }
 
 export async function fetchGranularPresets(): Promise<PresetStore<GranularPreset>> {
+  if (isSupabaseConfigured()) {
+    try {
+      return await fetchGranularPresetsFromSupabase();
+    } catch (err) {
+      console.error("[fetchGranularPresets supabase]", err);
+    }
+  }
   const res = await fetch(macApiUrl("/api/presets/granular"));
   const data = (await res.json()) as PresetStore<GranularPreset>;
-  if (typeof window !== "undefined" && data.presets?.length) {
-    localStorage.setItem(GR_KEY, JSON.stringify(data));
-  }
-  return data;
+  return { presets: Array.isArray(data.presets) ? data.presets : [] };
 }
 
 export async function saveBbPresets(store: PresetStore<BBPreset>): Promise<{ ok: boolean; message?: string }> {
-  localStorage.setItem(BB_KEY, JSON.stringify(store));
+  if (isSupabaseConfigured()) {
+    try {
+      await saveBbPresetsToSupabase(store);
+      return { ok: true, message: "クラウドに保存しました" };
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      return { ok: false, message: `クラウド保存に失敗: ${msg}` };
+    }
+  }
   const res = await fetch(macApiUrl("/api/presets/bb"), {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -44,7 +64,15 @@ export async function saveBbPresets(store: PresetStore<BBPreset>): Promise<{ ok:
 }
 
 export async function saveGranularPresets(store: PresetStore<GranularPreset>): Promise<{ ok: boolean; message?: string }> {
-  localStorage.setItem(GR_KEY, JSON.stringify(store));
+  if (isSupabaseConfigured()) {
+    try {
+      await saveGranularPresetsToSupabase(store);
+      return { ok: true, message: "クラウドに保存しました" };
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      return { ok: false, message: `クラウド保存に失敗: ${msg}` };
+    }
+  }
   const res = await fetch(macApiUrl("/api/presets/granular"), {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -68,3 +96,5 @@ export async function fetchAudioFiles(): Promise<string[]> {
   const json = (await res.json()) as { files: string[] };
   return json.files ?? [];
 }
+
+export { isSupabaseConfigured, STUDIO_PRESETS_SETUP_SQL } from "@mac/lib/presetSupabase";

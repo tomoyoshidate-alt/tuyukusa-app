@@ -1,5 +1,10 @@
 import type { GranularParams } from "@/src/lib/soundSystem/types";
 import type { BinauralBeatPreset } from "@/src/lib/binauralBeats";
+import {
+  fetchBbPresetsFromSupabase,
+  fetchGranularPresetsFromSupabase,
+  isSupabaseConfigured,
+} from "@mac/lib/presetSupabase";
 
 export type StudioBbPreset = {
   id: string;
@@ -51,6 +56,14 @@ export function studioBbPresetId(id: string): string {
 }
 
 export async function fetchStudioBbPresets(): Promise<StudioBbPreset[]> {
+  if (isSupabaseConfigured()) {
+    try {
+      const store = await fetchBbPresetsFromSupabase();
+      return store.presets;
+    } catch (err) {
+      console.error("[fetchStudioBbPresets supabase]", err);
+    }
+  }
   try {
     const res = await fetch("/presets/bb-presets.json", { cache: "no-store" });
     if (!res.ok) return [];
@@ -62,6 +75,14 @@ export async function fetchStudioBbPresets(): Promise<StudioBbPreset[]> {
 }
 
 export async function fetchStudioGranularPresets(): Promise<StudioGranularPreset[]> {
+  if (isSupabaseConfigured()) {
+    try {
+      const store = await fetchGranularPresetsFromSupabase();
+      return store.presets;
+    } catch (err) {
+      console.error("[fetchStudioGranularPresets supabase]", err);
+    }
+  }
   try {
     const res = await fetch("/presets/granular-presets.json", { cache: "no-store" });
     if (!res.ok) return [];
