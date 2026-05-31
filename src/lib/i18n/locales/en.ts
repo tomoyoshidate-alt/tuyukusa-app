@@ -78,7 +78,7 @@ const en: TranslationSchema = {
     homeDisplayTitle: "Home Screen Sections",
     weatherChartGroup: "Weather chart details",
     orderTitle: "Section Order",
-    orderHint: "Long-press ⠿ (~0.15s) then drag to reorder. Hold the handle before moving.",
+    orderHint: "Long-press the handle (~0.15s) then drag to reorder. Hold the handle before moving.",
   },
   homeSections: {
     weatherChart: "Weather & temperature",

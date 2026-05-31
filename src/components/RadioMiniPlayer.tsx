@@ -43,7 +43,7 @@ export default function RadioMiniPlayer() {
           flexShrink: 0,
         }}
       >
-        ⏸
+        停止
       </button>
       <div style={{ flex: 1, minWidth: 0 }}>
         <div style={{ fontSize: 10, opacity: 0.6, marginBottom: 2 }}>再生中</div>

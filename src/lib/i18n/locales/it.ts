@@ -78,7 +78,7 @@ const it: TranslationSchema = {
     homeDisplayTitle: "Sezioni home",
     weatherChartGroup: "Dettagli grafico meteo",
     orderTitle: "Ordine sezioni",
-    orderHint: "Tieni premuto ⠿ (~0.15s) e trascina per riordinare.",
+    orderHint: "Tieni premuto il controllo (~0.15s) e trascina per riordinare.",
   },
   homeSections: {
     weatherChart: "Meteo e temperatura",

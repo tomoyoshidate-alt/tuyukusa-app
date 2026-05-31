@@ -78,7 +78,7 @@ const zh: TranslationSchema = {
     homeDisplayTitle: "首页显示项目",
     weatherChartGroup: "天气图表详情",
     orderTitle: "显示顺序",
-    orderHint: "长按 ⠿（约0.15秒）后拖动排序。请先按住手柄再移动。",
+    orderHint: "长按手柄（约0.15秒）后拖动排序。请先按住手柄再移动。",
   },
   homeSections: {
     weatherChart: "天气与气温",

@@ -302,7 +302,6 @@ export default function PomodoroTimer({
             padding: 24,
           }}
         >
-          <div style={{ fontSize: 48, marginBottom: 12 }}>⏰</div>
           <div style={{ fontSize: 22, fontWeight: "bold", color: "white", marginBottom: 8 }}>タイマー終了</div>
           <div style={{ fontSize: 14, color: "rgba(255,255,255,0.9)", marginBottom: 24, textAlign: "center" }}>
             {phaseLabel(phase)}が終わりました

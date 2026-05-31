@@ -202,7 +202,7 @@ function SectionRowContent({
           flexShrink: 0,
         }}
       >
-        ⠿
+        ≡
       </button>
       <span style={{ fontSize: "var(--t-font-size-base)", color: isDragging ? "var(--t-accent)" : "var(--t-text)", flex: 1, fontWeight: isDragging ? "bold" : "normal" }}>
         {label}

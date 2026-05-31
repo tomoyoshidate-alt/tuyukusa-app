@@ -4706,7 +4706,7 @@ ${buildHealthSummary(healthForm)}`;
                 <div style={{ fontSize: 11, opacity: 0.6, marginBottom: 4 }}>{h.date}</div>
                 <div style={{ display: "inline-block", background: "#fdf0e4", color: "#c17f4a", borderRadius: 12, padding: "3px 10px", fontSize: 11, marginBottom: 6 }}>{h.diagnosis}</div>
                 <div style={{ display: "flex", gap: 12, fontSize: 12, opacity: 0.7 }}>
-                  <span>⏰ {h.wake}</span>
+                  <span>起床 {h.wake}</span>
                   <span>{h.sleep}</span>
                 </div>
               </div>
