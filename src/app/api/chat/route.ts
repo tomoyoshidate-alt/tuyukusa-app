@@ -2,6 +2,7 @@ import Anthropic from '@anthropic-ai/sdk';
 import { NextRequest, NextResponse } from 'next/server';
 import { getChatSystemPrompt } from '@/src/lib/i18n/prompts';
 import { isAppLocale } from '@/src/lib/i18n/detectLocale';
+import { buildClaudeMessageContent } from '@/src/lib/claudeMultimodal';
 import {
   parseReflectScheduleFromText,
   reflectionToScheduleUpdates,
@@ -78,6 +79,12 @@ function parseScheduleMeta(text: string): {
   return { content, scheduleSuggestions: suggestions, scheduleReflection: null };
 }
 
+type IncomingMessage = {
+  role: string;
+  content: string;
+  images?: { mediaType: string; data: string }[];
+};
+
 export async function POST(request: NextRequest) {
   const { messages, environmentContext, userKnowledgeContext, healthContext, locale } = await request.json();
   const appLocale = typeof locale === "string" && isAppLocale(locale) ? locale : "ja";
@@ -93,11 +100,19 @@ export async function POST(request: NextRequest) {
     system += `\n\n${healthContext}\n\n上記のヘルスケアデータを診断・生活リズム提案に活用してください。`;
   }
 
+  const anthropicMessages = (messages as IncomingMessage[]).map(m => ({
+    role: m.role === "assistant" ? ("assistant" as const) : ("user" as const),
+    content:
+      m.role === "user" && m.images?.length
+        ? buildClaudeMessageContent(String(m.content), m.images)
+        : String(m.content),
+  }));
+
   const response = await client.messages.create({
     model: 'claude-haiku-4-5-20251001',
     max_tokens: 900,
     system,
-    messages,
+    messages: anthropicMessages,
   });
 
   const raw = response.content[0].type === 'text' ? response.content[0].text : '';

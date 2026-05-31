@@ -626,6 +626,7 @@ function createAiChatMessage(content: string, reply: ChatReply): Message {
 type Message = {
   type: string;
   text: string;
+  images?: { dataUrl: string; mediaType: string; base64: string }[];
   choices?: string[];
   step?: string;
   showSchedule?: boolean;
@@ -758,12 +759,17 @@ const homeActionBtnStyle = themeHomeActionBtnStyle;
 const fieldLabelStyle = themeFieldLabelStyle;
 const inputStyle = themeInputStyle;
 
-type ApiMessage = { role: "user" | "assistant"; content: string };
+type ApiMessage = {
+  role: "user" | "assistant";
+  content: string;
+  images?: { mediaType: string; data: string }[];
+};
 
 function toApiMessages(msgs: Message[]): ApiMessage[] {
   return msgs.map(m => ({
     role: m.type === "user" ? "user" : "assistant",
     content: m.text,
+    images: m.images?.map(img => ({ mediaType: img.mediaType, data: img.base64 })),
   }));
 }
 
@@ -858,9 +864,9 @@ const INITIAL_AI_SUGGESTIONS: Record<GoalPeriod, AiSuggestedGoal | null> = {
 };
 
 function toStoredChatMessages(messages: Message[]): StoredChatMessage[] {
-  return messages.map(({ type, text, step, showSchedule, choices }) => ({
+  return messages.map(({ type, text, step, showSchedule, choices, images }) => ({
     type,
-    text,
+    text: images?.length && !text.trim() ? "[画像]" : text,
     step,
     showSchedule,
     choices,
@@ -3467,7 +3473,7 @@ ${buildHealthSummary(healthForm)}`;
       onChatInputChange={setChatInput}
       onCompositionStart={() => setIsComposing(true)}
       onCompositionEnd={() => setIsComposing(false)}
-      onSend={() => void handleSend()}
+      onSend={images => void handleSend(images)}
       onChoice={choice => void handleChoice(choice)}
       onOpenReflection={(reflection, index) => openReflectionModal(reflection, index)}
       onApplyAllSuggestions={index => applyAllSuggestionsToSchedule(index)}
@@ -3537,9 +3543,10 @@ ${buildHealthSummary(healthForm)}`;
     }
   };
 
-  const submitChatText = async (rawText: string) => {
+  const submitChatText = async (rawText: string, attachedImages?: Message["images"]) => {
     const text = rawText.trim();
-    if (!text) return;
+    const images = attachedImages?.length ? attachedImages : undefined;
+    if (!text && !images?.length) return;
 
     if (isOnboardingResetIntent(text)) {
       resetOnboardingFlow();
@@ -3584,7 +3591,12 @@ ${buildHealthSummary(healthForm)}`;
 
     recordChatKnowledge(text);
 
-    const updatedMessages: Message[] = [...chatMessages, { type: "user", text }];
+    const userMessage: Message = {
+      type: "user",
+      text: text || (images?.length ? "[画像]" : ""),
+      ...(images?.length ? { images } : {}),
+    };
+    const updatedMessages: Message[] = [...chatMessages, userMessage];
     setChatMessages(updatedMessages);
     setIsLoading(true);
     try {
@@ -3604,12 +3616,13 @@ ${buildHealthSummary(healthForm)}`;
     }
   };
 
-  const handleSend = async () => {
-    if (!chatInput.trim()) return;
+  const handleSend = async (attachedImages?: Message["images"]) => {
     const text = chatInput.trim();
+    const images = attachedImages?.length ? attachedImages : undefined;
+    if (!text && !images?.length) return;
     setChatInput("");
     setIsComposing(false);
-    await submitChatText(text);
+    await submitChatText(text, images);
   };
 
   const toggleSymptom = (symptom: string) => {
