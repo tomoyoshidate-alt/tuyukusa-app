@@ -13,6 +13,26 @@ type Props = {
 
 const STEPS = SUPABASE_SETUP_WIZARD_STEPS;
 
+const PROJECT_URL_PATH_ERROR =
+  "URLはhttps://xxxx.supabase.coの形式で入力してください（/rest/v1/などは不要です）";
+
+function getProjectUrlValidationError(url: string): string | null {
+  const trimmed = url.trim();
+  if (!trimmed) return null;
+  if (/\/rest\/v1|\/auth\/v1|\/storage\/v1|\/realtime\/v1/i.test(trimmed)) {
+    return PROJECT_URL_PATH_ERROR;
+  }
+  try {
+    const parsed = new URL(trimmed);
+    if (parsed.pathname && parsed.pathname !== "/") {
+      return PROJECT_URL_PATH_ERROR;
+    }
+  } catch {
+    /* ignore invalid URL until complete */
+  }
+  return null;
+}
+
 export function SupabaseSetupWizard({ isOpen, onClose, onComplete }: Props) {
   const [stepIndex, setStepIndex] = useState(0);
   const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
@@ -27,7 +47,8 @@ export function SupabaseSetupWizard({ isOpen, onClose, onComplete }: Props) {
 
   const step = STEPS[stepIndex];
   const isLastStep = stepIndex === STEPS.length - 1;
-  const canComplete = Boolean(projectUrl.trim() && anonKey.trim() && syncKey.trim());
+  const projectUrlError = getProjectUrlValidationError(projectUrl);
+  const canComplete = Boolean(projectUrl.trim() && anonKey.trim() && syncKey.trim() && !projectUrlError);
 
   const resetWizard = useCallback(() => {
     setStepIndex(0);
@@ -266,8 +287,16 @@ export function SupabaseSetupWizard({ isOpen, onClose, onComplete }: Props) {
                 placeholder="https://xxxx.supabase.co"
                 value={projectUrl}
                 onChange={e => setProjectUrl(e.target.value)}
-                style={inputStyle}
+                style={{
+                  ...inputStyle,
+                  borderColor: projectUrlError ? "#c44a4a" : "rgba(60,40,20,0.12)",
+                }}
               />
+              {projectUrlError && (
+                <div style={{ fontSize: 11, color: "#c44a4a", marginTop: -4, marginBottom: 8, lineHeight: 1.5 }}>
+                  {projectUrlError}
+                </div>
+              )}
               <label style={labelStyle}>Supabase anon key</label>
               <input
                 type="password"
