@@ -6,6 +6,7 @@ import { SupabaseSetupWizard } from "@/src/components/SupabaseSetupWizard";
 import {
   isSupabaseConfigured,
   syncWithSupabase,
+  applySupabaseConnection,
   type SupabaseSettings,
 } from "@/src/lib/supabaseSync";
 
@@ -44,14 +45,8 @@ export function SupabaseSyncPanel({ settings, onChange, onSynced }: Props) {
   };
 
   const handleWizardComplete = (url: string, anonKey: string, syncKey: string) => {
-    const next: SupabaseSettings = {
-      ...settings,
-      url,
-      anonKey,
-      syncId: syncKey,
-      enabled: true,
-    };
-    onChange({ url, anonKey, syncId: syncKey, enabled: true });
+    const next = applySupabaseConnection(url, anonKey, syncKey);
+    onChange(next);
     void runSync("merge", next);
   };
 

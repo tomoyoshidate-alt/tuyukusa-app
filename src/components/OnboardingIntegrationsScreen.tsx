@@ -10,7 +10,7 @@ import {
   type IntegrationChoice,
   type IntegrationId,
 } from "@/src/lib/integrationGuide";
-import type { SupabaseSettings } from "@/src/lib/supabaseSync";
+import { applySupabaseConnection, type SupabaseSettings } from "@/src/lib/supabaseSync";
 import type { NotionSettings } from "@/src/lib/notion";
 import type { GoogleCalendarSettings } from "@/src/lib/googleCalendar";
 import type { HealthData } from "@/src/lib/healthData";
@@ -477,7 +477,7 @@ export function OnboardingIntegrationsScreen({
         isOpen={showSupabaseWizard}
         onClose={() => setShowSupabaseWizard(false)}
         onComplete={(url, anonKey, syncKey) => {
-          onSupabaseChange({ url, anonKey, syncId: syncKey, enabled: true });
+          onSupabaseChange(applySupabaseConnection(url, anonKey, syncKey));
           if (phase === "reminder") {
             onFinish({ allDeferred: true, openTab: "home" });
           } else if (currentId === "supabase") {

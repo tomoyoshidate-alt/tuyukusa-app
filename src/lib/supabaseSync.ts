@@ -34,6 +34,38 @@ export function isSupabaseConfigured(settings: SupabaseSettings): boolean {
   return Boolean(settings.url && settings.anonKey && settings.syncId);
 }
 
+/** Persist Supabase credentials to localStorage (structured + flat keys). */
+export function applySupabaseConnection(url: string, anonKey: string, syncKey: string): SupabaseSettings {
+  const settings: SupabaseSettings = {
+    url: url.trim(),
+    anonKey: anonKey.trim(),
+    syncId: syncKey.trim(),
+    enabled: true,
+  };
+
+  if (typeof window !== "undefined") {
+    localStorage.setItem("tuyukusa-supabase", JSON.stringify(settings));
+    localStorage.setItem("supabaseUrl", settings.url);
+    localStorage.setItem("supabaseAnonKey", settings.anonKey);
+    localStorage.setItem("syncKey", settings.syncId);
+    localStorage.setItem("supabaseConnected", "true");
+  }
+
+  return settings;
+}
+
+export function isSupabaseConnectedInStorage(): boolean {
+  if (typeof window === "undefined") return false;
+  if (localStorage.getItem("supabaseConnected") === "true") return true;
+  try {
+    const raw = localStorage.getItem("tuyukusa-supabase");
+    if (!raw) return false;
+    return isSupabaseConfigured(normalizeSupabaseSettings(JSON.parse(raw)));
+  } catch {
+    return false;
+  }
+}
+
 function createSupabaseClient(settings: SupabaseSettings): SupabaseClient {
   return createClient(settings.url, settings.anonKey);
 }

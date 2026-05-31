@@ -53,6 +53,7 @@ import { ScheduleReflectionModal } from "@/src/components/ScheduleReflectionModa
 import { LocalTodayTasksSection } from "@/src/components/LocalTodayTasksSection";
 import { DataManagementPanel } from "@/src/components/DataManagementPanel";
 import { SupabaseSyncPanel } from "@/src/components/SupabaseSyncPanel";
+import { HomeCloudSyncCard } from "@/src/components/HomeCloudSyncCard";
 import { ExternalIntegrationsPanel } from "@/src/components/ExternalIntegrationsPanel";
 import { OnboardingScreen } from "@/src/components/OnboardingScreen";
 import { OnboardingIntegrationsScreen, type IntegrationFinishOptions } from "@/src/components/OnboardingIntegrationsScreen";
@@ -83,6 +84,8 @@ import {
 import {
   INITIAL_SUPABASE_SETTINGS,
   normalizeSupabaseSettings,
+  applySupabaseConnection,
+  syncWithSupabase,
   type SupabaseSettings,
 } from "@/src/lib/supabaseSync";
 import {
@@ -3993,6 +3996,14 @@ ${buildHealthSummary(healthForm)}`;
               latestMessage={latestAiChatLine}
               onOpenChat={() => openChatFromHome()}
               onSubmit={text => openChatFromHome(text)}
+            />
+            <HomeCloudSyncCard
+              settings={supabaseSettings}
+              onComplete={(url, anonKey, syncKey) => {
+                const next = applySupabaseConnection(url, anonKey, syncKey);
+                setSupabaseSettings(next);
+                void syncWithSupabase(next, "merge").catch(() => {});
+              }}
             />
             {homeDisplay.sectionOrder
               .filter(sectionId => isSectionVisible(homeDisplay, sectionId))
