@@ -18,7 +18,7 @@ import {
 } from "@mac/lib/presetClient";
 import { AudioFileManager } from "@mac/components/AudioFileManager";
 import { audioFileLabel } from "@mac/lib/audioStorage";
-import { clampPitchSemis, formatPitchOctaves } from "@mac/lib/pitchFormat";
+import { clampPitchSemis, clampLfoDepthSemis, formatLfoDepthLabel, formatPitchOctaves } from "@mac/lib/pitchFormat";
 import {
   DEFAULT_BB_PRESET,
   DEFAULT_GRANULAR_PRESET,
@@ -343,7 +343,15 @@ export function MacStudioApp() {
             {grDraft.lfoEnabled && (
               <>
                 <CustomSlider label="LFO速度" value={grDraft.lfoSpeedHz} min={0.01} max={2} step={0.01} unit="Hz" onChange={v => setGrDraft({ ...grDraft, lfoSpeedHz: v })} />
-                <CustomSlider label="LFO深さ" value={grDraft.lfoDepthSemis} min={0} max={6} unit="st" onChange={v => setGrDraft({ ...grDraft, lfoDepthSemis: v })} />
+                <CustomSlider
+                  label="LFO深さ"
+                  value={grDraft.lfoDepthSemis}
+                  min={0}
+                  max={48}
+                  step={1}
+                  formatValue={formatLfoDepthLabel}
+                  onChange={v => setGrDraft({ ...grDraft, lfoDepthSemis: clampLfoDepthSemis(v) })}
+                />
                 <label className="block mb-4 text-xs text-[#a8a8a8]">
                   LFO波形
                   <select className="mac-input w-full mt-1" value={grDraft.lfoWaveform} onChange={e => setGrDraft({ ...grDraft, lfoWaveform: e.target.value as LfoWaveform })}>

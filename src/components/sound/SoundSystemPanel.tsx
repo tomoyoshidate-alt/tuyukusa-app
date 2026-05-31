@@ -31,6 +31,7 @@ import {
   OVERLAY_OPTIONS,
   VISUALIZER_EFFECTS,
   formatPitchShiftLabel,
+  formatLfoDepthLabel,
 } from "@/src/lib/soundSystem/types";
 import SoundVisualizer from "@/src/components/sound/SoundVisualizer";
 import NatureVisualizer from "@/src/components/NatureVisualizer";
@@ -930,13 +931,13 @@ function GranularControls({
         />
         <div style={{ display: "flex", justifyContent: "space-between", fontSize: 11, color: "#9a8b7a", marginBottom: 2 }}>
           <span>Depth</span>
-          <span>±{params.lfoDepth} semitones</span>
+          <span>{formatLfoDepthLabel(params.lfoDepth)}</span>
         </div>
         <input
           type="range"
           min={0}
-          max={24}
-          step={0.5}
+          max={48}
+          step={1}
           disabled={!params.lfoEnabled}
           value={params.lfoDepth}
           onChange={e => set({ lfoDepth: Number(e.target.value) })}

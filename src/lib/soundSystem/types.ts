@@ -50,7 +50,7 @@ export function normalizeGranularParams(raw: Partial<GranularParams> | GranularP
         : DEFAULT_GRANULAR_PARAMS.lfoSpeed,
     lfoDepth:
       typeof raw.lfoDepth === "number"
-        ? Math.max(0, Math.min(24, raw.lfoDepth))
+        ? Math.max(0, Math.min(48, raw.lfoDepth))
         : DEFAULT_GRANULAR_PARAMS.lfoDepth,
     lfoShape,
     volume:
@@ -62,6 +62,14 @@ export function formatPitchShiftLabel(semitones: number): string {
   const oct = Math.round((semitones / 12) * 10) / 10;
   if (oct === 0) return "0 oct";
   return oct > 0 ? `+${oct} oct` : `${oct} oct`;
+}
+
+export function formatLfoDepthLabel(semitones: number): string {
+  const st = Math.round(semitones);
+  if (st === 0) return "0st";
+  const oct = st / 12;
+  const octStr = Number.isInteger(oct) ? String(oct) : String(Math.round(oct * 10) / 10);
+  return `${st}st（${octStr}oct）`;
 }
 
 export type BinauralChannelConfig = {
