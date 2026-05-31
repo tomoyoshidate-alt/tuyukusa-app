@@ -52,7 +52,6 @@ export function SupabaseSyncPanel({ settings, onChange, onSynced }: Props) {
       enabled: true,
     };
     onChange({ url, anonKey, syncId: syncKey, enabled: true });
-    setShowSupabaseWizard(false);
     void runSync("merge", next);
   };
 

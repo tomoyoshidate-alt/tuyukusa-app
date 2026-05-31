@@ -46,6 +46,7 @@ export function SupabaseSetupWizard({ isOpen, onClose, onComplete }: Props) {
   const [anonKey, setAnonKey] = useState("");
   const [syncKey, setSyncKey] = useState("");
   const [sqlCopied, setSqlCopied] = useState(false);
+  const [isSetupComplete, setIsSetupComplete] = useState(false);
   const chatEndRef = useRef<HTMLDivElement>(null);
 
   const step = STEPS[stepIndex];
@@ -63,6 +64,7 @@ export function SupabaseSetupWizard({ isOpen, onClose, onComplete }: Props) {
     setAnonKey("");
     setSyncKey("");
     setSqlCopied(false);
+    setIsSetupComplete(false);
   }, []);
 
   useEffect(() => {
@@ -156,7 +158,7 @@ export function SupabaseSetupWizard({ isOpen, onClose, onComplete }: Props) {
     if (isLastStep) {
       if (!canComplete) return;
       onComplete(projectUrl.trim(), anonKey.trim(), syncKey.trim());
-      onClose();
+      setIsSetupComplete(true);
       return;
     }
     setStepIndex(i => i + 1);
@@ -172,6 +174,28 @@ export function SupabaseSetupWizard({ isOpen, onClose, onComplete }: Props) {
   };
 
   if (!isOpen) return null;
+
+  if (isSetupComplete) {
+    return (
+      <div className="supabase-wizard-overlay" onClick={onClose}>
+        <div className="supabase-wizard-modal" onClick={e => e.stopPropagation()}>
+          <div style={completeBodyStyle}>
+            <div style={completeEmojiStyle}>🎉</div>
+            <div style={completeTitleStyle}>クラウド同期の設定が完了しました！</div>
+            <p style={completeTextStyle}>スマホとPCでデータが同期されます。</p>
+            <p style={{ ...completeTextStyle, marginBottom: 28 }}>
+              Notion・Googleカレンダーなどの連携は、
+              <br />
+              後ほど設定画面からいつでも設定できます。
+            </p>
+            <button type="button" onClick={onClose} style={completeBtnStyle}>
+              つゆくさをはじめる
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="supabase-wizard-overlay" onClick={onClose}>
@@ -539,6 +563,48 @@ const footerPrimaryStyle: CSSProperties = {
   background: "#1a1410",
   color: "#f5f0e8",
   fontSize: 13,
+  fontWeight: "bold",
+  cursor: "pointer",
+};
+
+const completeBodyStyle: CSSProperties = {
+  display: "flex",
+  flexDirection: "column",
+  alignItems: "center",
+  justifyContent: "center",
+  padding: "40px 28px 36px",
+  textAlign: "center",
+};
+
+const completeEmojiStyle: CSSProperties = {
+  fontSize: 48,
+  marginBottom: 16,
+};
+
+const completeTitleStyle: CSSProperties = {
+  fontSize: 18,
+  fontWeight: "bold",
+  color: "#1a1410",
+  marginBottom: 16,
+  lineHeight: 1.5,
+};
+
+const completeTextStyle: CSSProperties = {
+  fontSize: 14,
+  color: "#3d3228",
+  lineHeight: 1.75,
+  margin: "0 0 12px",
+};
+
+const completeBtnStyle: CSSProperties = {
+  width: "100%",
+  maxWidth: 280,
+  padding: "14px 20px",
+  borderRadius: 12,
+  border: "none",
+  background: "#1a1410",
+  color: "#f5f0e8",
+  fontSize: 15,
   fontWeight: "bold",
   cursor: "pointer",
 };

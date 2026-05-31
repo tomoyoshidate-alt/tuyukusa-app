@@ -478,7 +478,6 @@ export function OnboardingIntegrationsScreen({
         onClose={() => setShowSupabaseWizard(false)}
         onComplete={(url, anonKey, syncKey) => {
           onSupabaseChange({ url, anonKey, syncId: syncKey, enabled: true });
-          setShowSupabaseWizard(false);
           if (phase === "reminder") {
             onFinish({ allDeferred: true, openTab: "home" });
           } else if (currentId === "supabase") {
