@@ -1,3 +1,5 @@
+import { getAudioContext, resumeAudioContext } from "@/src/lib/audioContext";
+
 export class AlarmEngine {
   private ctx: AudioContext | null = null;
   private pulseTimer: ReturnType<typeof setInterval> | null = null;
@@ -25,10 +27,7 @@ export class AlarmEngine {
       clearInterval(this.vibrateTimer);
       this.vibrateTimer = null;
     }
-    if (this.ctx) {
-      void this.ctx.close();
-      this.ctx = null;
-    }
+    this.ctx = null;
     if (typeof navigator !== "undefined" && "vibrate" in navigator) {
       navigator.vibrate(0);
     }

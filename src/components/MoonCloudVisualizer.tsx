@@ -1,5 +1,6 @@
 "use client";
 import { useEffect, useRef, useState, useCallback } from "react";
+import { getAudioContext, resumeAudioContext } from "@/src/lib/audioContext";
 
 interface CloudPreset {
   name: string;
@@ -53,8 +54,8 @@ export default function MoonCloudVisualizer() {
   const cloudsRef = useRef<Cloud[]>([]);
   const tRef = useRef(0);
   const animRef = useRef<number | null>(null);
-  const audioCtxRef = useRef<AudioContext | null>(null);
   const analyserRef = useRef<AnalyserNode | null>(null);
+  const masterGainRef = useRef<GainNode | null>(null);
   const freqRef = useRef<Uint8Array<ArrayBuffer> | null>(null);
   const oscsRef = useRef<{ osc: OscillatorNode; gain: GainNode; base: number; baseG: number }[]>([]);
 
@@ -94,21 +95,34 @@ export default function MoonCloudVisualizer() {
 
   // Audio
   const stopAudio = useCallback(() => {
-    oscsRef.current.forEach(({ osc }) => { try { osc.stop(); } catch (_) {} });
+    oscsRef.current.forEach(({ osc, gain }) => {
+      try {
+        osc.stop();
+        osc.disconnect();
+        gain.disconnect();
+      } catch {
+        /* ignore */
+      }
+    });
     oscsRef.current = [];
-    if (audioCtxRef.current) { audioCtxRef.current.close(); audioCtxRef.current = null; analyserRef.current = null; }
   }, []);
 
-  const initAudio = useCallback(() => {
-    if (audioCtxRef.current) return;
-    const ctx = new (window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext)();
-    audioCtxRef.current = ctx;
-    const analyser = ctx.createAnalyser();
-    analyser.fftSize = 256;
-    freqRef.current = new Uint8Array(analyser.frequencyBinCount);
-    analyserRef.current = analyser;
-    const master = ctx.createGain(); master.gain.value = 0.15;
-    master.connect(analyser); analyser.connect(ctx.destination);
+  const initAudio = useCallback(async () => {
+    const ctx = getAudioContext();
+    await resumeAudioContext();
+    if (!analyserRef.current) {
+      const analyser = ctx.createAnalyser();
+      analyser.fftSize = 256;
+      freqRef.current = new Uint8Array(analyser.frequencyBinCount);
+      analyserRef.current = analyser;
+      const master = ctx.createGain();
+      master.gain.value = 0.15;
+      master.connect(analyser);
+      analyser.connect(ctx.destination);
+      masterGainRef.current = master;
+    }
+    const master = masterGainRef.current;
+    if (!master) return;
 
     const add = (freq: number, type: OscillatorType, gain: number, detune = 0) => {
       const o = ctx.createOscillator(); const g = ctx.createGain();
@@ -354,7 +368,7 @@ export default function MoonCloudVisualizer() {
   }, [density, speed, getSize, getEnergy, drawCloud]);
 
   const handlePlay = () => {
-    if (!playing) { setPlaying(true); initAudio(); }
+    if (!playing) { setPlaying(true); void initAudio(); }
     else { setPlaying(false); stopAudio(); }
   };
 

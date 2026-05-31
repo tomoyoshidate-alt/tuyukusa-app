@@ -1,3 +1,4 @@
+import { getAudioContext, resumeAudioContext } from "@/src/lib/audioContext";
 import type { AmbientSoundId, BinauralBeatPreset } from "@/src/lib/binauralBeats";
 
 type EngineNodes = {
@@ -292,8 +293,6 @@ export class BinauralAudioEngine {
   private preInterruptMaster = 0.7;
   private ctxStateCleanup: (() => void) | null = null;
 
-  private ownsContext = true;
-
   async start(
     preset: BinauralBeatPreset,
     ambientId: AmbientSoundId,
@@ -301,10 +300,8 @@ export class BinauralAudioEngine {
   ): Promise<void> {
     this.stop();
     const fadeInSec = options?.fadeInSec ?? 0;
-    const externalCtx = options?.ctx;
-    const ctx = externalCtx ?? new AudioContext();
-    this.ownsContext = !externalCtx;
-    await ctx.resume();
+    const ctx = options?.ctx ?? getAudioContext();
+    await resumeAudioContext();
 
     const master = ctx.createGain();
     const t = ctx.currentTime;
@@ -367,7 +364,8 @@ export class BinauralAudioEngine {
     this.ctxStateCleanup?.();
     this.ctxStateCleanup = null;
     this.pausedByInterrupt = false;
-    const { ctx, leftOsc, rightOsc, merger, ambientCleanup, ambientTimers } = this.nodes;
+    const { leftOsc, rightOsc, merger, binauralGain, ambientGain, master, ambientCleanup, ambientTimers } =
+      this.nodes;
     ambientTimers.forEach(t => clearInterval(t));
     ambientCleanup();
     try {
@@ -376,8 +374,16 @@ export class BinauralAudioEngine {
     } catch {
       /* ignore */
     }
-    merger.disconnect();
-    if (this.ownsContext) void ctx.close();
+    try {
+      leftOsc.disconnect();
+      rightOsc.disconnect();
+      merger.disconnect();
+      binauralGain.disconnect();
+      ambientGain.disconnect();
+      master.disconnect();
+    } catch {
+      /* ignore */
+    }
     this.nodes = null;
     this.currentAmbientId = null;
   }

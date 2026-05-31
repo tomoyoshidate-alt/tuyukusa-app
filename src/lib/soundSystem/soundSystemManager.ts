@@ -7,12 +7,7 @@ import {
 import { binauralPlaybackManager } from "@/src/lib/binauralPlaybackManager";
 import { getDemoBuffer } from "@/src/lib/soundSystem/demoSources";
 import { GranularEngine } from "@/src/lib/soundSystem/granularEngine";
-import {
-  closeSharedAudioContext,
-  getSharedAudioContext,
-  resumeSharedAudioContext,
-  suspendSharedAudioContext,
-} from "@/src/lib/soundSystem/sharedAudioContext";
+import { getAudioContext, resumeAudioContext } from "@/src/lib/audioContext";
 import { normalizeGranularParams } from "@/src/lib/soundSystem/types";
 import {
   readBinauralPlayerSettings,
@@ -235,7 +230,7 @@ class SoundSystemManager {
 
   private async ensureContext(): Promise<AudioContext> {
     binauralPlaybackManager.stop({ silent: true });
-    const ctx = getSharedAudioContext();
+    const ctx = getAudioContext();
     this.ctx = ctx;
 
     if (!this.masterGain || this.masterGain.context !== ctx) {
@@ -245,7 +240,7 @@ class SoundSystemManager {
       this.setupAudioGraph(ctx);
     }
 
-    await resumeSharedAudioContext();
+    await resumeAudioContext();
     configurePlaybackAudioSession();
     await sharedBackgroundAudioSession.acquire(this.bgResumeHandler);
     this.ctxUnregister?.();
@@ -448,18 +443,12 @@ class SoundSystemManager {
     this.ctxUnregister?.();
     this.ctxUnregister = null;
     sharedBackgroundAudioSession.release(this.bgResumeHandler);
-    suspendSharedAudioContext();
     this.emit();
   }
 
-  /** Close the shared AudioContext — call only on panel unmount. */
+  /** Stop playback when the sound panel unmounts (AudioContext stays open). */
   dispose(): void {
-    this.stop();
-    closeSharedAudioContext();
-    this.ctx = null;
-    this.masterGain = null;
-    this.analyser = null;
-    this.channelGains = [null, null, null];
+    if (this.isPlaying) this.stop();
   }
 
   async startPlaylist(): Promise<void> {
