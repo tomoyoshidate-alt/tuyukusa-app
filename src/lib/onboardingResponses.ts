@@ -16,7 +16,7 @@ function getGoalEmpathy(goal: string, t: Translate): string {
   return t("onboarding.empathyGoalCustom", { goal: trimmed });
 }
 
-function getStepPrompt(step: OnboardingStep, t: Translate): { question: string; choices?: string[] } {
+export function getOnboardingStepPrompt(step: OnboardingStep, t: Translate): { question: string; choices?: string[] } {
   switch (step) {
     case "birthdate":
       return { question: t("onboarding.birthdateQuestion") };
@@ -43,7 +43,7 @@ export function buildOnboardingTransition(
   data: OnboardingFlowData,
   t: Translate,
 ): { text: string; choices?: string[] } {
-  const next = getStepPrompt(toStep, t);
+  const next = getOnboardingStepPrompt(toStep, t);
   const parts: string[] = [];
 
   switch (fromStep) {

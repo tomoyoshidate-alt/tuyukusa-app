@@ -5,6 +5,42 @@ export const ONBOARDING_QUESTION_ORDER: OnboardingStep[] = [
   "goal", "birthdate", "gender", "name", "bedtime", "wake", "bath", "sleep_duration",
 ];
 
+const VALID_ONBOARDING_STEPS = new Set<OnboardingStep>([
+  "goal", "birthdate", "gender", "name", "bedtime", "wake", "bath", "sleep_duration", "proposal",
+]);
+
+/** Legacy steps from before hourly time-choice refactor */
+const LEGACY_ONBOARDING_STEP_MAP: Record<string, OnboardingStep> = {
+  return_home: "bedtime",
+  dinner: "wake",
+};
+
+export function normalizeOnboardingStep(step: string | undefined): OnboardingStep | undefined {
+  if (!step) return undefined;
+  const mapped = LEGACY_ONBOARDING_STEP_MAP[step] ?? step;
+  return VALID_ONBOARDING_STEPS.has(mapped as OnboardingStep) ? (mapped as OnboardingStep) : undefined;
+}
+
+export function resolveOnboardingResumeStep(progress: OnboardingProgress | null): OnboardingStep {
+  if (!progress) return "goal";
+  const paused = normalizeOnboardingStep(progress.pausedAtStep);
+  if (paused) return paused;
+  const current = normalizeOnboardingStep(progress.currentStep);
+  if (current) return current;
+  return getNextUnansweredStep(progress) ?? "goal";
+}
+
+function migrateOnboardingProgress(progress: OnboardingProgress): OnboardingProgress {
+  const answered: Partial<Record<OnboardingStep, boolean>> & Record<string, boolean> = {
+    ...progress.answered,
+  };
+  if (answered.return_home && !answered.bedtime) answered.bedtime = true;
+  if (answered.dinner && !answered.wake) answered.wake = true;
+  delete answered.return_home;
+  delete answered.dinner;
+  return { ...progress, answered };
+}
+
 export type OnboardingProgress = {
   flowData: OnboardingFlowData;
   answered: Partial<Record<OnboardingStep, boolean>>;
@@ -20,14 +56,15 @@ const MAX_DEFER = 3;
 export function normalizeOnboardingProgress(data: unknown): OnboardingProgress | null {
   if (!data || typeof data !== "object") return null;
   const d = data as Partial<OnboardingProgress>;
-  return {
+  const base: OnboardingProgress = {
     flowData: (d.flowData && typeof d.flowData === "object" ? d.flowData : {}) as OnboardingFlowData,
     answered: d.answered && typeof d.answered === "object" ? d.answered : {},
     deferCounts: d.deferCounts && typeof d.deferCounts === "object" ? d.deferCounts : {},
-    pausedAtStep: typeof d.pausedAtStep === "string" ? (d.pausedAtStep as OnboardingStep) : undefined,
+    pausedAtStep: typeof d.pausedAtStep === "string" ? normalizeOnboardingStep(d.pausedAtStep) : undefined,
     integrationsPhase: d.integrationsPhase === true,
-    currentStep: typeof d.currentStep === "string" ? (d.currentStep as OnboardingStep) : undefined,
+    currentStep: typeof d.currentStep === "string" ? normalizeOnboardingStep(d.currentStep) : undefined,
   };
+  return migrateOnboardingProgress(base);
 }
 
 export function loadOnboardingProgress(): OnboardingProgress | null {
