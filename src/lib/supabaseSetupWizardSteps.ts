@@ -81,7 +81,7 @@ create policy "Allow anon sync"
   },
   {
     label: "キー入力",
-    ai: "最後に接続情報をつゆくさに入力します。\n\n① 左メニューで Settings → API を開く\n② Project URL をコピー\n③ anon public キーをコピー\n④ 下のフォームに貼り付け\n\n同期キーは好きな文字列でOKです（例: my-tuyukusa-2024）",
+    ai: "最後に接続情報をつゆくさに入力します。\n\n① 左メニュー下部の「Project Settings」をクリック\n② 左メニューの「API」をクリック\n③ 「Project URL」の右にある「Copy」をクリック\n④ 「Project API keys」の「anon public」の右「Copy」をクリック\n⑤ つゆくさアプリのフォームに貼り付け\n\n同期キーは好きな文字列でOKです（例: my-tuyukusa-2024）",
     links: [{ label: "🔗 API 設定", url: "https://app.supabase.com/project/_/settings/api" }],
     quickQs: ["Project URLどこ？", "anon keyってどれ？", "同期キーって何？"],
     qa: {
