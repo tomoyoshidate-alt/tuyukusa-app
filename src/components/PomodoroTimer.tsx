@@ -8,6 +8,7 @@ import {
 import { AlarmEngine } from "@/src/lib/alarmEngine";
 import { BinauralAudioEngine } from "@/src/lib/binauralAudioEngine";
 import { getBeatPreset } from "@/src/lib/binauralBeats";
+import { readBinauralPlayerSettings, resolveBeatPreset } from "@/src/lib/binauralPlayerSettings";
 import {
   DEFAULT_POMODORO_SETTINGS,
   POMODORO_BREAK_BEAT_ID,
@@ -104,7 +105,8 @@ export default function PomodoroTimer({
     async (targetPhase: PomodoroPhase) => {
       if (!linkBinaural) return;
       const beatId = targetPhase === "work" ? POMODORO_WORK_BEAT_ID : POMODORO_BREAK_BEAT_ID;
-      const preset = getBeatPreset(beatId);
+      const settings = readBinauralPlayerSettings();
+      const preset = resolveBeatPreset(getBeatPreset(beatId), settings.baseKey);
       if (engineRef.current?.isPlaying()) {
         engineRef.current.updatePreset(preset);
         return;
@@ -116,7 +118,7 @@ export default function PomodoroTimer({
         void engine.resumeIfSuspended();
         void engine.resumeAfterInterrupt();
       };
-      await engine.start(preset, ambientId, { fadeInSec: 4 });
+      await engine.start(preset, ambientId, { fadeInSec: settings.fadeSec });
       engine.setMasterVolume(masterVolume);
       engine.setBinauralVolume(binauralVolume);
       engine.setAmbientVolume(ambientVolume);

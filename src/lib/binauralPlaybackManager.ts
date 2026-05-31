@@ -6,6 +6,11 @@ import {
 import { BinauralAudioEngine } from "@/src/lib/binauralAudioEngine";
 import type { AmbientSoundId, BinauralBeatPreset } from "@/src/lib/binauralBeats";
 import {
+  readBinauralPlayerSettings,
+  resolveBeatPreset,
+  type BaseKey,
+} from "@/src/lib/binauralPlayerSettings";
+import {
   fireSwAlarm,
   scheduleSwAlarm,
   stopSwAlarm,
@@ -20,11 +25,10 @@ export type BinauralPlaybackSnapshot = {
   timerMinutes: number | null;
   presetId: string;
   ambientId: AmbientSoundId;
+  baseKey: BaseKey;
 };
 
 type Listener = (snapshot: BinauralPlaybackSnapshot) => void;
-
-const FADE_IN_SEC = 4;
 
 class BinauralPlaybackManager {
   private engine: BinauralAudioEngine | null = null;
@@ -33,6 +37,7 @@ class BinauralPlaybackManager {
   private timerMinutes: number | null = null;
   private preset: BinauralBeatPreset | null = null;
   private ambientId: AmbientSoundId = "rain";
+  private baseKey: BaseKey = "C";
   private volumes = { master: 0.7, binaural: 0.45, ambient: 0.35 };
   private alarmRef: AlarmEngine | null = null;
   private isAlarmRinging = false;
@@ -65,7 +70,16 @@ class BinauralPlaybackManager {
       timerMinutes: this.timerMinutes,
       presetId: this.preset?.id ?? "",
       ambientId: this.ambientId,
+      baseKey: this.baseKey,
     };
+  }
+
+  private resolvePreset(preset: BinauralBeatPreset): BinauralBeatPreset {
+    return resolveBeatPreset(preset, this.baseKey);
+  }
+
+  private getFadeSec(): number {
+    return readBinauralPlayerSettings().fadeSec;
   }
 
   isPlaying(): boolean {
@@ -76,17 +90,22 @@ class BinauralPlaybackManager {
     preset: BinauralBeatPreset,
     ambientId: AmbientSoundId,
     timerMinutes: number | null,
-    volumes: { master: number; binaural: number; ambient: number }
+    volumes: { master: number; binaural: number; ambient: number },
+    options?: { baseKey?: BaseKey; fadeSec?: number }
   ): Promise<void> {
-    this.stop({ silent: true });
+    const settings = readBinauralPlayerSettings();
+    this.baseKey = options?.baseKey ?? settings.baseKey;
+    const fadeSec = options?.fadeSec ?? settings.fadeSec;
+    await this.stopImmediate({ silent: true });
     this.preset = preset;
     this.ambientId = ambientId;
     this.timerMinutes = timerMinutes;
     this.volumes = volumes;
 
+    const resolved = this.resolvePreset(preset);
     const engine = new BinauralAudioEngine();
     this.engine = engine;
-    await engine.start(preset, ambientId, { fadeInSec: FADE_IN_SEC });
+    await engine.start(resolved, ambientId, { fadeInSec: fadeSec });
     engine.setMasterVolume(volumes.master);
     engine.setBinauralVolume(volumes.binaural);
     engine.setAmbientVolume(volumes.ambient);
@@ -136,8 +155,18 @@ class BinauralPlaybackManager {
   }
 
   stop(options?: { silent?: boolean }): void {
+    void this.stopImmediate(options);
+  }
+
+  private async stopImmediate(options?: { silent?: boolean }): Promise<void> {
     this.clearTick();
-    this.engine?.stop();
+    const fadeSec = this.getFadeSec();
+    if (this.engine?.isPlaying() && !options?.silent && fadeSec > 0) {
+      this.emit();
+      await this.engine.stopWithFade(fadeSec);
+    } else {
+      this.engine?.stop();
+    }
     this.engine = null;
     this.endAtRef = 0;
     this.stopAlarm();
@@ -149,23 +178,31 @@ class BinauralPlaybackManager {
 
   updatePreset(preset: BinauralBeatPreset): void {
     this.preset = preset;
-    this.engine?.updatePreset(preset);
+    this.engine?.updatePreset(this.resolvePreset(preset));
     this.setupMediaSession(preset);
     this.emit();
   }
 
-  async applyChanges(preset: BinauralBeatPreset, ambientId: AmbientSoundId): Promise<void> {
+  async applyChanges(
+    preset: BinauralBeatPreset,
+    ambientId: AmbientSoundId,
+    options?: { baseKey?: BaseKey; fadeSec?: number }
+  ): Promise<void> {
     if (!this.engine?.isPlaying()) return;
+    const settings = readBinauralPlayerSettings();
     this.preset = preset;
     this.ambientId = ambientId;
-    await this.engine.applyChanges(preset, ambientId);
+    this.baseKey = options?.baseKey ?? settings.baseKey;
+    const fadeSec = options?.fadeSec ?? settings.fadeSec;
+    await this.engine.applyChanges(this.resolvePreset(preset), ambientId, { fadeSec });
     this.setupMediaSession(preset);
     this.emit();
   }
 
-  hasPendingChanges(presetId: string, ambientId: AmbientSoundId): boolean {
+  hasPendingChanges(presetId: string, ambientId: AmbientSoundId, baseKey?: BaseKey): boolean {
     if (!this.engine?.isPlaying()) return false;
-    return this.preset?.id !== presetId || this.ambientId !== ambientId;
+    const key = baseKey ?? readBinauralPlayerSettings().baseKey;
+    return this.preset?.id !== presetId || this.ambientId !== ambientId || this.baseKey !== key;
   }
 
   setVolumes(volumes: { master: number; binaural: number; ambient: number }): void {

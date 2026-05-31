@@ -22,6 +22,13 @@ import {
   writeBinauralFavorites,
   type BinauralFavorite,
 } from "@/src/lib/binauralFavorites";
+import {
+  BASE_KEY_LABELS,
+  formatBeatFrequencies,
+  readBinauralPlayerSettings,
+  writeBinauralPlayerSettings,
+  type BaseKey,
+} from "@/src/lib/binauralPlayerSettings";
 import { requestNotificationPermission } from "@/src/lib/timerServiceWorker";
 import PomodoroTimer from "@/src/components/PomodoroTimer";
 import BinauralExplainPage from "@/src/components/BinauralExplainPage";
@@ -62,6 +69,8 @@ export default function BinauralBeatsPanel({ diagnosis, onClose, initialPanelMod
   const [isApplying, setIsApplying] = useState(false);
   const [bbFavorites, setBbFavorites] = useState<BinauralFavorite[]>([]);
   const [favoriteName, setFavoriteName] = useState("");
+  const [baseKey, setBaseKey] = useState<BaseKey>(() => readBinauralPlayerSettings().baseKey);
+  const [fadeSec, setFadeSec] = useState(() => readBinauralPlayerSettings().fadeSec);
 
   useEffect(() => {
     setBbFavorites(readBinauralFavorites());
@@ -82,6 +91,7 @@ export default function BinauralBeatsPanel({ diagnosis, onClose, initialPanelMod
     if (snap.isPlaying && snap.presetId) {
       setSelectedBeat(snap.presetId);
       setSelectedAmbient(snap.ambientId);
+      setBaseKey(snap.baseKey);
     }
   }, []);
 
@@ -89,7 +99,20 @@ export default function BinauralBeatsPanel({ diagnosis, onClose, initialPanelMod
   const remainingSec = playback.remainingSec;
   const hasPendingChanges =
     isPlaying &&
-    (playback.presetId !== selectedBeat || playback.ambientId !== selectedAmbient);
+    (playback.presetId !== selectedBeat ||
+      playback.ambientId !== selectedAmbient ||
+      playback.baseKey !== baseKey);
+
+  const updateBaseKey = (key: BaseKey) => {
+    setBaseKey(key);
+    writeBinauralPlayerSettings({ baseKey: key });
+  };
+
+  const updateFadeSec = (sec: number) => {
+    const next = Math.max(0, Math.min(30, Math.round(sec)));
+    setFadeSec(next);
+    writeBinauralPlayerSettings({ fadeSec: next });
+  };
 
   const stopPlayback = useCallback(() => {
     binauralPlaybackManager.stopAlarm();
@@ -103,8 +126,8 @@ export default function BinauralBeatsPanel({ diagnosis, onClose, initialPanelMod
       master: masterVolume,
       binaural: binauralVolume,
       ambient: ambientVolume,
-    });
-  }, [selectedBeat, selectedAmbient, timerMinutes, masterVolume, binauralVolume, ambientVolume]);
+    }, { baseKey, fadeSec });
+  }, [selectedBeat, selectedAmbient, timerMinutes, masterVolume, binauralVolume, ambientVolume, baseKey, fadeSec]);
 
   const applyChanges = useCallback(async () => {
     if (!hasPendingChanges || isApplying) return;
@@ -112,12 +135,13 @@ export default function BinauralBeatsPanel({ diagnosis, onClose, initialPanelMod
     try {
       await binauralPlaybackManager.applyChanges(
         getBeatPreset(selectedBeat),
-        selectedAmbient
+        selectedAmbient,
+        { baseKey, fadeSec }
       );
     } finally {
       setIsApplying(false);
     }
-  }, [hasPendingChanges, isApplying, selectedBeat, selectedAmbient]);
+  }, [hasPendingChanges, isApplying, selectedBeat, selectedAmbient, baseKey, fadeSec]);
 
   useEffect(() => {
     if (!isPlaying) return;
@@ -363,6 +387,52 @@ export default function BinauralBeatsPanel({ diagnosis, onClose, initialPanelMod
           })}
         </div>
 
+        <SectionTitle>🎵 基音キー</SectionTitle>
+        <div style={{ display: "flex", gap: 8, marginBottom: 6 }}>
+          {(["C", "Am"] as const).map(key => (
+            <button
+              key={key}
+              type="button"
+              onClick={() => updateBaseKey(key)}
+              style={{
+                flex: 1,
+                padding: "10px 8px",
+                borderRadius: 10,
+                border: baseKey === key ? "2px solid #c17f4a" : "1.5px solid rgba(60,40,20,0.12)",
+                background: baseKey === key ? "#fdf0e4" : "white",
+                fontSize: 11,
+                fontWeight: baseKey === key ? "bold" : "normal",
+                cursor: "pointer",
+                color: "#3d3228",
+                lineHeight: 1.4,
+              }}
+            >
+              {BASE_KEY_LABELS[key]}
+            </button>
+          ))}
+        </div>
+        <div style={{ fontSize: 10, color: "#9a8b7a", marginBottom: 16, lineHeight: 1.5 }}>
+          {formatBeatFrequencies(getBeatPreset(selectedBeat), baseKey)}
+        </div>
+
+        <SectionTitle>⏱️ 切替フェード時間</SectionTitle>
+        <div style={{ marginBottom: 16 }}>
+          <div style={{ display: "flex", justifyContent: "space-between", fontSize: 11, color: "#3d3228", marginBottom: 4 }}>
+            <span>0秒</span>
+            <span>{fadeSec}秒</span>
+            <span>30秒</span>
+          </div>
+          <input
+            type="range"
+            min={0}
+            max={30}
+            step={1}
+            value={fadeSec}
+            onChange={e => updateFadeSec(Number(e.target.value))}
+            style={{ width: "100%", accentColor: "#c17f4a" }}
+          />
+        </div>
+
         <SectionTitle>タイマー</SectionTitle>
         <div style={{ display: "flex", gap: 8, marginBottom: 8 }}>
           <TimerChip label="なし" selected={timerMinutes === null} onClick={() => setTimerMinutes(null)} />
@@ -493,20 +563,20 @@ export default function BinauralBeatsPanel({ diagnosis, onClose, initialPanelMod
               opacity: isApplying || playback.isTransitioning ? 0.7 : 1,
             }}
           >
-            {isApplying || playback.isTransitioning ? "切り替え中..." : "変更適応"}
+            {isApplying || playback.isTransitioning ? "切り替え中..." : "変更を適用"}
           </button>
         )}
 
         {isPlaying && hasPendingChanges && (
           <div style={{ fontSize: 10, color: "#8b7355", marginTop: 6, textAlign: "center", lineHeight: 1.5 }}>
-            BBの種類や背景音を変更しました。「変更適応」でフェード切り替えできます。
+            BB・背景音・基音キーを変更しました。「変更を適用」でフェード切り替えできます。
           </div>
         )}
 
         <div style={{ marginTop: 20, display: "flex", gap: 10, alignItems: "center" }}>
           <button
             type="button"
-            onClick={() => (isPlaying ? stopPlayback() : startPlayback())}
+            onClick={() => (isPlaying ? stopPlayback() : void startPlayback())}
             style={{
               flex: 1,
               padding: "14px",

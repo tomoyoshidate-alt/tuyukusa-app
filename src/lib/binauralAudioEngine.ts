@@ -276,6 +276,10 @@ export function buildAmbient(
 
 const CROSSFADE_SEC = 1.5;
 
+function sleepMs(ms: number): Promise<void> {
+  return new Promise(resolve => setTimeout(resolve, ms));
+}
+
 export class BinauralAudioEngine {
   private nodes: EngineNodes | null = null;
   private currentAmbientId: AmbientSoundId | null = null;
@@ -283,6 +287,7 @@ export class BinauralAudioEngine {
   private targetBinaural = 0.45;
   private targetAmbient = 0.35;
   private transitioning = false;
+  private transitionId = 0;
   private pausedByInterrupt = false;
   private preInterruptMaster = 0.7;
   private ctxStateCleanup: (() => void) | null = null;
@@ -356,6 +361,8 @@ export class BinauralAudioEngine {
   }
 
   stop(): void {
+    this.transitionId += 1;
+    this.transitioning = false;
     if (!this.nodes) return;
     this.ctxStateCleanup?.();
     this.ctxStateCleanup = null;
@@ -373,6 +380,24 @@ export class BinauralAudioEngine {
     if (this.ownsContext) void ctx.close();
     this.nodes = null;
     this.currentAmbientId = null;
+  }
+
+  async stopWithFade(fadeSec: number): Promise<void> {
+    if (!this.nodes) return;
+    const id = ++this.transitionId;
+    if (fadeSec <= 0) {
+      this.stop();
+      return;
+    }
+    this.transitioning = true;
+    const { ctx, master } = this.nodes;
+    const t = ctx.currentTime;
+    master.gain.cancelScheduledValues(t);
+    master.gain.setValueAtTime(master.gain.value, t);
+    master.gain.linearRampToValueAtTime(0, t + fadeSec);
+    await sleepMs(fadeSec * 1000);
+    if (id !== this.transitionId) return;
+    this.stop();
   }
 
   isTransitioning(): boolean {
@@ -397,31 +422,42 @@ export class BinauralAudioEngine {
   ): Promise<void> {
     if (!this.nodes) return;
     const fadeSec = options?.fadeSec ?? CROSSFADE_SEC;
+    const id = ++this.transitionId;
     this.transitioning = true;
-    const { ctx, master } = this.nodes;
-    const t = ctx.currentTime;
 
-    master.gain.cancelScheduledValues(t);
-    master.gain.setValueAtTime(master.gain.value, t);
-    master.gain.linearRampToValueAtTime(0, t + fadeSec);
+    const apply = (): void => {
+      if (!this.nodes) return;
+      this.updatePreset(preset);
+      this.swapAmbient(ambientId);
+    };
 
-    await new Promise<void>(resolve => setTimeout(resolve, fadeSec * 1000));
-
-    if (!this.nodes) {
+    if (fadeSec <= 0) {
+      apply();
       this.transitioning = false;
       return;
     }
 
-    this.updatePreset(preset);
-    this.swapAmbient(ambientId);
+    const { ctx, master } = this.nodes;
+    let t = ctx.currentTime;
+    master.gain.cancelScheduledValues(t);
+    master.gain.setValueAtTime(master.gain.value, t);
+    master.gain.linearRampToValueAtTime(0, t + fadeSec);
 
-    const t2 = this.nodes.ctx.currentTime;
-    this.nodes.master.gain.cancelScheduledValues(t2);
-    this.nodes.master.gain.setValueAtTime(0, t2);
-    this.nodes.master.gain.linearRampToValueAtTime(this.targetMaster, t2 + fadeSec);
+    await sleepMs(fadeSec * 1000);
+    if (id !== this.transitionId || !this.nodes) {
+      this.transitioning = false;
+      return;
+    }
 
-    await new Promise<void>(resolve => setTimeout(resolve, fadeSec * 1000));
-    this.transitioning = false;
+    apply();
+
+    t = this.nodes.ctx.currentTime;
+    this.nodes.master.gain.cancelScheduledValues(t);
+    this.nodes.master.gain.setValueAtTime(0, t);
+    this.nodes.master.gain.linearRampToValueAtTime(this.targetMaster, t + fadeSec);
+
+    await sleepMs(fadeSec * 1000);
+    if (id === this.transitionId) this.transitioning = false;
   }
 
   setMasterVolume(value: number): void {
