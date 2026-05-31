@@ -7,6 +7,24 @@ import {
 import { binauralPlaybackManager } from "@/src/lib/binauralPlaybackManager";
 import { getDemoBuffer } from "@/src/lib/soundSystem/demoSources";
 import { GranularEngine } from "@/src/lib/soundSystem/granularEngine";
+
+const audioBufferCache = new Map<string, AudioBuffer>();
+
+async function loadAudioFileBuffer(ctx: AudioContext, filename: string): Promise<AudioBuffer | null> {
+  const key = filename;
+  const cached = audioBufferCache.get(key);
+  if (cached) return cached;
+  try {
+    const res = await fetch(`/audio/${encodeURIComponent(filename)}`);
+    if (!res.ok) return null;
+    const data = await res.arrayBuffer();
+    const buffer = await ctx.decodeAudioData(data.slice(0));
+    audioBufferCache.set(key, buffer);
+    return buffer;
+  } catch {
+    return null;
+  }
+}
 import {
   readPlaylistSettings,
   readPresets,
@@ -226,9 +244,12 @@ class SoundSystemManager {
 
     const engine = new GranularEngine(ctx, gain, ch.granular);
     this.granularEngines[slot] = engine;
-    const buffer = getDemoBuffer(ctx, ch.sourceId);
+    const buffer = ch.audioFile
+      ? await loadAudioFileBuffer(ctx, ch.audioFile)
+      : getDemoBuffer(ctx, ch.sourceId);
     engine.setBuffer(buffer);
-    if (ch.volume > 0 && ch.granular.volume > 0 && ch.sourceId !== "silent") {
+    const hasSource = ch.audioFile ? !!buffer : ch.sourceId !== "silent";
+    if (ch.volume > 0 && ch.granular.volume > 0 && hasSource) {
       engine.start();
     }
   }

@@ -7,10 +7,11 @@ import {
   TIMER_OPTIONS,
   getBeatPreset,
   getRecommendedBeatId,
+  getStudioBeatPresets,
   type AmbientSoundId,
-  type BinauralBeatId,
   type TimerMinutes,
 } from "@/src/lib/binauralBeats";
+import { STUDIO_PRESETS_LOADED_EVENT } from "@/src/components/StudioPresetsLoader";
 import {
   binauralPlaybackManager,
   type BinauralPlaybackSnapshot,
@@ -48,7 +49,8 @@ export default function BinauralBeatsPanel({ diagnosis, onClose, initialPanelMod
   useEffect(() => {
     setPanelMode(initialPanelMode);
   }, [initialPanelMode]);
-  const [selectedBeat, setSelectedBeat] = useState<BinauralBeatId>(recommendedId);
+  const [selectedBeat, setSelectedBeat] = useState<string>(recommendedId);
+  const [studioBbPresets, setStudioBbPresets] = useState(() => getStudioBeatPresets());
   const [selectedAmbient, setSelectedAmbient] = useState<AmbientSoundId>("rain");
   const [timerMinutes, setTimerMinutes] = useState<TimerMinutes | null>(10);
   const [masterVolume, setMasterVolume] = useState(0.7);
@@ -66,13 +68,19 @@ export default function BinauralBeatsPanel({ diagnosis, onClose, initialPanelMod
   }, []);
 
   useEffect(() => {
+    const onLoaded = () => setStudioBbPresets(getStudioBeatPresets());
+    window.addEventListener(STUDIO_PRESETS_LOADED_EVENT, onLoaded);
+    return () => window.removeEventListener(STUDIO_PRESETS_LOADED_EVENT, onLoaded);
+  }, []);
+
+  useEffect(() => {
     return binauralPlaybackManager.subscribe(setPlayback);
   }, []);
 
   useEffect(() => {
     const snap = binauralPlaybackManager.getSnapshot();
     if (snap.isPlaying && snap.presetId) {
-      setSelectedBeat(snap.presetId as BinauralBeatId);
+      setSelectedBeat(snap.presetId);
       setSelectedAmbient(snap.ambientId);
     }
   }, []);
@@ -295,6 +303,40 @@ export default function BinauralBeatsPanel({ diagnosis, onClose, initialPanelMod
             );
           })}
         </div>
+
+        {studioBbPresets.length > 0 && (
+          <>
+            <SectionTitle>Studio プリセット</SectionTitle>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, marginBottom: 16 }}>
+              {studioBbPresets.map(preset => {
+                const selected = selectedBeat === preset.id;
+                return (
+                  <button
+                    key={preset.id}
+                    type="button"
+                    onClick={() => setSelectedBeat(preset.id)}
+                    style={{
+                      textAlign: "left",
+                      padding: "10px 12px",
+                      borderRadius: 10,
+                      border: selected ? "2px solid #7ec8e3" : "1px solid rgba(60,40,20,0.12)",
+                      background: selected ? "#e8f4f8" : "white",
+                      cursor: "pointer",
+                    }}
+                  >
+                    <div style={{ fontSize: 13, fontWeight: "bold", color: "#3d3228" }}>
+                      {preset.emoji} {preset.label}
+                    </div>
+                    <div style={{ fontSize: 10, color: "#4a6741", marginTop: 2 }}>{preset.waveLabel}</div>
+                    {preset.memo && (
+                      <div style={{ fontSize: 9, color: "#9a8b7a", marginTop: 4, lineHeight: 1.4 }}>{preset.memo}</div>
+                    )}
+                  </button>
+                );
+              })}
+            </div>
+          </>
+        )}
 
         <SectionTitle>背景音（11種類）</SectionTitle>
         <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginBottom: 16 }}>

@@ -5,9 +5,11 @@ import {
   AMBIENT_SOUND_PRESETS,
   BINURAL_BEAT_PRESETS,
   getRecommendedBeatId,
+  getStudioBeatPresets,
   type AmbientSoundId,
-  type BinauralBeatId,
 } from "@/src/lib/binauralBeats";
+import { STUDIO_PRESETS_LOADED_EVENT, getStudioGranularPresets } from "@/src/components/StudioPresetsLoader";
+import { studioGranularToParams } from "@/src/lib/studioPresets";
 import { readPresets, readPlaylistSettings } from "@/src/lib/soundSystem/presetStorage";
 import { soundSystemManager } from "@/src/lib/soundSystem/soundSystemManager";
 import type {
@@ -103,6 +105,8 @@ export default function SoundSystemPanel({
   const [screensaver, setScreensaver] = useState(false);
   const [analyser, setAnalyser] = useState<AnalyserNode | null>(null);
   const [sceneViz, setSceneViz] = useState<SceneVizMode>("default");
+  const [studioBbPresets, setStudioBbPresets] = useState(() => getStudioBeatPresets());
+  const [studioGranularPresets, setStudioGranularPresets] = useState(() => getStudioGranularPresets());
 
   const updatePlaylist = (next: PlaylistSettings) => {
     soundSystemManager.setPlaylistSettings(next);
@@ -120,6 +124,15 @@ export default function SoundSystemPanel({
       setSnapshot(s);
       setAnalyser(soundSystemManager.getAnalyser());
     });
+  }, []);
+
+  useEffect(() => {
+    const onLoaded = () => {
+      setStudioBbPresets(getStudioBeatPresets());
+      setStudioGranularPresets(getStudioGranularPresets());
+    };
+    window.addEventListener(STUDIO_PRESETS_LOADED_EVENT, onLoaded);
+    return () => window.removeEventListener(STUDIO_PRESETS_LOADED_EVENT, onLoaded);
   }, []);
 
   const channels = snapshot.channels;
@@ -356,7 +369,7 @@ export default function SoundSystemPanel({
                     key={p.id}
                     type="button"
                     onClick={() =>
-                      updateChannel(0, { ...ch0, binauralBeatId: p.id as BinauralBeatId })
+                      updateChannel(0, { ...ch0, binauralBeatId: p.id })
                     }
                     style={{
                       textAlign: "left",
@@ -374,6 +387,32 @@ export default function SoundSystemPanel({
                   </button>
                 ))}
               </div>
+              {studioBbPresets.length > 0 && (
+                <>
+                  <SectionTitle>Studio BB プリセット</SectionTitle>
+                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 6, marginBottom: 12 }}>
+                    {studioBbPresets.map(p => (
+                      <button
+                        key={p.id}
+                        type="button"
+                        onClick={() => updateChannel(0, { ...ch0, binauralBeatId: p.id })}
+                        style={{
+                          textAlign: "left",
+                          padding: "8px",
+                          borderRadius: 8,
+                          border: ch0.binauralBeatId === p.id ? "2px solid #7ec8e3" : "1px solid rgba(255,255,255,0.1)",
+                          background: ch0.binauralBeatId === p.id ? "rgba(126,200,227,0.15)" : "rgba(255,255,255,0.03)",
+                          color: "#f5f0e8",
+                          fontSize: 11,
+                          cursor: "pointer",
+                        }}
+                      >
+                        {p.emoji} {p.label}
+                      </button>
+                    ))}
+                  </div>
+                </>
+              )}
               <SectionTitle>BB背景音</SectionTitle>
               <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginBottom: 12 }}>
                 {AMBIENT_SOUND_PRESETS.map(p => (
@@ -402,6 +441,37 @@ export default function SoundSystemPanel({
 
           {activeSlot !== 0 && chActive.type === "granular" && (
             <>
+              {studioGranularPresets.length > 0 && (
+                <>
+                  <SectionTitle>Studio グラニュラー</SectionTitle>
+                  <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginBottom: 12 }}>
+                    {studioGranularPresets.map(p => (
+                      <button
+                        key={p.id}
+                        type="button"
+                        onClick={() =>
+                          updateChannel(activeSlot, {
+                            ...chActive,
+                            audioFile: p.audioFile,
+                            granular: studioGranularToParams(p),
+                          })
+                        }
+                        style={{
+                          padding: "6px 10px",
+                          borderRadius: 16,
+                          border: chActive.audioFile === p.audioFile ? "2px solid #7ec8e3" : "1px solid rgba(255,255,255,0.1)",
+                          background: chActive.audioFile === p.audioFile ? "rgba(126,200,227,0.15)" : "rgba(255,255,255,0.03)",
+                          color: "#f5f0e8",
+                          fontSize: 11,
+                          cursor: "pointer",
+                        }}
+                      >
+                        {p.icon ?? ""} {p.name}
+                      </button>
+                    ))}
+                  </div>
+                </>
+              )}
               <SectionTitle>デモ音源</SectionTitle>
               <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginBottom: 12 }}>
                 {DEMO_SOURCE_OPTIONS.map(s => (
@@ -409,7 +479,7 @@ export default function SoundSystemPanel({
                     key={s.id}
                     type="button"
                     onClick={() =>
-                      updateChannel(activeSlot, { ...chActive, sourceId: s.id })
+                      updateChannel(activeSlot, { ...chActive, sourceId: s.id, audioFile: undefined })
                     }
                     style={{
                       padding: "6px 10px",

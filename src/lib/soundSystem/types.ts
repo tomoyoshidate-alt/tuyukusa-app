@@ -1,4 +1,4 @@
-import type { AmbientSoundId, BinauralBeatId } from "@/src/lib/binauralBeats";
+import type { AmbientSoundId } from "@/src/lib/binauralBeats";
 
 export type DemoSourceId = AmbientSoundId;
 
@@ -18,7 +18,7 @@ export type GranularParams = {
 
 export type BinauralChannelConfig = {
   type: "binaural";
-  binauralBeatId: BinauralBeatId;
+  binauralBeatId: string;
   binauralAmbientId: AmbientSoundId;
   volume: number;
 };
@@ -26,6 +26,8 @@ export type BinauralChannelConfig = {
 export type GranularChannelConfig = {
   type: "granular";
   sourceId: DemoSourceId;
+  /** When set, load buffer from /audio/{audioFile} instead of procedural demo */
+  audioFile?: string;
   volume: number;
   granular: GranularParams;
 };

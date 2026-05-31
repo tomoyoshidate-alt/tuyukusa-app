@@ -21,13 +21,30 @@ export type AmbientSoundId =
   | "waterdrops";
 
 export type BinauralBeatPreset = {
-  id: BinauralBeatId;
+  id: string;
   emoji: string;
   label: string;
   waveLabel: string;
   beatHz: number;
   carrierHz: number;
+  /** Studio export metadata */
+  studio?: boolean;
+  memo?: string;
 };
+
+let studioBeatPresets: BinauralBeatPreset[] = [];
+
+export function setStudioBeatPresets(presets: BinauralBeatPreset[]): void {
+  studioBeatPresets = presets;
+}
+
+export function getStudioBeatPresets(): BinauralBeatPreset[] {
+  return studioBeatPresets;
+}
+
+export function getAllBeatPresets(): BinauralBeatPreset[] {
+  return [...BINURAL_BEAT_PRESETS, ...studioBeatPresets];
+}
 
 export type AmbientSoundPreset = {
   id: AmbientSoundId;
@@ -74,6 +91,6 @@ export function getRecommendedBeatId(diagnosis: string): BinauralBeatId {
   return DIAGNOSIS_BEAT_RECOMMENDATIONS[diagnosis] ?? "meditation-theta";
 }
 
-export function getBeatPreset(id: BinauralBeatId): BinauralBeatPreset {
-  return BINURAL_BEAT_PRESETS.find(p => p.id === id) ?? BINURAL_BEAT_PRESETS[2];
+export function getBeatPreset(id: string): BinauralBeatPreset {
+  return getAllBeatPresets().find(p => p.id === id) ?? BINURAL_BEAT_PRESETS[2];
 }

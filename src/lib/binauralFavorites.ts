@@ -1,9 +1,9 @@
-import type { AmbientSoundId, BinauralBeatId, TimerMinutes } from "@/src/lib/binauralBeats";
+import type { AmbientSoundId, TimerMinutes } from "@/src/lib/binauralBeats";
 
 export type BinauralFavorite = {
   id: string;
   name: string;
-  beatId: BinauralBeatId;
+  beatId: string;
   ambientId: AmbientSoundId;
   masterVolume: number;
   binauralVolume: number;
