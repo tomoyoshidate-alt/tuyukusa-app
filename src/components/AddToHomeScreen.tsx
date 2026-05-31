@@ -1,15 +1,21 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useState, type CSSProperties } from "react";
 import { useTranslation } from "react-i18next";
 import { isIosDevice } from "@/src/lib/pwaInstall";
 import { usePwaInstall } from "@/src/hooks/usePwaInstall";
+
+function getAppPageUrl(): string {
+  if (typeof window === "undefined") return "https://tuyukusa-app.vercel.app";
+  return window.location.origin;
+}
 
 export default function AddToHomeScreen() {
   const { t } = useTranslation();
   const { canPromptInstall, installed, promptInstall } = usePwaInstall();
   const [showGuide, setShowGuide] = useState(false);
   const [dismissed, setDismissed] = useState(false);
+  const [toast, setToast] = useState<string | null>(null);
 
   useEffect(() => {
     try {
@@ -18,6 +24,12 @@ export default function AddToHomeScreen() {
       /* ignore */
     }
   }, []);
+
+  useEffect(() => {
+    if (!toast) return;
+    const timer = window.setTimeout(() => setToast(null), 3200);
+    return () => window.clearTimeout(timer);
+  }, [toast]);
 
   const dismiss = useCallback(() => {
     setDismissed(true);
@@ -33,12 +45,32 @@ export default function AddToHomeScreen() {
       await promptInstall();
       return;
     }
-    if (isIosDevice()) {
-      setShowGuide(true);
-      return;
-    }
     setShowGuide(true);
   }, [canPromptInstall, promptInstall]);
+
+  const handleCopyForSafari = useCallback(async () => {
+    const url = getAppPageUrl();
+    try {
+      await navigator.clipboard.writeText(url);
+      setToast(t("pwa.safariPasteToast"));
+    } catch {
+      try {
+        const textarea = document.createElement("textarea");
+        textarea.value = url;
+        textarea.style.position = "fixed";
+        textarea.style.left = "-9999px";
+        document.body.appendChild(textarea);
+        textarea.select();
+        document.execCommand("copy");
+        document.body.removeChild(textarea);
+        setToast(t("pwa.safariPasteToast"));
+      } catch {
+        setToast(url);
+      }
+    }
+  }, [t]);
+
+  const showIphoneGuide = isIosDevice();
 
   if (installed) return null;
   if (dismissed && !canPromptInstall) return null;
@@ -67,29 +99,93 @@ export default function AddToHomeScreen() {
       {showGuide && (
         <div className="pwa-guide-overlay" onClick={() => setShowGuide(false)}>
           <div className="pwa-guide-sheet" onClick={e => e.stopPropagation()}>
-            <div style={{ fontSize: 16, fontWeight: "bold", color: "#3d3228", marginBottom: 12 }}>
+            <div style={{ fontSize: 16, fontWeight: "bold", color: "#3d3228", marginBottom: 16 }}>
               {t("pwa.guideTitle")}
             </div>
-            {isIosDevice() ? (
-              <ol style={{ fontSize: 13, color: "#3d3228", lineHeight: 1.8, paddingLeft: 20, margin: 0 }}>
-                <li>{t("pwa.iosStep1")}</li>
-                <li>{t("pwa.iosStep2")}</li>
-                <li>{t("pwa.iosStep3")}</li>
-              </ol>
+
+            {showIphoneGuide ? (
+              <div style={{ marginBottom: 16 }}>
+                <div style={sectionTitleStyle}>{t("pwa.guideIphoneTitle")}</div>
+                <ol style={stepsStyle}>
+                  <li>{t("pwa.iosStep1")}</li>
+                  <li>{t("pwa.iosStep2")}</li>
+                  <li>{t("pwa.iosStep3")}</li>
+                  <li>{t("pwa.iosStep4")}</li>
+                </ol>
+              </div>
             ) : (
-              <ol style={{ fontSize: 13, color: "#3d3228", lineHeight: 1.8, paddingLeft: 20, margin: 0 }}>
-                <li>{t("pwa.macStep1")}</li>
-                <li>{t("pwa.macStep2")}</li>
-                <li>{t("pwa.macStep3")}</li>
-                <li>{t("pwa.macStep4")}</li>
-              </ol>
+              <div style={{ marginBottom: 16 }}>
+                <div style={sectionTitleStyle}>{t("pwa.guideMacTitle")}</div>
+                <ol style={stepsStyle}>
+                  <li>{t("pwa.macStep1")}</li>
+                  <li>{t("pwa.macStep2")}</li>
+                  <li>{t("pwa.macStep3")}</li>
+                </ol>
+              </div>
             )}
+
+            <button type="button" onClick={() => void handleCopyForSafari()} style={copyBtnStyle}>
+              {t("pwa.copySafariButton")}
+            </button>
+
             <button type="button" onClick={() => setShowGuide(false)} className="pwa-guide-close">
               {t("common.close")}
             </button>
           </div>
         </div>
       )}
+
+      {toast && (
+        <div style={toastStyle} role="status" aria-live="polite">
+          {toast}
+        </div>
+      )}
     </>
   );
 }
+
+const sectionTitleStyle: CSSProperties = {
+  fontSize: 13,
+  fontWeight: "bold",
+  color: "#3d3228",
+  marginBottom: 8,
+};
+
+const stepsStyle: CSSProperties = {
+  fontSize: 13,
+  color: "#3d3228",
+  lineHeight: 1.85,
+  paddingLeft: 20,
+  margin: 0,
+};
+
+const copyBtnStyle: CSSProperties = {
+  width: "100%",
+  padding: "13px 14px",
+  borderRadius: 12,
+  border: "none",
+  background: "#1a1410",
+  color: "#f5f0e8",
+  fontSize: 14,
+  fontWeight: "bold",
+  cursor: "pointer",
+  marginBottom: 10,
+};
+
+const toastStyle: CSSProperties = {
+  position: "fixed",
+  left: "50%",
+  bottom: 28,
+  transform: "translateX(-50%)",
+  zIndex: 50000,
+  maxWidth: "min(92vw, 360px)",
+  padding: "12px 16px",
+  borderRadius: 12,
+  background: "#1a1410",
+  color: "#f5f0e8",
+  fontSize: 13,
+  fontWeight: "bold",
+  textAlign: "center",
+  boxShadow: "0 8px 24px rgba(0,0,0,0.22)",
+  lineHeight: 1.5,
+};
