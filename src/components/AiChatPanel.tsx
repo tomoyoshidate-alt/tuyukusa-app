@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, type RefObject } from "react";
+import { useEffect, useRef, useState, type RefObject } from "react";
 import { useTranslation } from "react-i18next";
 import type { ScheduleReflection } from "@/src/lib/scheduleReflection";
 
@@ -60,6 +60,11 @@ export function AiChatPanel({
   const { t } = useTranslation();
   const internalEndRef = useRef<HTMLDivElement>(null);
   const messagesEndRef = externalEndRef ?? internalEndRef;
+  const [isMacPlatform, setIsMacPlatform] = useState(true);
+
+  useEffect(() => {
+    setIsMacPlatform(/Mac|iPhone|iPad|iPod/.test(navigator.userAgent));
+  }, []);
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -295,29 +300,33 @@ export function AiChatPanel({
           onCompositionStart={onCompositionStart}
           onCompositionEnd={onCompositionEnd}
           onKeyDown={e => {
-            if (e.key === "Enter" && !e.shiftKey && !isComposing) {
-              e.preventDefault();
-              onSend();
-            }
+            if (e.key !== "Enter") return;
+            if (isComposing || e.nativeEvent.isComposing) return;
+            if (!(e.metaKey || e.ctrlKey)) return;
+            e.preventDefault();
+            onSend();
           }}
-          rows={1}
+          rows={2}
         />
         <button
           type="button"
           onClick={onSend}
           style={{
-            width: 42,
-            height: 42,
-            borderRadius: "50%",
+            padding: "10px 14px",
+            minHeight: 42,
+            borderRadius: 22,
             background: "#1a1410",
             border: "none",
             cursor: "pointer",
             color: "white",
-            fontSize: 18,
+            fontSize: 12,
+            fontWeight: "bold",
             flexShrink: 0,
+            whiteSpace: "nowrap",
+            fontFamily: "inherit",
           }}
         >
-          送信
+          {isMacPlatform ? t("chat.sendMac") : t("chat.sendWin")}
         </button>
       </div>
     </div>

@@ -207,6 +207,8 @@ const it: TranslationSchema = {
     openSound: "Apri suono",
     placeholder: "Scrivi un messaggio...",
     send: "Invia",
+    sendMac: "Invia (⌘+Enter)",
+    sendWin: "Invia (Ctrl+Enter)",
   },
   onboarding: {
     title: "Tsuyukusa AI Onboarding",

@@ -221,6 +221,8 @@ const en: TranslationSchema = {
     openSound: "Open sound",
     placeholder: "Ask about rhythm, goals, schedule…",
     send: "Send",
+    sendMac: "Send (⌘+Enter)",
+    sendWin: "Send (Ctrl+Enter)",
   },
   onboarding: {
     title: "Tsuyukusa AI Onboarding",

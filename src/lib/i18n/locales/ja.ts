@@ -219,6 +219,8 @@ const ja = {
     openSound: "サウンドを開く",
     placeholder: "生活リズム・目標・スケジュールを自由に相談…",
     send: "送信",
+    sendMac: "送信 (⌘+Enter)",
+    sendWin: "送信 (Ctrl+Enter)",
   },
   onboarding: {
     title: "つゆくさAI 初回問診",
