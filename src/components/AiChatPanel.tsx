@@ -2,7 +2,6 @@
 
 import { useEffect, useRef, type RefObject } from "react";
 import { useTranslation } from "react-i18next";
-import VoiceInputButton from "@/src/components/VoiceInputButton";
 import type { ScheduleReflection } from "@/src/lib/scheduleReflection";
 
 export type ScheduleSuggestion = {
@@ -33,14 +32,12 @@ type Props = {
   onCompositionEnd: () => void;
   onSend: () => void;
   onChoice: (choice: string) => void;
-  onVoiceTranscript: (text: string) => void;
   onOpenReflection: (reflection: ScheduleReflection, messageIndex: number) => void;
   onApplyAllSuggestions: (messageIndex: number) => void;
   onAddSuggestion: (messageIndex: number, suggestionId: string) => void;
   compact?: boolean;
   messagesEndRef?: RefObject<HTMLDivElement | null>;
   placeholder?: string;
-  showVoice?: boolean;
 };
 
 export function AiChatPanel({
@@ -53,14 +50,12 @@ export function AiChatPanel({
   onCompositionEnd,
   onSend,
   onChoice,
-  onVoiceTranscript,
   onOpenReflection,
   onApplyAllSuggestions,
   onAddSuggestion,
   compact = false,
   messagesEndRef: externalEndRef,
   placeholder,
-  showVoice = true,
 }: Props) {
   const { t } = useTranslation();
   const internalEndRef = useRef<HTMLDivElement>(null);
@@ -278,19 +273,7 @@ export function AiChatPanel({
         )}
         <div ref={messagesEndRef} />
       </div>
-      <div
-        style={{
-          padding: compact ? "8px 10px" : "10px 16px",
-          background: "#f5f0e8",
-          borderTop: "1px solid rgba(60,40,20,0.1)",
-          display: "flex",
-          gap: 8,
-          alignItems: "flex-end",
-        }}
-      >
-        {showVoice && (
-          <VoiceInputButton onTranscript={onVoiceTranscript} disabled={isLoading} />
-        )}
+      <div style={{ padding: compact ? "8px 10px" : "10px 16px", background: "#f5f0e8", borderTop: "1px solid rgba(60,40,20,0.1)", display: "flex", gap: 8, alignItems: "flex-end" }}>
         <textarea
           style={{
             flex: 1,

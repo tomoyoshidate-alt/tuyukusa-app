@@ -40,8 +40,9 @@ import LanguageSettingsPanel from "@/src/components/LanguageSettingsPanel";
 import RadioMiniPlayer from "@/src/components/RadioMiniPlayer";
 import ScreenSettingsTab from "@/src/components/ScreenSettingsTab";
 import TsuyukusaRadio from "@/src/components/TsuyukusaRadio";
-import VoiceInputButton from "@/src/components/VoiceInputButton";
 import VoiceTaskConfirmModal from "@/src/components/VoiceTaskConfirmModal";
+import { HomeAiChatTeaser } from "@/src/components/HomeAiChatTeaser";
+import { UpdateNotificationScreen } from "@/src/components/UpdateNotificationScreen";
 import { AiDailyInsightSection } from "@/src/components/AiDailyInsightSection";
 import { ScheduleReflectionModal } from "@/src/components/ScheduleReflectionModal";
 import { LocalTodayTasksSection } from "@/src/components/LocalTodayTasksSection";
@@ -52,6 +53,21 @@ import { OnboardingScreen } from "@/src/components/OnboardingScreen";
 import { OnboardingIntegrationsScreen, type IntegrationFinishOptions } from "@/src/components/OnboardingIntegrationsScreen";
 import { AiChatPanel } from "@/src/components/AiChatPanel";
 import type { OnboardingFlowData } from "@/src/lib/onboarding";
+import {
+  clearOnboardingProgress,
+  getPendingQuestions,
+  isOnboardingResetIntent,
+  loadOnboardingProgress,
+  saveOnboardingProgress,
+  buildProgressFromFlowData,
+} from "@/src/lib/onboardingProgress";
+import {
+  APP_VERSION,
+  fetchChangelog,
+  isAppUpdateAvailable,
+  readStoredAppVersion,
+  writeStoredAppVersion,
+} from "@/src/lib/appVersion";
 import {
   getTodayLocalTasks,
   INITIAL_LOCAL_TASKS,
@@ -1143,6 +1159,25 @@ function buildTemperatureComment(temperature: number | null | undefined): string
   return "";
 }
 
+function buildReturnUserGreeting(name: string): { text: string; choices: string[] } {
+  return {
+    text: `お久しぶりです、${name}さん🌿\n前回から生活リズムに変化はありましたか？`,
+    choices: ["変化あり（教える）", "変化なし", "新機能について教えて"],
+  };
+}
+
+function buildUpdateAiMessage(changes: string[]): string {
+  const list = changes.length ? changes.map(c => `・${c}`).join("\n") : "・機能改善と安定性の向上";
+  return `今回のアップデート内容です🌿\n\n${list}\n\n気になる点があれば、何でもお聞きください。`;
+}
+
+function buildResumeOnboardingPrompt(): { text: string; choices: string[] } {
+  return {
+    text: "まだお聞きしていないことがあります。\nよろしければ教えてください。",
+    choices: ["続きから答える", "後で"],
+  };
+}
+
 function buildChatOpeningMessage(weather: WeatherData | null): { text: string; choices: string[] } {
   const band = getChatTimeBand();
   const greetingByBand: Record<ChatTimeBand, string> = {
@@ -2215,6 +2250,12 @@ export default function TuyukusaApp() {
     data: OnboardingFlowData;
     reflection: ScheduleReflection | null;
   } | null>(null);
+  const [updateNotification, setUpdateNotification] = useState<{
+    oldVersion: string;
+    newVersion: string;
+    changes: string[];
+  } | null>(null);
+  const [pendingReturnGreeting, setPendingReturnGreeting] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const autoSuggestRef = useRef(false);
   const scheduleTemplatesRef = useRef(scheduleTemplates);
@@ -2288,6 +2329,32 @@ export default function TuyukusaApp() {
       /* ignore */
     }
   }, [chatMessages]);
+
+  useEffect(() => {
+    if (!userProfileHydrated || userProfile.onboardingComplete) return;
+    const progress = loadOnboardingProgress();
+    if (progress?.integrationsPhase) {
+      setOnboardingPhase("integrations");
+      setPendingOnboarding({ data: progress.flowData, reflection: null });
+    }
+  }, [userProfileHydrated, userProfile.onboardingComplete]);
+
+  useEffect(() => {
+    if (!storageReady || !userProfile.onboardingComplete) return;
+    const stored = readStoredAppVersion();
+    if (!stored) {
+      writeStoredAppVersion(APP_VERSION);
+      return;
+    }
+    if (!isAppUpdateAvailable(stored, APP_VERSION)) return;
+    void fetchChangelog().then(changelog => {
+      setUpdateNotification({
+        oldVersion: stored,
+        newVersion: APP_VERSION,
+        changes: changelog?.changes ?? [],
+      });
+    });
+  }, [storageReady, userProfile.onboardingComplete]);
 
   const recordChatKnowledge = (text: string, flowData?: ChatFlowData) => {
     setChatKnowledge(prev => {
@@ -3289,10 +3356,45 @@ ${buildHealthSummary(healthForm)}`;
     reflection: ScheduleReflection | null
   ) => {
     setPendingOnboarding({ data, reflection });
+    saveOnboardingProgress({ ...buildProgressFromFlowData(data), integrationsPhase: true, flowData: data });
     if (reflection) {
       await applyScheduleReflection(reflection);
     }
     setOnboardingPhase("integrations");
+  };
+
+  const resetOnboardingFlow = () => {
+    clearOnboardingProgress();
+    setUserProfile(prev => ({
+      ...prev,
+      nameConfigured: false,
+      onboardingComplete: false,
+      birthDate: undefined,
+      gender: undefined,
+    }));
+    setOnboardingPhase("questionnaire");
+    setPendingOnboarding(null);
+    setChatMessages([]);
+    setChatFlowStep("intro");
+    setChatFlowData({});
+  };
+
+  const dismissUpdateNotification = (mode: "ai" | "home") => {
+    if (!updateNotification) return;
+    writeStoredAppVersion(APP_VERSION);
+    const changes = updateNotification.changes;
+    setUpdateNotification(null);
+    if (mode === "ai") {
+      const name = getDisplayName(userProfile);
+      setChatMessages([
+        { type: "ai", text: buildReturnUserGreeting(name).text, choices: buildReturnUserGreeting(name).choices, step: "post_update" },
+      ]);
+      setChatFlowStep("free");
+      setTab("chat");
+      return;
+    }
+    setPendingReturnGreeting(true);
+    void changes;
   };
 
   const finishOnboarding = async (
@@ -3310,16 +3412,15 @@ ${buildHealthSummary(healthForm)}`;
       onboardingComplete: true,
     }));
     setChatKnowledge(prev => updateChatKnowledgeFromFlow(prev, data));
-    const opening = buildChatOpeningMessage(weather);
+    clearOnboardingProgress();
     setChatMessages([
       {
         type: "ai",
-        text: `${displayName}さん、セットアップが完了しました🌿\n\n${opening.text}`,
-        choices: opening.choices,
-        step: "intro",
+        text: `${displayName}さん、セットアップが完了しました🌿\n\nどんなライフスタイルにしたいですか？`,
+        step: "free",
       },
     ]);
-    setChatFlowStep("intro");
+    setChatFlowStep("free");
     setChatFlowData({
       goal: data.goal,
       returnHome: data.returnHome,
@@ -3344,7 +3445,6 @@ ${buildHealthSummary(healthForm)}`;
       onCompositionEnd={() => setIsComposing(false)}
       onSend={() => void handleSend()}
       onChoice={choice => void handleChoice(choice)}
-      onVoiceTranscript={text => void handleChatVoiceTranscript(text)}
       onOpenReflection={(reflection, index) => openReflectionModal(reflection, index)}
       onApplyAllSuggestions={index => applyAllSuggestionsToSchedule(index)}
       onAddSuggestion={(msgIndex, sugId) => addSuggestionToSchedule(msgIndex, sugId)}
@@ -3352,11 +3452,45 @@ ${buildHealthSummary(healthForm)}`;
     />
   );
 
+  const latestAiChatLine =
+    [...chatMessages].reverse().find(m => m.type === "ai")?.text ?? "どんなライフスタイルにしたいですか？";
+
+  const openChatFromHome = (initialText?: string) => {
+    if (pendingReturnGreeting) {
+      setPendingReturnGreeting(false);
+      const name = getDisplayName(userProfile);
+      setChatMessages([
+        { type: "ai", text: buildReturnUserGreeting(name).text, choices: buildReturnUserGreeting(name).choices, step: "post_update" },
+      ]);
+      setChatFlowStep("free");
+    }
+    const progress = loadOnboardingProgress();
+    const pending = progress ? getPendingQuestions(progress) : [];
+    if (pending.length > 0 && chatMessages.length === 0) {
+      const resume = buildResumeOnboardingPrompt();
+      setChatMessages([{ type: "ai", text: resume.text, choices: resume.choices, step: "resume_onboarding" }]);
+      setChatFlowStep("free");
+    }
+    setTab("chat");
+    if (initialText?.trim()) {
+      void submitChatText(initialText.trim());
+    }
+  };
+
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [chatMessages]);
 
   const handleChoice = async (choice: string) => {
+    if (choice === "続きから答える") {
+      resetOnboardingFlow();
+      return;
+    }
+    if (choice === "新機能について教えて") {
+      const changelog = await fetchChangelog();
+      setChatMessages(prev => [...prev, { type: "user", text: choice }, { type: "ai", text: buildUpdateAiMessage(changelog?.changes ?? []) }]);
+      return;
+    }
     if (chatFlowStep !== "free" && chatFlowStep !== "proposal") {
       await advanceChatFlow(choice, chatFlowStep);
       return;
@@ -3381,6 +3515,11 @@ ${buildHealthSummary(healthForm)}`;
   const submitChatText = async (rawText: string) => {
     const text = rawText.trim();
     if (!text) return;
+
+    if (isOnboardingResetIntent(text)) {
+      resetOnboardingFlow();
+      return;
+    }
 
     if (chatFlowStep !== "free" && chatFlowStep !== "proposal") {
       await advanceChatFlow(text, chatFlowStep);
@@ -3426,13 +3565,6 @@ ${buildHealthSummary(healthForm)}`;
     const text = chatInput.trim();
     setChatInput("");
     setIsComposing(false);
-    await submitChatText(text);
-  };
-
-  const handleChatVoiceTranscript = async (transcript: string) => {
-    const text = transcript.trim();
-    if (!text) return;
-    setChatInput("");
     await submitChatText(text);
   };
 
@@ -3735,6 +3867,15 @@ ${buildHealthSummary(healthForm)}`;
 
   return (
     <div style={themeAppShellStyle}>
+      {updateNotification && (
+        <UpdateNotificationScreen
+          oldVersion={updateNotification.oldVersion}
+          newVersion={updateNotification.newVersion}
+          changes={updateNotification.changes}
+          onAskAi={() => dismissUpdateNotification("ai")}
+          onGoHome={() => dismissUpdateNotification("home")}
+        />
+      )}
       
       {/* ヘッダー */}
       <div style={themeHeaderStyle}>
@@ -3768,7 +3909,11 @@ ${buildHealthSummary(healthForm)}`;
                 ✓ {healthImportMessage}
               </div>
             )}
-            {renderAiChatPanel(true)}
+            <HomeAiChatTeaser
+              latestMessage={latestAiChatLine}
+              onOpenChat={() => openChatFromHome()}
+              onSubmit={text => openChatFromHome(text)}
+            />
             {homeDisplay.sectionOrder
               .filter(sectionId => isSectionVisible(homeDisplay, sectionId))
               .map(sectionId => (

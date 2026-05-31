@@ -2,17 +2,15 @@
 
 import { useTranslation } from "react-i18next";
 import { formatSyncTime } from "@/src/lib/notion";
-import VoiceInputButton from "@/src/components/VoiceInputButton";
 
 type Props = {
   connected: boolean;
   lastSyncAt?: number;
   syncing: boolean;
   onSync: () => void;
-  onVoice: (text: string) => void;
 };
 
-export default function NotionHomeBar({ connected, lastSyncAt, syncing, onSync, onVoice }: Props) {
+export default function NotionHomeBar({ connected, lastSyncAt, syncing, onSync }: Props) {
   const { t } = useTranslation();
   return (
     <div
@@ -33,7 +31,6 @@ export default function NotionHomeBar({ connected, lastSyncAt, syncing, onSync, 
           {connected ? `${t("notion.lastSync")}: ${formatSyncTime(lastSyncAt)}` : t("notion.notConnected")}
         </div>
       </div>
-      <VoiceInputButton onTranscript={onVoice} size="sm" disabled={syncing} />
       <button
         type="button"
         onClick={onSync}

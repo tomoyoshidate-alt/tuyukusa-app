@@ -76,4 +76,5 @@ export type TranslationSchema = {
   chat: Record<string, string>;
   onboarding: Record<string, string>;
   integrationGuide: Record<string, string>;
+  update: Record<string, string>;
 };

@@ -1,13 +1,20 @@
 import type { LifestyleKnowledge } from "./chatKnowledge";
 
-export const ONBOARDING_WELCOME_MESSAGE = `こんにちは。『つゆくさアプリ』です。
-このアプリは、あなたが実現したい生活リズムのサポートと
-健康相談ができるアプリです。
-あなたの生活リズムやタスクをAIに相談すれば、
-それがすべてタイムスケジュールに反映され、
-ご希望の時刻にアラートを設定します。
+export const ONBOARDING_WELCOME_MESSAGE = `こんにちは。
+「つゆくさアプリ」です。
+このアプリは、あなたが
+実現したい生活リズムの
+サポートと健康相談が
+できるアプリです。`;
 
-まず、あなたのことを少し教えてください。`;
+export const ONBOARDING_GOAL_FREE_LABEL = "④ 自由に入力する";
+
+export const ONBOARDING_GOAL_CHOICES = [
+  "① 睡眠の質を上げたい",
+  "② 集中力を高めたい",
+  "③ 心身を整えたい",
+  ONBOARDING_GOAL_FREE_LABEL,
+];
 
 export type OnboardingStep =
   | "welcome"
@@ -30,14 +37,12 @@ export type OnboardingFlowData = LifestyleKnowledge & {
 
 export const GENDER_CHOICES = ["男性", "女性", "回答しない"] as const;
 
-export const ONBOARDING_GOAL_CHOICES = [
-  "規則正しい生活リズムを整えたい",
-  "22時に寝たい",
-  "早起きしたい",
-  "集中力を上げたい",
-  "体調を整えたい",
-  "💬 自由に入力する",
-];
+export function parseOnboardingGoalChoice(choice: string): string | null {
+  if (choice === ONBOARDING_GOAL_FREE_LABEL || choice === "💬 自由に入力する" || choice.includes("自由に入力")) return null;
+  const numbered = choice.match(/^[①②③④]\s*(.+)$/);
+  if (numbered) return numbered[1].trim() || null;
+  return choice.trim() || null;
+}
 
 export const ONBOARDING_LIFESTYLE_STEPS: Record<
   Exclude<OnboardingStep, "welcome" | "birthdate" | "gender" | "goal" | "name" | "proposal">,
@@ -89,9 +94,4 @@ export function buildOnboardingProposalPrompt(data: OnboardingFlowData): string 
     "起床・朝食・塩湯・夕食・入浴・就寝前塩湯・就寝の時刻を含め、",
     "最終的にREFLECT_SCHEDULE形式のJSONで5〜7項目返してください（ユーザーが反映できるように）。",
   ].join("\n");
-}
-
-export function parseOnboardingGoalChoice(choice: string): string | null {
-  if (choice === "💬 自由に入力する") return null;
-  return choice.trim() || null;
 }
