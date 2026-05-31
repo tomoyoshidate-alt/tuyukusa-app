@@ -1,3 +1,4 @@
+import { getAudioContext, resumeAudioContext } from "@/src/lib/audioContext";
 import type { BBPreset } from "./types";
 
 export class BBEngine {
@@ -19,21 +20,23 @@ export class BBEngine {
     await this.stop();
     this.preset = preset;
     this.volume = volume01;
-    this.ctx = new AudioContext();
-    this.master = this.ctx.createGain();
-    this.analyser = this.ctx.createAnalyser();
+    const ctx = getAudioContext();
+    await resumeAudioContext();
+    this.ctx = ctx;
+    this.master = ctx.createGain();
+    this.analyser = ctx.createAnalyser();
     this.analyser.fftSize = 2048;
-    this.gain = this.ctx.createGain();
+    this.gain = ctx.createGain();
     this.gain.gain.value = 0;
-    this.merger = this.ctx.createChannelMerger(2);
-    this.leftOsc = this.ctx.createOscillator();
-    this.rightOsc = this.ctx.createOscillator();
+    this.merger = ctx.createChannelMerger(2);
+    this.leftOsc = ctx.createOscillator();
+    this.rightOsc = ctx.createOscillator();
     this.leftOsc.type = preset.waveform;
     this.rightOsc.type = preset.waveform;
     this.leftOsc.frequency.value = preset.leftHz;
     this.rightOsc.frequency.value = preset.rightHz;
-    const leftGain = this.ctx.createGain();
-    const rightGain = this.ctx.createGain();
+    const leftGain = ctx.createGain();
+    const rightGain = ctx.createGain();
     leftGain.gain.value = 0.5 * (preset.masterVolume / 100);
     rightGain.gain.value = 0.5 * (preset.masterVolume / 100);
     this.leftOsc.connect(leftGain);
@@ -46,7 +49,7 @@ export class BBEngine {
     this.analyser.connect(outputGain);
     this.leftOsc.start();
     this.rightOsc.start();
-    const now = this.ctx.currentTime;
+    const now = ctx.currentTime;
     const target = volume01 * (preset.masterVolume / 100);
     this.gain.gain.setValueAtTime(0, now);
     this.gain.gain.linearRampToValueAtTime(target, now + preset.fadeInSec);
@@ -85,7 +88,6 @@ export class BBEngine {
     this.gain?.disconnect();
     this.master?.disconnect();
     this.analyser?.disconnect();
-    void this.ctx?.close();
     this.ctx = null;
     this.leftOsc = null;
     this.rightOsc = null;

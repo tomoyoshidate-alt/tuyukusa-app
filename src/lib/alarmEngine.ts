@@ -9,8 +9,8 @@ export class AlarmEngine {
   start(): void {
     this.stop();
     this.active = true;
-    this.ctx = new AudioContext();
-    void this.ctx.resume();
+    this.ctx = getAudioContext();
+    void resumeAudioContext();
     this.playPulse();
     this.pulseTimer = setInterval(() => this.playPulse(), 1400);
     this.triggerVibrate();

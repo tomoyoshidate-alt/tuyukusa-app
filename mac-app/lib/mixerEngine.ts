@@ -1,3 +1,4 @@
+import { getAudioContext, resumeAudioContext } from "@/src/lib/audioContext";
 import { BBEngine } from "./bbEngine";
 import { GranularEngine } from "./granularEngine";
 import type { BBPreset, GranularPreset } from "./types";
@@ -26,24 +27,36 @@ export class MixerEngine {
     return this.playing;
   }
 
+  private setupGraph(ctx: AudioContext): void {
+    this.master = ctx.createGain();
+    this.analyser = ctx.createAnalyser();
+    this.analyser.fftSize = 2048;
+    this.master.connect(this.analyser);
+    this.analyser.connect(ctx.destination);
+  }
+
   async play(slots: [MixerSlot, MixerSlot, MixerSlot], masterVol: number, audioBaseUrl = ""): Promise<void> {
-    await this.stop();
+    await this.stopEngines();
     this.masterVolume = masterVol;
     this.audioBaseUrl = audioBaseUrl;
-    this.ctx = new AudioContext();
-    this.master = this.ctx.createGain();
-    this.analyser = this.ctx.createAnalyser();
-    this.analyser.fftSize = 2048;
-    this.master.gain.value = masterVol;
-    this.master.connect(this.analyser);
-    this.analyser.connect(this.ctx.destination);
+    const ctx = getAudioContext();
+    await resumeAudioContext();
+    this.ctx = ctx;
+
+    if (!this.master || this.master.context !== ctx) {
+      this.master = null;
+      this.analyser = null;
+      this.setupGraph(ctx);
+    }
+
+    this.master!.gain.value = masterVol;
     const tasks: Promise<void>[] = [];
     const [s1, s2, s3] = slots;
-    if (s1?.kind === "bb") tasks.push(this.bb.start(s1.preset, this.master, s1.volume));
+    if (s1?.kind === "bb") tasks.push(this.bb.start(s1.preset, this.master!, s1.volume));
     if (s2?.kind === "granular")
-      tasks.push(this.granular2.start(s2.preset, this.master, s2.volume, this.audioBaseUrl));
+      tasks.push(this.granular2.start(s2.preset, this.master!, s2.volume, this.audioBaseUrl));
     if (s3?.kind === "granular")
-      tasks.push(this.granular3.start(s3.preset, this.master, s3.volume, this.audioBaseUrl));
+      tasks.push(this.granular3.start(s3.preset, this.master!, s3.volume, this.audioBaseUrl));
     await Promise.all(tasks);
     this.playing = true;
   }
@@ -55,14 +68,12 @@ export class MixerEngine {
     }
   }
 
+  private async stopEngines(): Promise<void> {
+    await Promise.all([this.bb.stop(), this.granular2.stop(), this.granular3.stop()]);
+  }
+
   async stop(): Promise<void> {
     this.playing = false;
-    await Promise.all([this.bb.stop(), this.granular2.stop(), this.granular3.stop()]);
-    this.master?.disconnect();
-    this.analyser?.disconnect();
-    if (this.ctx) await this.ctx.close();
-    this.ctx = null;
-    this.master = null;
-    this.analyser = null;
+    await this.stopEngines();
   }
 }

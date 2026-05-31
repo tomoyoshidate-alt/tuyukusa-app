@@ -1,3 +1,4 @@
+import { getAudioContext, resumeAudioContext } from "@/src/lib/audioContext";
 import type { GranularPreset } from "./types";
 import { resolveStudioAudioUrl } from "./audioStorage";
 
@@ -21,10 +22,10 @@ export class GranularEngine {
   }
 
   async loadBuffer(audioUrl: string): Promise<void> {
+    const ctx = getAudioContext();
     const res = await fetch(audioUrl);
     const arr = await res.arrayBuffer();
-    if (!this.ctx) this.ctx = new AudioContext();
-    this.buffer = await this.ctx.decodeAudioData(arr.slice(0));
+    this.buffer = await ctx.decodeAudioData(arr.slice(0));
   }
 
   async start(preset: GranularPreset, outputGain: GainNode, volume01: number, audioBaseUrl?: string): Promise<void> {
@@ -32,9 +33,11 @@ export class GranularEngine {
     if (!preset.audioFile) return;
     this.preset = preset;
     this.volume = volume01;
-    this.ctx = new AudioContext();
-    this.output = this.ctx.createGain();
-    this.analyser = this.ctx.createAnalyser();
+    const ctx = getAudioContext();
+    await resumeAudioContext();
+    this.ctx = ctx;
+    this.output = ctx.createGain();
+    this.analyser = ctx.createAnalyser();
     this.analyser.fftSize = 2048;
     this.output.gain.value = volume01 * (preset.volume / 100);
     const audioUrl = resolveStudioAudioUrl(preset.audioFile, audioBaseUrl || undefined);
@@ -123,7 +126,6 @@ export class GranularEngine {
     this.activeSources = [];
     this.output?.disconnect();
     this.analyser?.disconnect();
-    if (this.ctx) await this.ctx.close();
     this.ctx = null;
     this.buffer = null;
     this.output = null;
