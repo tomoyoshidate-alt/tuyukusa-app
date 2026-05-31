@@ -8,14 +8,16 @@ import { getMacBasePath } from "@mac/lib/macBasePath";
 import { MixerEngine, type MixerSlot } from "@mac/lib/mixerEngine";
 import {
   exportJson,
-  fetchAudioFiles,
+  fetchAudioCatalog,
   fetchBbPresets,
   fetchGranularPresets,
   saveBbPresets,
   saveGranularPresets,
   isSupabaseConfigured,
+  type StudioAudioEntry,
 } from "@mac/lib/presetClient";
-import { AudioUploader } from "@mac/components/AudioUploader";
+import { AudioFileManager } from "@mac/components/AudioFileManager";
+import { audioFileLabel } from "@mac/lib/audioStorage";
 import {
   DEFAULT_BB_PRESET,
   DEFAULT_GRANULAR_PRESET,
@@ -31,7 +33,7 @@ export function MacStudioApp() {
   const [tab, setTab] = useState<EditorTab>("bb");
   const [bbPresets, setBbPresets] = useState<BBPreset[]>([]);
   const [granularPresets, setGranularPresets] = useState<GranularPreset[]>([]);
-  const [audioFiles, setAudioFiles] = useState<string[]>([]);
+  const [audioCatalog, setAudioCatalog] = useState<StudioAudioEntry[]>([]);
   const [bbDraft, setBbDraft] = useState<BBPreset>(DEFAULT_BB_PRESET());
   const [grDraft, setGrDraft] = useState<GranularPreset>(DEFAULT_GRANULAR_PRESET());
   const [selectedBbId, setSelectedBbId] = useState<string | null>(null);
@@ -51,26 +53,32 @@ export function MacStudioApp() {
   const bbDiff = useMemo(() => getBbDiffHz(bbDraft.leftHz, bbDraft.rightHz), [bbDraft.leftHz, bbDraft.rightHz]);
   const brainwave = useMemo(() => classifyBrainwave(bbDiff), [bbDiff]);
 
-  const refreshAudioFiles = useCallback(async () => {
-    const files = await fetchAudioFiles();
-    setAudioFiles(files);
+  const refreshAudioCatalog = useCallback(async () => {
+    const catalog = await fetchAudioCatalog();
+    setAudioCatalog(catalog);
   }, []);
 
   const loadAll = useCallback(async () => {
-    const [bb, gr, files] = await Promise.all([fetchBbPresets(), fetchGranularPresets(), fetchAudioFiles()]);
+    const [bb, gr, catalog] = await Promise.all([fetchBbPresets(), fetchGranularPresets(), fetchAudioCatalog()]);
     setBbPresets(bb.presets ?? []);
     setGranularPresets(gr.presets ?? []);
-    setAudioFiles(files);
+    setAudioCatalog(catalog);
   }, []);
 
-  const onAudioUploaded = useCallback(
-    async (filename: string) => {
-      await refreshAudioFiles();
-      setGrDraft(prev => ({ ...prev, audioFile: filename }));
-      setStatus(`${filename} をアップロードしました`);
-    },
-    [refreshAudioFiles]
-  );
+  const onAudioUploaded = useCallback((entry: StudioAudioEntry) => {
+    setGrDraft(prev => ({ ...prev, audioFile: entry.url }));
+    setStatus(`${entry.name} をアップロード · audioFile に URL をセットしました`);
+  }, []);
+
+  const onAudioSelect = useCallback((url: string) => {
+    setGrDraft(prev => ({ ...prev, audioFile: url }));
+    setStatus(`音源を選択: ${audioFileLabel(url)}`);
+  }, []);
+
+  const onAudioDeleted = useCallback((url: string) => {
+    setGrDraft(prev => (prev.audioFile === url ? { ...prev, audioFile: "" } : prev));
+    setStatus("音源を削除しました");
+  }, []);
 
   useEffect(() => {
     void loadAll();
@@ -262,16 +270,23 @@ export function MacStudioApp() {
               <input className="mac-input" value={grDraft.icon ?? ""} onChange={e => setGrDraft({ ...grDraft, icon: e.target.value })} placeholder="icon" maxLength={2} style={{ width: 48 }} />
               <input className="mac-input flex-1" value={grDraft.name} onChange={e => setGrDraft({ ...grDraft, name: e.target.value })} placeholder="プリセット名" />
             </div>
-            <label className="block mb-2 text-xs text-[#a8a8a8]">音源アップロード</label>
-            <AudioUploader onUploaded={filename => void onAudioUploaded(filename)} />
+            <label className="block mb-2 text-xs text-[#a8a8a8]">音源アップロード / 一覧</label>
+            <AudioFileManager
+              catalog={audioCatalog}
+              selectedUrl={grDraft.audioFile}
+              onUploaded={onAudioUploaded}
+              onSelect={onAudioSelect}
+              onDeleted={onAudioDeleted}
+              onRefresh={refreshAudioCatalog}
+            />
             <label className="block mb-4 text-xs text-[#a8a8a8]">
-              音源ファイル
-              <select className="mac-input w-full mt-1" value={grDraft.audioFile} onChange={e => setGrDraft({ ...grDraft, audioFile: e.target.value })}>
-                <option value="">選択してください</option>
-                {audioFiles.map(f => (
-                  <option key={f} value={f}>{f}</option>
-                ))}
-              </select>
+              audioFile（自動セット）
+              <input
+                className="mac-input w-full mt-1 text-[10px] font-mono"
+                value={grDraft.audioFile}
+                readOnly
+                placeholder="アップロードまたは一覧から選択すると URL が入ります"
+              />
             </label>
             <CustomSlider label="グレインサイズ" value={grDraft.grainSizeMs} min={20} max={500} unit="ms" onChange={v => setGrDraft({ ...grDraft, grainSizeMs: v })} />
             <CustomSlider label="グレイン密度" value={grDraft.grainDensity} min={1} max={50} unit="/s" onChange={v => setGrDraft({ ...grDraft, grainDensity: v })} />

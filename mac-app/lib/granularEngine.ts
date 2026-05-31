@@ -37,8 +37,7 @@ export class GranularEngine {
     this.analyser = this.ctx.createAnalyser();
     this.analyser.fftSize = 2048;
     this.output.gain.value = volume01 * (preset.volume / 100);
-    const file = preset.audioFile.replace(/^audio\//, "");
-    const audioUrl = resolveStudioAudioUrl(file, audioBaseUrl || undefined);
+    const audioUrl = resolveStudioAudioUrl(preset.audioFile, audioBaseUrl || undefined);
     await this.loadBuffer(audioUrl);
     if (!this.buffer) return;
     this.output.connect(this.analyser);

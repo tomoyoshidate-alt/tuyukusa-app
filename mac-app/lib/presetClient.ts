@@ -2,8 +2,10 @@
 
 import { getMacBasePath, macApiUrl } from "@mac/lib/macBasePath";
 import {
-  listStorageAudioFiles,
+  deleteAudioFromStorage,
+  fetchStudioAudioCatalog,
   uploadAudioToStorage,
+  type StudioAudioEntry,
 } from "@mac/lib/audioStorage";
 import {
   fetchBbPresetsFromSupabase,
@@ -95,35 +97,43 @@ export function exportJson(filename: string, data: unknown): void {
   URL.revokeObjectURL(a.href);
 }
 
-export async function fetchAudioFiles(): Promise<string[]> {
-  if (isSupabaseConfigured()) {
-    try {
-      const remote = await listStorageAudioFiles();
-      const res = await fetch(macApiUrl("/api/audio"));
-      const json = (await res.json()) as { files: string[] };
-      const local = json.files ?? [];
-      return [...new Set([...local, ...remote])].sort((a, b) => a.localeCompare(b));
-    } catch (err) {
-      console.error("[fetchAudioFiles supabase]", err);
-    }
-  }
-  const res = await fetch(macApiUrl("/api/audio"));
-  const json = (await res.json()) as { files: string[] };
-  return json.files ?? [];
+export async function fetchAudioCatalog(): Promise<StudioAudioEntry[]> {
+  return fetchStudioAudioCatalog();
 }
 
-export async function uploadAudioFile(file: File): Promise<{ ok: boolean; filename?: string; message?: string }> {
+/** @deprecated use fetchAudioCatalog */
+export async function fetchAudioFiles(): Promise<string[]> {
+  const catalog = await fetchAudioCatalog();
+  return catalog.map(e => e.name);
+}
+
+export async function uploadAudioFile(file: File): Promise<{ ok: boolean; filename?: string; publicUrl?: string; message?: string }> {
   if (!isSupabaseConfigured()) {
     return { ok: false, message: "Supabase が未設定です" };
   }
   try {
-    const { filename } = await uploadAudioToStorage(file);
-    return { ok: true, filename, message: `${filename} をアップロードしました` };
+    const { filename, publicUrl } = await uploadAudioToStorage(file);
+    return { ok: true, filename, publicUrl, message: `${filename} をアップロードしました` };
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
     return { ok: false, message: msg };
   }
 }
+
+export async function deleteStorageAudio(filename: string): Promise<{ ok: boolean; message?: string }> {
+  if (!isSupabaseConfigured()) {
+    return { ok: false, message: "Supabase が未設定です" };
+  }
+  try {
+    await deleteAudioFromStorage(filename);
+    return { ok: true, message: `${filename} を削除しました` };
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    return { ok: false, message: msg };
+  }
+}
+
+export type { StudioAudioEntry };
 
 export { isSupabaseConfigured, STUDIO_PRESETS_SETUP_SQL } from "@mac/lib/presetSupabase";
 export { STUDIO_AUDIO_STORAGE_SQL } from "@mac/lib/audioStorage";
