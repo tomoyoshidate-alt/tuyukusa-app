@@ -13,8 +13,8 @@ type Props = {
 
 const STEPS = SUPABASE_SETUP_WIZARD_STEPS;
 
-const PROJECT_URL_PATH_ERROR =
-  "URLはhttps://xxxx.supabase.coの形式で入力してください（/rest/v1/などは不要です）";
+const PROJECT_URL_PATH_ERROR = "/rest/v1/などは不要です";
+const PROJECT_URL_FORMAT_ERROR = "https://xxxx.supabase.coの形式で入力してください";
 
 function getProjectUrlValidationError(url: string): string | null {
   const trimmed = url.trim();
@@ -28,7 +28,10 @@ function getProjectUrlValidationError(url: string): string | null {
       return PROJECT_URL_PATH_ERROR;
     }
   } catch {
-    /* ignore invalid URL until complete */
+    return PROJECT_URL_FORMAT_ERROR;
+  }
+  if (!/^https:\/\/.+\.supabase\.co\/?$/i.test(trimmed)) {
+    return PROJECT_URL_FORMAT_ERROR;
   }
   return null;
 }
