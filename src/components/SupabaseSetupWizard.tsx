@@ -1,293 +1,512 @@
 "use client";
 
-import { useState } from "react";
-import { useTranslation } from "react-i18next";
-import {
-  isSupabaseConfigured,
-  syncWithSupabase,
-  SUPABASE_SETUP_SQL,
-  type SupabaseSettings,
-} from "@/src/lib/supabaseSync";
-import { SUPABASE_WIZARD_STEPS } from "@/src/lib/integrationGuide";
+import { useCallback, useEffect, useRef, useState, type CSSProperties, type KeyboardEvent } from "react";
+import { SUPABASE_SETUP_WIZARD_STEPS } from "@/src/lib/supabaseSetupWizardSteps";
+
+type ChatMessage = { role: "user" | "ai"; text: string };
 
 type Props = {
-  settings: SupabaseSettings;
-  onChange: (patch: Partial<SupabaseSettings>) => void;
-  onComplete: () => void;
-  onCancel: () => void;
-  onSynced: () => void;
+  isOpen: boolean;
+  onClose: () => void;
+  onComplete: (url: string, anonKey: string, syncKey: string) => void;
 };
 
-function MockScreenshot({ label, step }: { label: string; step: number }) {
-  return (
-    <div
-      style={{
-        background: "linear-gradient(145deg, #eef4fb 0%, #dce8f5 100%)",
-        border: "2px dashed rgba(126,200,227,0.6)",
-        borderRadius: 12,
-        padding: "20px 16px",
-        marginBottom: 14,
-        textAlign: "center",
-        minHeight: 120,
-        display: "flex",
-        flexDirection: "column",
-        alignItems: "center",
-        justifyContent: "center",
-      }}
-    >
-      <div style={{ fontSize: 28, marginBottom: 8 }}></div>
-      <div style={{ fontSize: 11, fontWeight: "bold", color: "#4a6741", marginBottom: 4 }}>
-        STEP {step} {label}
-      </div>
-      <div style={{ fontSize: 10, color: "#7ec8e3" }}>（設定画面のイメージ）</div>
-    </div>
-  );
-}
+const STEPS = SUPABASE_SETUP_WIZARD_STEPS;
 
-export function SupabaseSetupWizard({ settings, onChange, onComplete, onCancel, onSynced }: Props) {
-  const { t } = useTranslation();
+export function SupabaseSetupWizard({ isOpen, onClose, onComplete }: Props) {
   const [stepIndex, setStepIndex] = useState(0);
-  const [syncing, setSyncing] = useState(false);
-  const [message, setMessage] = useState("");
-  const [showSql, setShowSql] = useState(false);
+  const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
+  const [chatInput, setChatInput] = useState("");
+  const [isComposing, setIsComposing] = useState(false);
+  const [isTyping, setIsTyping] = useState(false);
+  const [projectUrl, setProjectUrl] = useState("");
+  const [anonKey, setAnonKey] = useState("");
+  const [syncKey, setSyncKey] = useState("");
+  const [sqlCopied, setSqlCopied] = useState(false);
+  const chatEndRef = useRef<HTMLDivElement>(null);
 
-  const isFormStep = stepIndex >= SUPABASE_WIZARD_STEPS.length;
-  const configured = isSupabaseConfigured(settings);
+  const step = STEPS[stepIndex];
+  const isLastStep = stepIndex === STEPS.length - 1;
+  const canComplete = Boolean(projectUrl.trim() && anonKey.trim() && syncKey.trim());
 
-  const runSync = async () => {
-    setSyncing(true);
-    setMessage("");
+  const resetWizard = useCallback(() => {
+    setStepIndex(0);
+    setChatMessages([]);
+    setChatInput("");
+    setIsComposing(false);
+    setIsTyping(false);
+    setProjectUrl("");
+    setAnonKey("");
+    setSyncKey("");
+    setSqlCopied(false);
+  }, []);
+
+  useEffect(() => {
+    if (!isOpen) return;
+    resetWizard();
+  }, [isOpen, resetWizard]);
+
+  useEffect(() => {
+    chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, [chatMessages, isTyping, stepIndex]);
+
+  const appendChat = useCallback((user: string, ai: string) => {
+    setChatMessages(prev => [...prev, { role: "user", text: user }, { role: "ai", text: ai }]);
+  }, []);
+
+  const askClaude = useCallback(
+    async (question: string) => {
+      setChatMessages(prev => [...prev, { role: "user", text: question }]);
+      setIsTyping(true);
+      try {
+        const res = await fetch("/api/claude", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            system: `あなたはつゆくさアプリのSupabaseクラウド同期セットアップをサポートするAIガイドです。ユーザーの疑問に日本語で簡潔・丁寧に答えてください。2〜4文程度で。技術的な専門用語は避け初心者にも伝わる言葉で。\n現在のステップ: ${step.label}\n手順: ${step.ai}`,
+            messages: [{ role: "user", content: question }],
+          }),
+        });
+        const data = (await res.json()) as { content?: string; error?: string };
+        const answer =
+          data.content ??
+          "申し訳ございません。回答を取得できませんでした。もう一度お試しください。";
+        setChatMessages(prev => [...prev, { role: "ai", text: answer }]);
+      } catch {
+        setChatMessages(prev => [
+          ...prev,
+          { role: "ai", text: "接続エラーが発生しました。しばらくしてからもう一度お試しください。" },
+        ]);
+      } finally {
+        setIsTyping(false);
+      }
+    },
+    [step.ai, step.label],
+  );
+
+  const handleQuickQuestion = useCallback(
+    (q: string) => {
+      const answer = step.qa[q];
+      if (answer) {
+        appendChat(q, answer);
+        return;
+      }
+      void askClaude(q);
+    },
+    [appendChat, askClaude, step.qa],
+  );
+
+  const handleSend = useCallback(() => {
+    const text = chatInput.trim();
+    if (!text || isTyping) return;
+    setChatInput("");
+
+    const fixed = step.qa[text];
+    if (fixed) {
+      appendChat(text, fixed);
+      return;
+    }
+    void askClaude(text);
+  }, [appendChat, askClaude, chatInput, isTyping, step.qa]);
+
+  const handleChatKey = (e: KeyboardEvent<HTMLInputElement>) => {
+    if (e.key !== "Enter") return;
+    if (e.nativeEvent.isComposing) return;
+    if (e.keyCode === 229) return;
+    e.preventDefault();
+    handleSend();
+  };
+
+  const handleCopySql = async () => {
+    if (!step.sql) return;
     try {
-      await syncWithSupabase(settings, "merge");
-      onChange({ lastSyncAt: Date.now(), lastError: undefined, enabled: true });
-      onSynced();
-      setMessage(t("supabase.syncDone"));
-      setTimeout(onComplete, 800);
-    } catch (err) {
-      setMessage(err instanceof Error ? err.message : t("supabase.syncFailed"));
-    } finally {
-      setSyncing(false);
+      await navigator.clipboard.writeText(step.sql);
+      setSqlCopied(true);
+      window.setTimeout(() => setSqlCopied(false), 2000);
+    } catch {
+      /* ignore */
     }
   };
 
+  const goNext = () => {
+    if (isLastStep) {
+      if (!canComplete) return;
+      onComplete(projectUrl.trim(), anonKey.trim(), syncKey.trim());
+      onClose();
+      return;
+    }
+    setStepIndex(i => i + 1);
+    setChatMessages([]);
+    setChatInput("");
+  };
+
+  const goBack = () => {
+    if (stepIndex === 0) return;
+    setStepIndex(i => i - 1);
+    setChatMessages([]);
+    setChatInput("");
+  };
+
+  if (!isOpen) return null;
+
   return (
-    <div
-      style={{
-        position: "fixed",
-        inset: 0,
-        zIndex: 21000,
-        background: "rgba(26,20,16,0.5)",
-        display: "flex",
-        alignItems: "flex-end",
-        justifyContent: "center",
-      }}
-    >
-      <div
-        style={{
-          width: "100%",
-          maxWidth: 440,
-          maxHeight: "92vh",
-          overflowY: "auto",
-          background: "#f5f0e8",
-          borderRadius: "20px 20px 0 0",
-          padding: "20px 18px 28px",
-        }}
-      >
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
-          <div style={{ fontSize: 17, fontWeight: "bold", color: "#1a1410" }}>
-            {t("integrationGuide.supabaseWizardTitle")}
+    <div className="supabase-wizard-overlay" onClick={onClose}>
+      <div className="supabase-wizard-modal" onClick={e => e.stopPropagation()}>
+        <header style={headerStyle}>
+          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+            <span style={{ fontSize: 20 }}>🌿</span>
+            <div>
+              <div style={{ fontSize: 16, fontWeight: "bold", color: "#1a1410" }}>クラウド同期セットアップ</div>
+              <div style={{ fontSize: 11, color: "#8b7355" }}>{step.label}</div>
+            </div>
           </div>
-          <button
-            type="button"
-            onClick={onCancel}
-            style={{ border: "none", background: "none", fontSize: 22, cursor: "pointer", color: "#9a8b7a" }}
-          >
+          <button type="button" onClick={onClose} style={closeBtnStyle} aria-label="閉じる">
             ×
           </button>
+        </header>
+
+        <div style={progressRowStyle}>
+          {STEPS.map((s, i) => (
+            <div
+              key={s.label}
+              title={s.label}
+              style={{
+                ...dotStyle,
+                ...(i < stepIndex ? dotDoneStyle : {}),
+                ...(i === stepIndex ? dotCurrentStyle : {}),
+              }}
+            />
+          ))}
         </div>
 
-        {!isFormStep && (
-          <>
-            <MockScreenshot
-              label={SUPABASE_WIZARD_STEPS[stepIndex].screenshotHint}
-              step={stepIndex + 1}
-            />
-            <div style={{ fontSize: 14, lineHeight: 1.75, color: "#3d3228", marginBottom: 16, whiteSpace: "pre-line" }}>
-              {t(SUPABASE_WIZARD_STEPS[stepIndex].descriptionKey)}
+        <div style={bodyStyle}>
+          <div style={guideBubbleStyle}>{step.ai}</div>
+
+          {step.links.length > 0 && (
+            <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginBottom: 12 }}>
+              {step.links.map(link => (
+                <a
+                  key={link.url}
+                  href={link.url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  style={linkBtnStyle}
+                >
+                  {link.label}
+                </a>
+              ))}
             </div>
-            <div style={{ display: "flex", gap: 8 }}>
-              {stepIndex > 0 && (
-                <button
-                  type="button"
-                  onClick={() => setStepIndex(i => i - 1)}
+          )}
+
+          {step.sql && (
+            <div style={{ marginBottom: 12 }}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
+                <span style={{ fontSize: 11, fontWeight: "bold", color: "#3d3228" }}>SQL（コピーして貼り付け）</span>
+                <button type="button" onClick={() => void handleCopySql()} style={copyBtnStyle}>
+                  {sqlCopied ? "コピーしました" : "コピー"}
+                </button>
+              </div>
+              <pre style={sqlBlockStyle}>{step.sql}</pre>
+            </div>
+          )}
+
+          {chatMessages.length > 0 && (
+            <div style={{ display: "flex", flexDirection: "column", gap: 8, marginBottom: 12 }}>
+              {chatMessages.map((msg, i) => (
+                <div
+                  key={`${msg.role}-${i}`}
                   style={{
-                    flex: 1,
-                    padding: "12px",
-                    borderRadius: 12,
-                    border: "1.5px solid rgba(60,40,20,0.15)",
-                    background: "white",
-                    fontSize: 14,
-                    cursor: "pointer",
+                    alignSelf: msg.role === "user" ? "flex-end" : "flex-start",
+                    maxWidth: "88%",
+                    padding: "10px 12px",
+                    borderRadius: 14,
+                    fontSize: 13,
+                    lineHeight: 1.65,
+                    whiteSpace: "pre-line",
+                    background: msg.role === "user" ? "#c17f4a" : "white",
+                    color: msg.role === "user" ? "#fff" : "#1a1410",
+                    border: msg.role === "ai" ? "1px solid rgba(60,40,20,0.1)" : "none",
                   }}
                 >
-                  {t("integrationGuide.back")}
-                </button>
+                  {msg.text}
+                </div>
+              ))}
+              {isTyping && (
+                <div style={typingBubbleStyle}>
+                  <span className="supabase-wizard-typing-dot" />
+                  <span className="supabase-wizard-typing-dot" />
+                  <span className="supabase-wizard-typing-dot" />
+                </div>
               )}
-              <button
-                type="button"
-                onClick={() => setStepIndex(i => i + 1)}
-                style={{
-                  flex: 2,
-                  padding: "12px",
-                  borderRadius: 12,
-                  border: "none",
-                  background: "#1a1410",
-                  color: "#f5f0e8",
-                  fontSize: 14,
-                  fontWeight: "bold",
-                  cursor: "pointer",
-                }}
-              >
-                {stepIndex < SUPABASE_WIZARD_STEPS.length - 1
-                  ? t("integrationGuide.nextStep")
-                  : t("integrationGuide.enterCredentials")}
-              </button>
+              <div ref={chatEndRef} />
             </div>
-          </>
-        )}
+          )}
 
-        {isFormStep && (
-          <>
-            <div style={{ fontSize: 13, color: "#3d3228", lineHeight: 1.7, marginBottom: 12 }}>
-              {t("integrationGuide.supabaseFormIntro")}
+          {step.quickQs.length > 0 && (
+            <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginBottom: 12 }}>
+              {step.quickQs.map(q => (
+                <button
+                  key={q}
+                  type="button"
+                  disabled={isTyping}
+                  onClick={() => handleQuickQuestion(q)}
+                  style={pillStyle}
+                >
+                  {q}
+                </button>
+              ))}
             </div>
-            <div style={{ fontSize: 11, fontWeight: "bold", color: "#3d3228", marginBottom: 4 }}>
-              {t("supabase.urlLabel")}
+          )}
+
+          {step.isInputStep && (
+            <div style={{ marginBottom: 12 }}>
+              <label style={labelStyle}>Supabase Project URL</label>
+              <input
+                type="url"
+                placeholder="https://xxxx.supabase.co"
+                value={projectUrl}
+                onChange={e => setProjectUrl(e.target.value)}
+                style={inputStyle}
+              />
+              <label style={labelStyle}>Supabase anon key</label>
+              <input
+                type="password"
+                placeholder="eyJ..."
+                value={anonKey}
+                onChange={e => setAnonKey(e.target.value)}
+                style={inputStyle}
+              />
+              <label style={labelStyle}>同期キー</label>
+              <input
+                type="text"
+                placeholder="例: my-tuyukusa-2024"
+                value={syncKey}
+                onChange={e => setSyncKey(e.target.value)}
+                style={{ ...inputStyle, marginBottom: 0 }}
+              />
             </div>
-            <input
-              type="url"
-              placeholder="https://xxxx.supabase.co"
-              value={settings.url}
-              onChange={e => onChange({ url: e.target.value })}
-              style={{
-                width: "100%",
-                padding: "10px 12px",
-                borderRadius: 10,
-                border: "1px solid rgba(60,40,20,0.12)",
-                fontSize: 13,
-                marginBottom: 10,
-                boxSizing: "border-box",
-              }}
-            />
-            <div style={{ fontSize: 11, fontWeight: "bold", color: "#3d3228", marginBottom: 4 }}>
-              {t("supabase.anonKeyLabel")}
-            </div>
-            <input
-              type="password"
-              placeholder="eyJ..."
-              value={settings.anonKey}
-              onChange={e => onChange({ anonKey: e.target.value })}
-              style={{
-                width: "100%",
-                padding: "10px 12px",
-                borderRadius: 10,
-                border: "1px solid rgba(60,40,20,0.12)",
-                fontSize: 13,
-                marginBottom: 10,
-                boxSizing: "border-box",
-              }}
-            />
-            <div style={{ fontSize: 11, fontWeight: "bold", color: "#3d3228", marginBottom: 4 }}>
-              {t("supabase.syncIdLabel")}
-            </div>
+          )}
+
+          <div style={{ display: "flex", gap: 8, marginTop: 4 }}>
             <input
               type="text"
-              placeholder={t("supabase.syncIdPlaceholder")}
-              value={settings.syncId}
-              onChange={e => onChange({ syncId: e.target.value })}
-              style={{
-                width: "100%",
-                padding: "10px 12px",
-                borderRadius: 10,
-                border: "1px solid rgba(60,40,20,0.12)",
-                fontSize: 13,
-                marginBottom: 10,
-                boxSizing: "border-box",
+              value={chatInput}
+              onChange={e => setChatInput(e.target.value)}
+              onCompositionStart={() => setIsComposing(true)}
+              onCompositionEnd={() => setIsComposing(false)}
+              onKeyDown={e => {
+                if (isComposing) return;
+                handleChatKey(e);
               }}
+              placeholder="質問を入力..."
+              disabled={isTyping}
+              style={{ ...inputStyle, flex: 1, marginBottom: 0 }}
             />
             <button
               type="button"
-              onClick={() => setShowSql(v => !v)}
+              onClick={handleSend}
+              disabled={!chatInput.trim() || isTyping}
               style={{
-                width: "100%",
-                marginBottom: 10,
-                padding: "8px 10px",
-                borderRadius: 8,
-                border: "1px solid rgba(126,200,227,0.5)",
-                background: "white",
-                color: "#4a6741",
-                fontSize: 11,
-                cursor: "pointer",
-                textAlign: "left",
+                ...footerPrimaryStyle,
+                flex: "0 0 auto",
+                padding: "10px 14px",
+                opacity: chatInput.trim() && !isTyping ? 1 : 0.5,
               }}
             >
-              {showSql ? "▼" : "▶"} {t("supabase.setupSql")}
+              送信
             </button>
-            {showSql && (
-              <pre
-                style={{
-                  fontSize: 9,
-                  background: "#1a1410",
-                  color: "#c5d8be",
-                  padding: 10,
-                  borderRadius: 8,
-                  overflowX: "auto",
-                  marginBottom: 12,
-                  lineHeight: 1.5,
-                }}
-              >
-                {SUPABASE_SETUP_SQL}
-              </pre>
-            )}
-            <button
-              type="button"
-              disabled={!configured || syncing}
-              onClick={() => void runSync()}
-              style={{
-                width: "100%",
-                padding: "14px",
-                borderRadius: 12,
-                border: "none",
-                background: configured ? "#4a6741" : "#9a8b7a",
-                color: "#f5f0e8",
-                fontSize: 15,
-                fontWeight: "bold",
-                cursor: configured && !syncing ? "pointer" : "default",
-              }}
-            >
-              {syncing ? t("common.syncing") : t("integrationGuide.supabaseFinish")}
-            </button>
-            {message && (
-              <div
-                style={{
-                  fontSize: 12,
-                  color: message.includes("失敗") ? "#c44a4a" : "#4a6741",
-                  marginTop: 10,
-                  textAlign: "center",
-                }}
-              >
-                {message}
-              </div>
-            )}
-          </>
-        )}
-
-        <div style={{ fontSize: 10, color: "#9a8b7a", textAlign: "center", marginTop: 12 }}>
-          {isFormStep
-            ? t("integrationGuide.supabaseFormStep")
-            : `${stepIndex + 1} / ${SUPABASE_WIZARD_STEPS.length}`}
+          </div>
         </div>
+
+        <footer style={footerStyle}>
+          <button type="button" onClick={goBack} disabled={stepIndex === 0} style={footerSecondaryStyle}>
+            戻る
+          </button>
+          <span style={{ fontSize: 12, color: "#8b7355" }}>
+            {stepIndex + 1} / {STEPS.length}
+          </span>
+          <button
+            type="button"
+            onClick={goNext}
+            disabled={isLastStep && !canComplete}
+            style={{
+              ...footerPrimaryStyle,
+              opacity: isLastStep && !canComplete ? 0.5 : 1,
+            }}
+          >
+            {isLastStep ? "設定完了" : "次へ"}
+          </button>
+        </footer>
       </div>
     </div>
   );
 }
+
+const headerStyle: CSSProperties = {
+  display: "flex",
+  justifyContent: "space-between",
+  alignItems: "center",
+  padding: "16px 18px 12px",
+  borderBottom: "1px solid rgba(60,40,20,0.08)",
+  background: "white",
+};
+
+const closeBtnStyle: CSSProperties = {
+  border: "none",
+  background: "none",
+  fontSize: 24,
+  lineHeight: 1,
+  cursor: "pointer",
+  color: "#9a8b7a",
+  padding: "0 4px",
+};
+
+const progressRowStyle: CSSProperties = {
+  display: "flex",
+  justifyContent: "center",
+  gap: 8,
+  padding: "12px 18px",
+  background: "white",
+  borderBottom: "1px solid rgba(60,40,20,0.06)",
+};
+
+const dotStyle: CSSProperties = {
+  width: 10,
+  height: 10,
+  borderRadius: "50%",
+  background: "#d4ccc0",
+  border: "2px solid transparent",
+};
+
+const dotDoneStyle: CSSProperties = {
+  background: "#c17f4a",
+};
+
+const dotCurrentStyle: CSSProperties = {
+  background: "white",
+  borderColor: "#c17f4a",
+  boxShadow: "0 0 0 2px rgba(193,127,74,0.35)",
+};
+
+const bodyStyle: CSSProperties = {
+  flex: 1,
+  overflowY: "auto",
+  padding: "16px 18px",
+};
+
+const guideBubbleStyle: CSSProperties = {
+  background: "#fdf0e4",
+  border: "1px solid rgba(193,127,74,0.25)",
+  borderRadius: 14,
+  padding: "14px 14px",
+  fontSize: 13,
+  lineHeight: 1.75,
+  color: "#3d3228",
+  whiteSpace: "pre-line",
+  marginBottom: 12,
+};
+
+const linkBtnStyle: CSSProperties = {
+  display: "inline-block",
+  padding: "8px 12px",
+  borderRadius: 20,
+  background: "white",
+  border: "1.5px solid rgba(193,127,74,0.35)",
+  color: "#8b5a2b",
+  fontSize: 12,
+  textDecoration: "none",
+  fontWeight: "bold",
+};
+
+const sqlBlockStyle: CSSProperties = {
+  fontSize: 10,
+  background: "#1a1410",
+  color: "#c5d8be",
+  padding: 12,
+  borderRadius: 10,
+  overflowX: "auto",
+  margin: 0,
+  lineHeight: 1.5,
+};
+
+const copyBtnStyle: CSSProperties = {
+  padding: "4px 10px",
+  borderRadius: 8,
+  border: "none",
+  background: "#c17f4a",
+  color: "white",
+  fontSize: 11,
+  fontWeight: "bold",
+  cursor: "pointer",
+};
+
+const pillStyle: CSSProperties = {
+  padding: "6px 12px",
+  borderRadius: 20,
+  border: "1.5px solid rgba(60,40,20,0.12)",
+  background: "#ede5d4",
+  color: "#3d3228",
+  fontSize: 12,
+  cursor: "pointer",
+};
+
+const labelStyle: CSSProperties = {
+  display: "block",
+  fontSize: 11,
+  fontWeight: "bold",
+  color: "#3d3228",
+  marginBottom: 4,
+  marginTop: 8,
+};
+
+const inputStyle: CSSProperties = {
+  width: "100%",
+  padding: "10px 12px",
+  borderRadius: 10,
+  border: "1px solid rgba(60,40,20,0.12)",
+  fontSize: 13,
+  marginBottom: 8,
+  boxSizing: "border-box",
+  fontFamily: "inherit",
+};
+
+const typingBubbleStyle: CSSProperties = {
+  alignSelf: "flex-start",
+  display: "flex",
+  gap: 4,
+  padding: "12px 14px",
+  borderRadius: 14,
+  background: "white",
+  border: "1px solid rgba(60,40,20,0.1)",
+};
+
+const footerStyle: CSSProperties = {
+  display: "flex",
+  alignItems: "center",
+  justifyContent: "space-between",
+  gap: 12,
+  padding: "12px 18px 16px",
+  borderTop: "1px solid rgba(60,40,20,0.08)",
+  background: "white",
+};
+
+const footerSecondaryStyle: CSSProperties = {
+  padding: "10px 16px",
+  borderRadius: 12,
+  border: "1.5px solid rgba(60,40,20,0.15)",
+  background: "white",
+  color: "#3d3228",
+  fontSize: 13,
+  cursor: "pointer",
+};
+
+const footerPrimaryStyle: CSSProperties = {
+  padding: "10px 18px",
+  borderRadius: 12,
+  border: "none",
+  background: "#1a1410",
+  color: "#f5f0e8",
+  fontSize: 13,
+  fontWeight: "bold",
+  cursor: "pointer",
+};

@@ -306,6 +306,24 @@ export function OnboardingScreen({ fetchProposal, onQuestionnaireDone, onDeferTo
           return;
         }
 
+        if (currentStep === "proposal") {
+          // 自由入力はAIに渡す
+          pushUser(text);
+          setIsLoading(true);
+          isLoadingRef.current = true;
+          try {
+            const reply = await fetchProposal(text);
+            const aiMsg = createAiChatMessageFromReply(reply.content, reply);
+            pushAi(aiMsg.text, [t("onboarding.continueToIntegrations")]);
+          } catch {
+            pushAi(t("onboarding.proposalFailed"), [t("onboarding.continueToIntegrations")]);
+          } finally {
+            setIsLoading(false);
+            isLoadingRef.current = false;
+          }
+          return;
+        }
+
         console.warn("[Onboarding] Unhandled step:", currentStep, "answer:", text);
       } catch (err) {
         console.error("[Onboarding] processAnswer failed:", err);
@@ -313,7 +331,7 @@ export function OnboardingScreen({ fetchProposal, onQuestionnaireDone, onDeferTo
         processingRef.current = false;
       }
     },
-    [goToLifestyle, handleLifestyleAnswer, onDeferToHome, onQuestionnaireDone, persist, pushAi, pushTransition, pushUser, t],
+    [fetchProposal, goToLifestyle, handleLifestyleAnswer, onDeferToHome, onQuestionnaireDone, persist, pushAi, pushTransition, pushUser, t],
   );
 
   const handleChoice = useCallback(

@@ -192,6 +192,7 @@ const en: TranslationSchema = {
     pushed: "Uploaded",
     pulled: "Downloaded",
     lastSync: "Last sync",
+    configuredHint: "Cloud sync is configured. Tap \"Set up now\" to change settings.",
   },
   integrations: {
     title: "External integrations (optional)",

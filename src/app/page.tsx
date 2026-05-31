@@ -3376,18 +3376,6 @@ ${buildHealthSummary(healthForm)}`;
     }
   };
 
-  const handleQuestionnaireDone = async (
-    data: OnboardingFlowData,
-    reflection: ScheduleReflection | null
-  ) => {
-    setPendingOnboarding({ data, reflection });
-    saveOnboardingProgress({ ...buildProgressFromFlowData(data), integrationsPhase: true, flowData: data });
-    if (reflection) {
-      await applyScheduleReflection(reflection);
-    }
-    setOnboardingPhase("integrations");
-  };
-
   const resetOnboardingFlow = () => {
     clearOnboardingProgress();
     setUserProfile(prev => ({
@@ -3457,6 +3445,16 @@ ${buildHealthSummary(healthForm)}`;
     setPendingOnboarding(null);
     setOnboardingPhase("questionnaire");
     setTab(options.openTab ?? "home");
+  };
+
+  const handleQuestionnaireDone = async (
+    data: OnboardingFlowData,
+    reflection: ScheduleReflection | null
+  ) => {
+    if (reflection) {
+      await applyScheduleReflection(reflection);
+    }
+    await finishOnboarding(data, { openTab: "home", allDeferred: true });
   };
 
   const renderAiChatPanel = (compact: boolean) => (

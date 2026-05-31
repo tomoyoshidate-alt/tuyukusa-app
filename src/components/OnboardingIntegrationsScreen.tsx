@@ -473,22 +473,19 @@ export function OnboardingIntegrationsScreen({
         )}
       </div>
 
-      {showSupabaseWizard && (
-        <SupabaseSetupWizard
-          settings={supabaseSettings}
-          onChange={onSupabaseChange}
-          onCancel={() => setShowSupabaseWizard(false)}
-          onSynced={() => {}}
-          onComplete={() => {
-            setShowSupabaseWizard(false);
-            if (phase === "reminder") {
-              onFinish({ allDeferred: true, openTab: "home" });
-            } else if (currentId === "supabase") {
-              completeSetup("supabase");
-            }
-          }}
-        />
-      )}
+      <SupabaseSetupWizard
+        isOpen={showSupabaseWizard}
+        onClose={() => setShowSupabaseWizard(false)}
+        onComplete={(url, anonKey, syncKey) => {
+          onSupabaseChange({ url, anonKey, syncId: syncKey, enabled: true });
+          setShowSupabaseWizard(false);
+          if (phase === "reminder") {
+            onFinish({ allDeferred: true, openTab: "home" });
+          } else if (currentId === "supabase") {
+            completeSetup("supabase");
+          }
+        }}
+      />
     </div>
   );
 }

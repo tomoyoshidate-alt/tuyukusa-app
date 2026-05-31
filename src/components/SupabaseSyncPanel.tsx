@@ -2,10 +2,10 @@
 
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
+import { SupabaseSetupWizard } from "@/src/components/SupabaseSetupWizard";
 import {
   isSupabaseConfigured,
   syncWithSupabase,
-  SUPABASE_SETUP_SQL,
   type SupabaseSettings,
 } from "@/src/lib/supabaseSync";
 
@@ -19,15 +19,15 @@ export function SupabaseSyncPanel({ settings, onChange, onSynced }: Props) {
   const { t } = useTranslation();
   const [syncing, setSyncing] = useState(false);
   const [message, setMessage] = useState("");
-  const [showSql, setShowSql] = useState(false);
+  const [showSupabaseWizard, setShowSupabaseWizard] = useState(false);
 
   const configured = isSupabaseConfigured(settings);
 
-  const runSync = async (direction: "push" | "pull" | "merge") => {
+  const runSync = async (direction: "push" | "pull" | "merge", nextSettings = settings) => {
     setSyncing(true);
     setMessage("");
     try {
-      const result = await syncWithSupabase(settings, direction);
+      const result = await syncWithSupabase(nextSettings, direction);
       onChange({ lastSyncAt: Date.now(), lastError: undefined, enabled: true });
       if (result.pulled) onSynced();
       const parts: string[] = [];
@@ -43,6 +43,19 @@ export function SupabaseSyncPanel({ settings, onChange, onSynced }: Props) {
     }
   };
 
+  const handleWizardComplete = (url: string, anonKey: string, syncKey: string) => {
+    const next: SupabaseSettings = {
+      ...settings,
+      url,
+      anonKey,
+      syncId: syncKey,
+      enabled: true,
+    };
+    onChange({ url, anonKey, syncId: syncKey, enabled: true });
+    setShowSupabaseWizard(false);
+    void runSync("merge", next);
+  };
+
   return (
     <div style={{ marginBottom: 12 }}>
       <div style={{ fontSize: 15, fontWeight: "bold", color: "#3d3228", marginBottom: 4 }}>
@@ -56,160 +69,93 @@ export function SupabaseSyncPanel({ settings, onChange, onSynced }: Props) {
           border: "1px solid rgba(126,200,227,0.35)",
         }}
       >
-        <div style={{ fontSize: 12, color: "#3d3228", lineHeight: 1.7, marginBottom: 10 }}>
+        <div style={{ fontSize: 12, color: "#3d3228", lineHeight: 1.7, marginBottom: 12 }}>
           {t("supabase.description")}
         </div>
 
-        <div style={{ fontSize: 11, fontWeight: "bold", color: "#3d3228", marginBottom: 4 }}>
-          {t("supabase.urlLabel")}
-        </div>
-        <input
-          type="url"
-          placeholder="https://xxxx.supabase.co"
-          value={settings.url}
-          onChange={e => onChange({ url: e.target.value, enabled: false })}
-          style={{
-            width: "100%",
-            padding: "8px 10px",
-            borderRadius: 8,
-            border: "1px solid rgba(60,40,20,0.12)",
-            fontSize: 12,
-            marginBottom: 8,
-            boxSizing: "border-box",
-          }}
-        />
-
-        <div style={{ fontSize: 11, fontWeight: "bold", color: "#3d3228", marginBottom: 4 }}>
-          {t("supabase.anonKeyLabel")}
-        </div>
-        <input
-          type="password"
-          placeholder="eyJ..."
-          value={settings.anonKey}
-          onChange={e => onChange({ anonKey: e.target.value, enabled: false })}
-          style={{
-            width: "100%",
-            padding: "8px 10px",
-            borderRadius: 8,
-            border: "1px solid rgba(60,40,20,0.12)",
-            fontSize: 12,
-            marginBottom: 8,
-            boxSizing: "border-box",
-          }}
-        />
-
-        <div style={{ fontSize: 11, fontWeight: "bold", color: "#3d3228", marginBottom: 4 }}>
-          {t("supabase.syncIdLabel")}
-        </div>
-        <input
-          type="text"
-          placeholder={t("supabase.syncIdPlaceholder")}
-          value={settings.syncId}
-          onChange={e => onChange({ syncId: e.target.value, enabled: false })}
-          style={{
-            width: "100%",
-            padding: "8px 10px",
-            borderRadius: 8,
-            border: "1px solid rgba(60,40,20,0.12)",
-            fontSize: 12,
-            marginBottom: 10,
-            boxSizing: "border-box",
-          }}
-        />
-
         <button
           type="button"
-          onClick={() => setShowSql(v => !v)}
+          onClick={() => setShowSupabaseWizard(true)}
           style={{
             width: "100%",
-            marginBottom: 10,
-            padding: "6px 10px",
-            borderRadius: 8,
-            border: "1px solid rgba(126,200,227,0.5)",
-            background: "white",
-            color: "#4a6741",
-            fontSize: 11,
+            padding: "12px 14px",
+            borderRadius: 12,
+            border: "none",
+            background: "#1a1410",
+            color: "#f5f0e8",
+            fontSize: 14,
+            fontWeight: "bold",
             cursor: "pointer",
-            textAlign: "left",
+            marginBottom: configured ? 12 : 0,
           }}
         >
-          {showSql ? "▼" : "▶"} {t("supabase.setupSql")}
+          {t("integrationGuide.setupNow")}
         </button>
-        {showSql && (
-          <pre
-            style={{
-              fontSize: 9,
-              background: "#1a1410",
-              color: "#c5d8be",
-              padding: 10,
-              borderRadius: 8,
-              overflowX: "auto",
-              marginBottom: 10,
-              lineHeight: 1.5,
-            }}
-          >
-            {SUPABASE_SETUP_SQL}
-          </pre>
-        )}
 
-        <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
-          <button
-            type="button"
-            disabled={!configured || syncing}
-            onClick={() => void runSync("merge")}
-            style={{
-              flex: 1,
-              minWidth: 100,
-              padding: "9px 10px",
-              borderRadius: 10,
-              border: "none",
-              background: configured ? "#4a6741" : "#9a8b7a",
-              color: "#f5f0e8",
-              fontSize: 12,
-              fontWeight: "bold",
-              cursor: configured && !syncing ? "pointer" : "default",
-            }}
-          >
-            {syncing ? t("common.syncing") : t("supabase.syncNow")}
-          </button>
-          <button
-            type="button"
-            disabled={!configured || syncing}
-            onClick={() => void runSync("push")}
-            style={{
-              padding: "9px 10px",
-              borderRadius: 10,
-              border: "1.5px solid rgba(60,40,20,0.12)",
-              background: "white",
-              color: "#3d3228",
-              fontSize: 12,
-              cursor: configured && !syncing ? "pointer" : "default",
-            }}
-          >
-            送信
-          </button>
-          <button
-            type="button"
-            disabled={!configured || syncing}
-            onClick={() => void runSync("pull")}
-            style={{
-              padding: "9px 10px",
-              borderRadius: 10,
-              border: "1.5px solid rgba(60,40,20,0.12)",
-              background: "white",
-              color: "#3d3228",
-              fontSize: 12,
-              cursor: configured && !syncing ? "pointer" : "default",
-            }}
-          >
-            ↓
-          </button>
-        </div>
+        {configured && (
+          <>
+            <div style={{ fontSize: 11, color: "#4a6741", marginBottom: 10, lineHeight: 1.5 }}>
+              {t("supabase.configuredHint")}
+            </div>
+            <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+              <button
+                type="button"
+                disabled={syncing}
+                onClick={() => void runSync("merge")}
+                style={{
+                  flex: 1,
+                  minWidth: 100,
+                  padding: "9px 10px",
+                  borderRadius: 10,
+                  border: "none",
+                  background: "#4a6741",
+                  color: "#f5f0e8",
+                  fontSize: 12,
+                  fontWeight: "bold",
+                  cursor: syncing ? "default" : "pointer",
+                }}
+              >
+                {syncing ? t("common.syncing") : t("supabase.syncNow")}
+              </button>
+              <button
+                type="button"
+                disabled={syncing}
+                onClick={() => void runSync("push")}
+                style={{
+                  padding: "9px 10px",
+                  borderRadius: 10,
+                  border: "1.5px solid rgba(60,40,20,0.12)",
+                  background: "white",
+                  color: "#3d3228",
+                  fontSize: 12,
+                  cursor: syncing ? "default" : "pointer",
+                }}
+              >
+                送信
+              </button>
+              <button
+                type="button"
+                disabled={syncing}
+                onClick={() => void runSync("pull")}
+                style={{
+                  padding: "9px 10px",
+                  borderRadius: 10,
+                  border: "1.5px solid rgba(60,40,20,0.12)",
+                  background: "white",
+                  color: "#3d3228",
+                  fontSize: 12,
+                  cursor: syncing ? "default" : "pointer",
+                }}
+              >
+                ↓
+              </button>
+            </div>
+          </>
+        )}
 
         {settings.lastSyncAt && (
           <div style={{ fontSize: 10, color: "#4a6741", marginTop: 8 }}>
-            {t("supabase.lastSync")}:{" "}
-            {new Date(settings.lastSyncAt).toLocaleString()}
+            {t("supabase.lastSync")}: {new Date(settings.lastSyncAt).toLocaleString()}
           </div>
         )}
         {message && (
@@ -225,6 +171,12 @@ export function SupabaseSyncPanel({ settings, onChange, onSynced }: Props) {
           </div>
         )}
       </div>
+
+      <SupabaseSetupWizard
+        isOpen={showSupabaseWizard}
+        onClose={() => setShowSupabaseWizard(false)}
+        onComplete={handleWizardComplete}
+      />
     </div>
   );
 }

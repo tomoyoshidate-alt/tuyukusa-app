@@ -190,6 +190,7 @@ const ja = {
     pushed: "アップロード完了",
     pulled: "ダウンロード完了",
     lastSync: "最終同期",
+    configuredHint: "クラウド同期が設定済みです。再設定する場合は「今すぐ連携する」をタップしてください。",
   },
   integrations: {
     title: "外部連携（オプション）",
