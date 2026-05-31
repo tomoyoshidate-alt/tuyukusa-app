@@ -18,6 +18,7 @@ import {
 } from "@mac/lib/presetClient";
 import { AudioFileManager } from "@mac/components/AudioFileManager";
 import { audioFileLabel } from "@mac/lib/audioStorage";
+import { clampPitchSemis, formatPitchOctaves } from "@mac/lib/pitchFormat";
 import {
   DEFAULT_BB_PRESET,
   DEFAULT_GRANULAR_PRESET,
@@ -168,6 +169,16 @@ export function MacStudioApp() {
     mixerRef.current.setMasterVolume(masterVol / 100);
   }, [masterVol]);
 
+  useEffect(() => {
+    if (!playing || !selectedGrId) return;
+    if (slot2GrId === selectedGrId) {
+      mixerRef.current.updateGranularPreset(2, grDraft);
+    }
+    if (slot3GrId === selectedGrId) {
+      mixerRef.current.updateGranularPreset(3, grDraft);
+    }
+  }, [grDraft, playing, selectedGrId, slot2GrId, slot3GrId]);
+
   return (
     <div className="flex h-screen bg-[#1a1a1a] text-[#e8e8e8] font-sans">
       {/* 左パネル */}
@@ -316,7 +327,15 @@ export function MacStudioApp() {
             <CustomSlider label="オーバーラップ" value={grDraft.overlapPct} min={0} max={100} unit="%" onChange={v => setGrDraft({ ...grDraft, overlapPct: v })} />
             <CustomSlider label="再生ポジション" value={grDraft.positionPct} min={0} max={100} unit="%" onChange={v => setGrDraft({ ...grDraft, positionPct: v })} />
             <CustomSlider label="ランダムネス" value={grDraft.randomnessPct} min={0} max={100} unit="%" onChange={v => setGrDraft({ ...grDraft, randomnessPct: v })} />
-            <CustomSlider label="ピッチシフト" value={grDraft.pitchSemis} min={-12} max={12} unit="st" onChange={v => setGrDraft({ ...grDraft, pitchSemis: v })} />
+            <CustomSlider
+              label="ピッチシフト"
+              value={grDraft.pitchSemis}
+              min={-48}
+              max={288}
+              step={1}
+              formatValue={formatPitchOctaves}
+              onChange={v => setGrDraft({ ...grDraft, pitchSemis: clampPitchSemis(v) })}
+            />
             <label className="flex items-center gap-2 mb-4 text-sm">
               <input type="checkbox" checked={grDraft.lfoEnabled} onChange={e => setGrDraft({ ...grDraft, lfoEnabled: e.target.checked })} />
               LFO ON

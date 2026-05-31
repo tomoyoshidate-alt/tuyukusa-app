@@ -59,10 +59,9 @@ export function normalizeGranularParams(raw: Partial<GranularParams> | GranularP
 }
 
 export function formatPitchShiftLabel(semitones: number): string {
-  const oct = semitones / 12;
-  const octRounded = Math.abs(oct - Math.round(oct)) < 0.05 ? String(Math.round(oct)) : oct.toFixed(1);
-  const octSigned = oct > 0 ? `+${octRounded}` : octRounded;
-  return `${octSigned} oct（${semitones} st）`;
+  const oct = Math.round((semitones / 12) * 10) / 10;
+  if (oct === 0) return "0 oct";
+  return oct > 0 ? `+${oct} oct` : `${oct} oct`;
 }
 
 export type BinauralChannelConfig = {

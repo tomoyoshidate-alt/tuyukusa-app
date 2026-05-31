@@ -19,6 +19,7 @@ export class GranularEngine {
   private grainTimer: ReturnType<typeof setInterval> | null = null;
   private lfoTickTimer: ReturnType<typeof setInterval> | null = null;
   private randomTimer: ReturnType<typeof setInterval> | null = null;
+  private activeSources: AudioBufferSourceNode[] = [];
 
   private lfoPhase = 0;
   private lfoModSemis = 0;
@@ -59,6 +60,10 @@ export class GranularEngine {
     ) {
       this.configureRandomTimer();
     }
+
+    if (prev.pitchShift !== next.pitchShift) {
+      this.applyPlaybackRateToActiveGrains();
+    }
   }
 
   private startDepthFade(target: number, durSec: number): void {
@@ -95,13 +100,17 @@ export class GranularEngine {
     this.updateDepthFade();
     const depth = this.effectiveLfoDepth;
     if (!this.params.lfoEnabled || depth <= 0) {
-      this.lfoModSemis = 0;
+      if (this.lfoModSemis !== 0) {
+        this.lfoModSemis = 0;
+        this.applyPlaybackRateToActiveGrains();
+      }
       return;
     }
 
     if (this.params.lfoShape === "random") {
       const alpha = Math.min(1, LFO_TICK_MS / 1000 / RANDOM_RAMP_SEC);
       this.lfoModSemis += (this.randomTargetSemis - this.lfoModSemis) * alpha;
+      this.applyPlaybackRateToActiveGrains();
       return;
     }
 
@@ -109,10 +118,18 @@ export class GranularEngine {
     this.lfoPhase += this.params.lfoSpeed * dt;
     if (this.lfoPhase > 1000) this.lfoPhase -= 1000;
     this.lfoModSemis = lfoWave(this.params.lfoShape, this.lfoPhase) * depth;
+    this.applyPlaybackRateToActiveGrains();
   }
 
   private currentPitchSemitones(): number {
     return this.params.pitchShift + this.lfoModSemis;
+  }
+
+  private applyPlaybackRateToActiveGrains(): void {
+    const rate = Math.pow(2, this.currentPitchSemitones() / 12);
+    this.activeSources.forEach(src => {
+      src.playbackRate.value = rate;
+    });
   }
 
   private spawnGrain(): void {
@@ -143,6 +160,12 @@ export class GranularEngine {
     env.connect(this.output);
     src.start(t, offset, dur);
     src.stop(t + dur + 0.01);
+    this.activeSources.push(src);
+    src.onended = () => {
+      this.activeSources = this.activeSources.filter(s => s !== src);
+      src.disconnect();
+      env.disconnect();
+    };
   }
 
   async start(): Promise<void> {
@@ -179,6 +202,15 @@ export class GranularEngine {
       clearInterval(this.randomTimer);
       this.randomTimer = null;
     }
+    this.activeSources.forEach(src => {
+      try {
+        src.stop();
+        src.disconnect();
+      } catch {
+        /* ignore */
+      }
+    });
+    this.activeSources = [];
   }
 
   isRunning(): boolean {

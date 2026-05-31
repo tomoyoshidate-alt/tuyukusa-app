@@ -61,6 +61,11 @@ export class MixerEngine {
     }
   }
 
+  updateGranularPreset(slot: 2 | 3, preset: GranularPreset): void {
+    const engine = slot === 2 ? this.granular2 : this.granular3;
+    engine.updatePreset(preset);
+  }
+
   private async stopEngines(): Promise<void> {
     await Promise.all([this.bb.stop(), this.granular2.stop(), this.granular3.stop()]);
   }

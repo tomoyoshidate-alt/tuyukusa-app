@@ -1,10 +1,7 @@
 import { audioCtx, resumeAudioCtx } from "@/src/lib/audioContext";
+import { clampPitchSemis, playbackRateForSemis } from "@mac/lib/pitchFormat";
 import type { GranularPreset } from "./types";
 import { resolveStudioAudioUrl } from "./audioStorage";
-
-function semitoneRatio(semitones: number): number {
-  return Math.pow(2, semitones / 12);
-}
 
 export class GranularEngine {
   private buffer: AudioBuffer | null = null;
@@ -15,6 +12,7 @@ export class GranularEngine {
   private activeSources: AudioBufferSourceNode[] = [];
   private preset: GranularPreset | null = null;
   private volume = 0.7;
+  private lfoModSemis = 0;
 
   getAnalyser(): AnalyserNode | null {
     return this.analyser;
@@ -32,8 +30,9 @@ export class GranularEngine {
     if (!preset.audioFile || !audioCtx) return;
     await resumeAudioCtx();
 
-    this.preset = preset;
+    this.preset = { ...preset, pitchSemis: clampPitchSemis(preset.pitchSemis) };
     this.volume = volume01;
+    this.lfoModSemis = 0;
     this.output = audioCtx.createGain();
     this.analyser = audioCtx.createAnalyser();
     this.analyser.fftSize = 2048;
@@ -47,11 +46,21 @@ export class GranularEngine {
     this.analyser.connect(outputGain);
 
     const grainIntervalMs = Math.max(20, 1000 / preset.grainDensity);
-    this.spawnGrain(preset);
-    this.interval = setInterval(() => this.spawnGrain(preset), grainIntervalMs);
+    this.spawnGrain(this.preset);
+    this.interval = setInterval(() => {
+      if (this.preset) this.spawnGrain(this.preset);
+    }, grainIntervalMs);
     if (preset.lfoEnabled) {
-      this.lfoInterval = setInterval(() => this.applyLfo(preset), 100);
+      this.lfoInterval = setInterval(() => {
+        if (this.preset) this.applyLfo(this.preset);
+      }, 100);
     }
+  }
+
+  updatePreset(next: GranularPreset): void {
+    if (!this.preset) return;
+    this.preset = { ...next, pitchSemis: clampPitchSemis(next.pitchSemis) };
+    this.applyPlaybackRateToActiveGrains();
   }
 
   setVolume(volume01: number): void {
@@ -60,8 +69,20 @@ export class GranularEngine {
     this.output.gain.setTargetAtTime(volume01 * (this.preset.volume / 100), audioCtx.currentTime, 0.05);
   }
 
+  private pitchSemitones(): number {
+    if (!this.preset) return 0;
+    return this.preset.pitchSemis + (this.preset.lfoEnabled ? this.lfoModSemis : 0);
+  }
+
+  private applyPlaybackRateToActiveGrains(): void {
+    const rate = playbackRateForSemis(this.pitchSemitones());
+    this.activeSources.forEach(src => {
+      src.playbackRate.value = rate;
+    });
+  }
+
   private applyLfo(preset: GranularPreset): void {
-    if (!this.output || !audioCtx) return;
+    if (!audioCtx) return;
     const t = audioCtx.currentTime;
     let mod = 0;
     if (preset.lfoWaveform === "random") {
@@ -69,8 +90,8 @@ export class GranularEngine {
     } else {
       mod = Math.sin(t * preset.lfoSpeedHz * Math.PI * 2) * preset.lfoDepthSemis;
     }
-    const base = semitoneRatio(preset.pitchSemis + mod);
-    this.output.gain.setTargetAtTime(this.volume * (preset.volume / 100) * (0.85 + base * 0.05), t, 0.08);
+    this.lfoModSemis = mod;
+    this.applyPlaybackRateToActiveGrains();
   }
 
   private spawnGrain(preset: GranularPreset): void {
@@ -82,7 +103,8 @@ export class GranularEngine {
 
     const src = audioCtx.createBufferSource();
     src.buffer = this.buffer;
-    src.playbackRate.value = semitoneRatio(preset.pitchSemis + (Math.random() - 0.5) * (preset.randomnessPct / 20));
+    const jitter = (Math.random() - 0.5) * (preset.randomnessPct / 20);
+    src.playbackRate.value = playbackRateForSemis(this.pitchSemitones() + jitter);
 
     const grainGain = audioCtx.createGain();
     const overlap = preset.overlapPct / 100;
@@ -134,5 +156,6 @@ export class GranularEngine {
     this.output = null;
     this.analyser = null;
     this.preset = null;
+    this.lfoModSemis = 0;
   }
 }

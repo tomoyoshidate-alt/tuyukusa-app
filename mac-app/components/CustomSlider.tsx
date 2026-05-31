@@ -7,18 +7,17 @@ type Props = {
   max: number;
   step?: number;
   unit?: string;
+  formatValue?: (value: number) => string;
   onChange: (v: number) => void;
 };
 
-export function CustomSlider({ label, value, min, max, step = 1, unit = "", onChange }: Props) {
+export function CustomSlider({ label, value, min, max, step = 1, unit = "", formatValue, onChange }: Props) {
+  const display = formatValue ? formatValue(value) : `${value}${unit}`;
   return (
     <label className="block mb-4">
       <div className="flex justify-between text-xs mb-1.5 font-mono text-[#a8a8a8]">
         <span>{label}</span>
-        <span className="text-[#5DCAA5]">
-          {value}
-          {unit}
-        </span>
+        <span className="text-[#5DCAA5]">{display}</span>
       </div>
       <input
         type="range"
