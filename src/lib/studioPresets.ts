@@ -1,4 +1,5 @@
 import type { GranularParams } from "@/src/lib/soundSystem/types";
+import { normalizeGranularParams } from "@/src/lib/soundSystem/types";
 import type { BinauralBeatPreset } from "@/src/lib/binauralBeats";
 import {
   fetchBbPresetsFromSupabase,
@@ -34,7 +35,7 @@ export type StudioGranularPreset = {
   lfoEnabled?: boolean;
   lfoSpeedHz?: number;
   lfoDepthSemis?: number;
-  lfoWaveform?: "sine" | "triangle" | "random";
+  lfoWaveform?: "sine" | "triangle" | "square" | "random";
   reverbPct?: number;
   volume: number;
   memo?: string;
@@ -99,17 +100,21 @@ export function studioBbToWaveLabel(p: StudioBbPreset): string {
 }
 
 export function studioGranularToParams(p: StudioGranularPreset): GranularParams {
-  return {
+  const waveform = p.lfoWaveform;
+  const lfoShape =
+    waveform === "random" ? "random" : waveform === "triangle" || waveform === "square" ? "square" : "sine";
+  return normalizeGranularParams({
     grainSizeMs: p.grainSizeMs,
     overlap: p.overlapPct,
     position: p.positionPct,
     randomness: p.randomnessPct,
     pitchShift: p.pitchSemis,
-    lfoSpeed: p.lfoEnabled ? (p.lfoSpeedHz ?? 0.2) : 0,
-    lfoDepth: p.lfoEnabled ? (p.lfoDepthSemis ?? 0) : 0,
-    lfoShape: p.lfoWaveform ?? "sine",
+    lfoEnabled: p.lfoEnabled === true,
+    lfoSpeed: p.lfoSpeedHz ?? 0.5,
+    lfoDepth: p.lfoDepthSemis ?? 2,
+    lfoShape,
     volume: p.volume,
-  };
+  });
 }
 
 export function studioBbToBeatPreset(raw: StudioBbPreset): BinauralBeatPreset {

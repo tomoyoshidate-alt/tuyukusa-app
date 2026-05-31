@@ -28,6 +28,7 @@ import {
   DEMO_SOURCE_OPTIONS,
   OVERLAY_OPTIONS,
   VISUALIZER_EFFECTS,
+  formatPitchShiftLabel,
 } from "@/src/lib/soundSystem/types";
 import SoundVisualizer from "@/src/components/sound/SoundVisualizer";
 import NatureVisualizer from "@/src/components/NatureVisualizer";
@@ -770,27 +771,63 @@ function GranularControls({
   params: GranularParams;
   onChange: (p: GranularParams) => void;
 }) {
-  const set = (key: keyof GranularParams, value: number | GranularParams["lfoShape"]) =>
-    onChange({ ...params, [key]: value });
+  const set = (patch: Partial<GranularParams>) =>
+    onChange({ ...params, ...patch });
 
   return (
     <div style={{ marginBottom: 16 }}>
       <SectionTitle>グラニュライザー</SectionTitle>
-      <SliderRow label="Grain Size" value={params.grainSizeMs} min={10} max={500} step={5} unit="ms" onChange={v => set("grainSizeMs", v)} />
-      <SliderRow label="Overlap" value={params.overlap} min={0} max={100} step={1} unit="%" onChange={v => set("overlap", v)} />
-      <SliderRow label="Position" value={params.position} min={0} max={100} step={1} unit="%" onChange={v => set("position", v)} />
-      <SliderRow label="Randomness" value={params.randomness} min={0} max={100} step={1} unit="%" onChange={v => set("randomness", v)} />
-      <SliderRow label="Pitch Shift" value={params.pitchShift} min={-12} max={12} step={1} unit=" st" onChange={v => set("pitchShift", v)} />
-      <SliderRow label="LFO Speed" value={params.lfoSpeed} min={0.01} max={2} step={0.01} unit="Hz" onChange={v => set("lfoSpeed", v)} />
-      <SliderRow label="LFO Depth" value={params.lfoDepth} min={0} max={12} step={0.5} unit=" st" onChange={v => set("lfoDepth", v)} />
-      <div style={{ marginBottom: 10 }}>
-        <div style={{ fontSize: 11, color: "#5a4a3a", marginBottom: 4 }}>LFO Shape</div>
+      <SliderRow label="Grain Size" value={params.grainSizeMs} min={10} max={500} step={5} unit="ms" onChange={v => set({ grainSizeMs: v })} />
+      <SliderRow label="Overlap" value={params.overlap} min={0} max={100} step={1} unit="%" onChange={v => set({ overlap: v })} />
+      <SliderRow label="Position" value={params.position} min={0} max={100} step={1} unit="%" onChange={v => set({ position: v })} />
+      <SliderRow label="Randomness" value={params.randomness} min={0} max={100} step={1} unit="%" onChange={v => set({ randomness: v })} />
+
+      <div style={{ marginTop: 14, marginBottom: 10, fontSize: 12, fontWeight: "bold", color: "#e8a86a" }}>
+        Pitch Shift
+      </div>
+      <div style={{ display: "flex", justifyContent: "space-between", fontSize: 11, color: "#9a8b7a", marginBottom: 4 }}>
+        <span>-4 oct</span>
+        <span>{formatPitchShiftLabel(params.pitchShift)}</span>
+        <span>+24 oct</span>
+      </div>
+      <input
+        type="range"
+        min={-48}
+        max={288}
+        step={1}
+        value={params.pitchShift}
+        onChange={e => set({ pitchShift: Number(e.target.value) })}
+        style={{ width: "100%", marginBottom: 16, accentColor: "#e8a86a" }}
+      />
+
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
+        <div style={{ fontSize: 12, fontWeight: "bold", color: "#e8a86a" }}>LFO</div>
+        <button
+          type="button"
+          onClick={() => set({ lfoEnabled: !params.lfoEnabled })}
+          style={{
+            padding: "4px 12px",
+            borderRadius: 12,
+            border: params.lfoEnabled ? "2px solid #e8a86a" : "1px solid rgba(255,255,255,0.15)",
+            background: params.lfoEnabled ? "rgba(232,168,106,0.2)" : "transparent",
+            color: "#f5f0e8",
+            fontSize: 11,
+            cursor: "pointer",
+          }}
+        >
+          {params.lfoEnabled ? "ON" : "OFF"}
+        </button>
+      </div>
+
+      <div style={{ marginBottom: 10, opacity: params.lfoEnabled ? 1 : 0.45 }}>
+        <div style={{ fontSize: 11, color: "#5a4a3a", marginBottom: 4 }}>Wave</div>
         <div style={{ display: "flex", gap: 6 }}>
-          {(["sine", "triangle", "random"] as const).map(s => (
+          {(["sine", "square", "random"] as const).map(s => (
             <button
               key={s}
               type="button"
-              onClick={() => set("lfoShape", s)}
+              disabled={!params.lfoEnabled}
+              onClick={() => set({ lfoShape: s })}
               style={{
                 flex: 1,
                 padding: "6px",
@@ -799,15 +836,47 @@ function GranularControls({
                 background: "rgba(255,255,255,0.04)",
                 color: "#f5f0e8",
                 fontSize: 10,
-                cursor: "pointer",
+                cursor: params.lfoEnabled ? "pointer" : "default",
               }}
             >
-              {s === "sine" ? "サイン" : s === "triangle" ? "三角" : "ランダム"}
+              {s === "sine" ? "Sine" : s === "square" ? "Square" : "Random"}
             </button>
           ))}
         </div>
       </div>
-      <SliderRow label="Volume" value={params.volume} min={0} max={100} step={1} unit="%" onChange={v => set("volume", v)} />
+
+      <div style={{ opacity: params.lfoEnabled ? 1 : 0.45 }}>
+        <div style={{ display: "flex", justifyContent: "space-between", fontSize: 11, color: "#9a8b7a", marginBottom: 2 }}>
+          <span>Rate</span>
+          <span>{params.lfoSpeed.toFixed(2)} Hz</span>
+        </div>
+        <input
+          type="range"
+          min={0.01}
+          max={20}
+          step={0.01}
+          disabled={!params.lfoEnabled}
+          value={params.lfoSpeed}
+          onChange={e => set({ lfoSpeed: Number(e.target.value) })}
+          style={{ width: "100%", marginBottom: 10, accentColor: "#e8a86a" }}
+        />
+        <div style={{ display: "flex", justifyContent: "space-between", fontSize: 11, color: "#9a8b7a", marginBottom: 2 }}>
+          <span>Depth</span>
+          <span>±{params.lfoDepth} semitones</span>
+        </div>
+        <input
+          type="range"
+          min={0}
+          max={24}
+          step={0.5}
+          disabled={!params.lfoEnabled}
+          value={params.lfoDepth}
+          onChange={e => set({ lfoDepth: Number(e.target.value) })}
+          style={{ width: "100%", marginBottom: 12, accentColor: "#e8a86a" }}
+        />
+      </div>
+
+      <SliderRow label="Volume" value={params.volume} min={0} max={100} step={1} unit="%" onChange={v => set({ volume: v })} />
       <button
         type="button"
         onClick={() => onChange({ ...DEFAULT_GRANULAR_PARAMS })}

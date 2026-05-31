@@ -1,10 +1,12 @@
 import type { AmbientSoundId, TimerMinutes } from "@/src/lib/binauralBeats";
+import type { BaseKey } from "@/src/lib/binauralPlayerSettings";
 
 export type BinauralFavorite = {
   id: string;
   name: string;
   beatId: string;
   ambientId: AmbientSoundId;
+  baseKey?: BaseKey;
   masterVolume: number;
   binauralVolume: number;
   ambientVolume: number;

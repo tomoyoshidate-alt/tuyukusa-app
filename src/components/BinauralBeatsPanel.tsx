@@ -144,6 +144,28 @@ export default function BinauralBeatsPanel({ diagnosis, onClose, initialPanelMod
   }, [hasPendingChanges, isApplying, selectedBeat, selectedAmbient, baseKey, fadeSec]);
 
   useEffect(() => {
+    if (!isPlaying || isApplying) return;
+    if (
+      playback.presetId !== selectedBeat ||
+      playback.ambientId !== selectedAmbient ||
+      playback.baseKey !== baseKey
+    ) {
+      void (async () => {
+        setIsApplying(true);
+        try {
+          await binauralPlaybackManager.applyChanges(
+            getBeatPreset(selectedBeat),
+            selectedAmbient,
+            { baseKey, fadeSec },
+          );
+        } finally {
+          setIsApplying(false);
+        }
+      })();
+    }
+  }, [selectedBeat, selectedAmbient, baseKey, isPlaying, isApplying, playback.presetId, playback.ambientId, playback.baseKey, fadeSec]);
+
+  useEffect(() => {
     if (!isPlaying) return;
     binauralPlaybackManager.setVolumes({
       master: masterVolume,
@@ -160,6 +182,7 @@ export default function BinauralBeatsPanel({ diagnosis, onClose, initialPanelMod
       name,
       beatId: selectedBeat,
       ambientId: selectedAmbient,
+      baseKey,
       masterVolume,
       binauralVolume,
       ambientVolume,
@@ -175,6 +198,7 @@ export default function BinauralBeatsPanel({ diagnosis, onClose, initialPanelMod
   const loadFavorite = (fav: BinauralFavorite) => {
     setSelectedBeat(fav.beatId);
     setSelectedAmbient(fav.ambientId);
+    if (fav.baseKey) updateBaseKey(fav.baseKey);
     setMasterVolume(fav.masterVolume);
     setBinauralVolume(fav.binauralVolume);
     setAmbientVolume(fav.ambientVolume);

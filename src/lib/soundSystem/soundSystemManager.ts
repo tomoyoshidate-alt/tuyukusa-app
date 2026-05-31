@@ -7,6 +7,11 @@ import {
 import { binauralPlaybackManager } from "@/src/lib/binauralPlaybackManager";
 import { getDemoBuffer } from "@/src/lib/soundSystem/demoSources";
 import { GranularEngine } from "@/src/lib/soundSystem/granularEngine";
+import { normalizeGranularParams } from "@/src/lib/soundSystem/types";
+import {
+  readBinauralPlayerSettings,
+  resolveBeatPreset,
+} from "@/src/lib/binauralPlayerSettings";
 import { resolveStudioAudioUrl } from "@mac/lib/audioStorage";
 
 const audioBufferCache = new Map<string, AudioBuffer>();
@@ -125,8 +130,25 @@ class SoundSystemManager {
   }
 
   setChannel(index: 0 | 1 | 2, config: ChannelConfig): void {
+    const prev = this.channels[index];
     this.channels[index] = JSON.parse(JSON.stringify(config)) as ChannelConfig;
-    if (this.isPlaying) void this.applyChannel(index);
+    if (!this.isPlaying) {
+      this.emit();
+      return;
+    }
+    if (index !== 0 && config.type === "granular" && prev.type === "granular") {
+      const sameSource = prev.sourceId === config.sourceId && prev.audioFile === config.audioFile;
+      const slot = (index - 1) as 0 | 1;
+      const engine = this.granularEngines[slot];
+      if (sameSource && engine?.isRunning()) {
+        engine.setParams(normalizeGranularParams(config.granular));
+        const gain = this.channelGains[index];
+        if (gain) gain.gain.value = config.volume;
+        this.emit();
+        return;
+      }
+    }
+    void this.applyChannel(index);
     this.emit();
   }
 
@@ -226,15 +248,29 @@ class SoundSystemManager {
     const gain = this.channelGains[index];
     if (!gain) return;
 
+    const settings = readBinauralPlayerSettings();
+    const preset = resolveBeatPreset(getBeatPreset(ch.binauralBeatId), settings.baseKey);
+
+    if (ch.volume <= 0) {
+      this.binauralEngine?.stop();
+      this.binauralEngine = null;
+      return;
+    }
+
+    if (this.binauralEngine?.isPlaying()) {
+      await this.binauralEngine.applyChanges(preset, ch.binauralAmbientId, { fadeSec: settings.fadeSec });
+      this.binauralEngine.setMasterVolume(1);
+      this.binauralEngine.setBinauralVolume(0.55);
+      this.binauralEngine.setAmbientVolume(0.45);
+      return;
+    }
+
     this.binauralEngine?.stop();
     this.binauralEngine = null;
 
-    if (ch.volume <= 0) return;
-
     const engine = new BinauralAudioEngine();
     this.binauralEngine = engine;
-    const preset = getBeatPreset(ch.binauralBeatId);
-    await engine.start(preset, ch.binauralAmbientId, { ctx, destination: gain });
+    await engine.start(preset, ch.binauralAmbientId, { ctx, destination: gain, fadeInSec: settings.fadeSec });
     engine.setMasterVolume(1);
     engine.setBinauralVolume(0.55);
     engine.setAmbientVolume(0.45);
@@ -251,7 +287,7 @@ class SoundSystemManager {
     this.granularEngines[slot]?.stop();
     gain.gain.value = ch.volume;
 
-    const engine = new GranularEngine(ctx, gain, ch.granular);
+    const engine = new GranularEngine(ctx, gain, normalizeGranularParams(ch.granular));
     this.granularEngines[slot] = engine;
     const buffer = ch.audioFile
       ? await loadAudioFileBuffer(ctx, ch.audioFile)

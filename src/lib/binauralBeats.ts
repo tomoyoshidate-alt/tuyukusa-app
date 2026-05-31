@@ -61,6 +61,7 @@ export const BINURAL_BEAT_PRESETS: BinauralBeatPreset[] = [
   { id: "energy-beta", emoji: "", label: "運動・活力", waveLabel: "ベータ波 25Hz", beatHz: 25, carrierHz: 240 },
   { id: "breath-theta", emoji: "", label: "深呼吸・整える", waveLabel: "シータ波 4Hz", beatHz: 4, carrierHz: 170 },
   { id: "deep-relax-delta", emoji: "", label: "深いリラックス", waveLabel: "デルタ波 4Hz", beatHz: 4, carrierHz: 150 },
+  { id: "gamma-focus", emoji: "", label: "覚醒・ガンマ", waveLabel: "ガンマ波 40Hz", beatHz: 40, carrierHz: 220 },
 ];
 
 export const AMBIENT_SOUND_PRESETS: AmbientSoundPreset[] = [

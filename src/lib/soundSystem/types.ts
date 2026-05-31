@@ -2,7 +2,7 @@ import type { AmbientSoundId } from "@/src/lib/binauralBeats";
 
 export type DemoSourceId = AmbientSoundId;
 
-export type LfoShape = "sine" | "triangle" | "random";
+export type LfoShape = "sine" | "square" | "random";
 
 export type GranularParams = {
   grainSizeMs: number;
@@ -10,11 +10,60 @@ export type GranularParams = {
   position: number;
   randomness: number;
   pitchShift: number;
+  lfoEnabled: boolean;
   lfoSpeed: number;
   lfoDepth: number;
   lfoShape: LfoShape;
   volume: number;
 };
+
+export function normalizeGranularParams(raw: Partial<GranularParams> | GranularParams): GranularParams {
+  const legacyShape = raw.lfoShape as string | undefined;
+  const lfoShape: LfoShape =
+    legacyShape === "square" || legacyShape === "random"
+      ? legacyShape
+      : legacyShape === "triangle"
+        ? "square"
+        : "sine";
+  const lfoEnabled = raw.lfoEnabled === true;
+  return {
+    grainSizeMs:
+      typeof raw.grainSizeMs === "number"
+        ? Math.max(10, Math.min(500, raw.grainSizeMs))
+        : DEFAULT_GRANULAR_PARAMS.grainSizeMs,
+    overlap:
+      typeof raw.overlap === "number" ? Math.max(0, Math.min(100, raw.overlap)) : DEFAULT_GRANULAR_PARAMS.overlap,
+    position:
+      typeof raw.position === "number" ? Math.max(0, Math.min(100, raw.position)) : DEFAULT_GRANULAR_PARAMS.position,
+    randomness:
+      typeof raw.randomness === "number"
+        ? Math.max(0, Math.min(100, raw.randomness))
+        : DEFAULT_GRANULAR_PARAMS.randomness,
+    pitchShift:
+      typeof raw.pitchShift === "number"
+        ? Math.max(-48, Math.min(288, Math.round(raw.pitchShift)))
+        : DEFAULT_GRANULAR_PARAMS.pitchShift,
+    lfoEnabled,
+    lfoSpeed:
+      typeof raw.lfoSpeed === "number"
+        ? Math.max(0.01, Math.min(20, raw.lfoSpeed))
+        : DEFAULT_GRANULAR_PARAMS.lfoSpeed,
+    lfoDepth:
+      typeof raw.lfoDepth === "number"
+        ? Math.max(0, Math.min(24, raw.lfoDepth))
+        : DEFAULT_GRANULAR_PARAMS.lfoDepth,
+    lfoShape,
+    volume:
+      typeof raw.volume === "number" ? Math.max(0, Math.min(100, raw.volume)) : DEFAULT_GRANULAR_PARAMS.volume,
+  };
+}
+
+export function formatPitchShiftLabel(semitones: number): string {
+  const oct = semitones / 12;
+  const octRounded = Math.abs(oct - Math.round(oct)) < 0.05 ? String(Math.round(oct)) : oct.toFixed(1);
+  const octSigned = oct > 0 ? `+${octRounded}` : octRounded;
+  return `${octSigned} oct（${semitones} st）`;
+}
 
 export type BinauralChannelConfig = {
   type: "binaural";
@@ -87,8 +136,9 @@ export const DEFAULT_GRANULAR_PARAMS: GranularParams = {
   position: 0,
   randomness: 25,
   pitchShift: 0,
-  lfoSpeed: 0.15,
-  lfoDepth: 3,
+  lfoEnabled: false,
+  lfoSpeed: 0.5,
+  lfoDepth: 2,
   lfoShape: "sine",
   volume: 70,
 };
