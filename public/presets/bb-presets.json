@@ -1,1 +1,121 @@
-{"presets":[]}
+{
+  "presets": [
+    {
+      "id": "morning-alpha",
+      "name": "朝の目覚め",
+      "icon": "",
+      "leftHz": 200,
+      "rightHz": 210,
+      "waveform": "sine",
+      "fadeInSec": 5,
+      "fadeOutSec": 5,
+      "masterVolume": 70,
+      "memo": "",
+      "updatedAt": "2026-05-29T00:00:00.000Z"
+    },
+    {
+      "id": "focus-beta",
+      "name": "集中・仕事",
+      "icon": "",
+      "leftHz": 220,
+      "rightHz": 240,
+      "waveform": "sine",
+      "fadeInSec": 5,
+      "fadeOutSec": 5,
+      "masterVolume": 70,
+      "memo": "",
+      "updatedAt": "2026-05-29T00:00:00.000Z"
+    },
+    {
+      "id": "meditation-theta",
+      "name": "瞑想・リラックス",
+      "icon": "",
+      "leftHz": 180,
+      "rightHz": 186,
+      "waveform": "sine",
+      "fadeInSec": 5,
+      "fadeOutSec": 5,
+      "masterVolume": 70,
+      "memo": "",
+      "updatedAt": "2026-05-29T00:00:00.000Z"
+    },
+    {
+      "id": "sleep-delta",
+      "name": "睡眠導入",
+      "icon": "",
+      "leftHz": 160,
+      "rightHz": 162,
+      "waveform": "sine",
+      "fadeInSec": 5,
+      "fadeOutSec": 5,
+      "masterVolume": 70,
+      "memo": "",
+      "updatedAt": "2026-05-29T00:00:00.000Z"
+    },
+    {
+      "id": "stress-alpha",
+      "name": "不安・ストレス解消",
+      "icon": "",
+      "leftHz": 190,
+      "rightHz": 198,
+      "waveform": "sine",
+      "fadeInSec": 5,
+      "fadeOutSec": 5,
+      "masterVolume": 70,
+      "memo": "",
+      "updatedAt": "2026-05-29T00:00:00.000Z"
+    },
+    {
+      "id": "energy-beta",
+      "name": "運動・活力",
+      "icon": "",
+      "leftHz": 240,
+      "rightHz": 265,
+      "waveform": "sine",
+      "fadeInSec": 5,
+      "fadeOutSec": 5,
+      "masterVolume": 70,
+      "memo": "",
+      "updatedAt": "2026-05-29T00:00:00.000Z"
+    },
+    {
+      "id": "breath-theta",
+      "name": "深呼吸・整える（推奨）",
+      "icon": "",
+      "leftHz": 170,
+      "rightHz": 174,
+      "waveform": "sine",
+      "fadeInSec": 5,
+      "fadeOutSec": 5,
+      "masterVolume": 70,
+      "memo": "",
+      "updatedAt": "2026-05-29T00:00:00.000Z"
+    },
+    {
+      "id": "deep-relax-delta",
+      "name": "深いリラックス",
+      "icon": "",
+      "leftHz": 150,
+      "rightHz": 154,
+      "waveform": "sine",
+      "fadeInSec": 5,
+      "fadeOutSec": 5,
+      "masterVolume": 70,
+      "memo": "",
+      "updatedAt": "2026-05-29T00:00:00.000Z"
+    },
+    {
+      "id": "gamma-focus",
+      "name": "覚醒・ガンマ",
+      "icon": "",
+      "leftHz": 220,
+      "rightHz": 260,
+      "waveform": "sine",
+      "fadeInSec": 5,
+      "fadeOutSec": 5,
+      "masterVolume": 70,
+      "memo": "",
+      "updatedAt": "2026-05-29T00:00:00.000Z"
+    }
+  ]
+}

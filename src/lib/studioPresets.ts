@@ -56,15 +56,7 @@ export function studioBbPresetId(id: string): string {
   return id.startsWith("studio:") ? id : `studio:${id}`;
 }
 
-export async function fetchStudioBbPresets(): Promise<StudioBbPreset[]> {
-  if (isSupabaseConfigured()) {
-    try {
-      const store = await fetchBbPresetsFromSupabase();
-      return store.presets;
-    } catch (err) {
-      console.error("[fetchStudioBbPresets supabase]", err);
-    }
-  }
+async function fetchBbPresetsJson(): Promise<StudioBbPreset[]> {
   try {
     const res = await fetch("/presets/bb-presets.json", { cache: "no-store" });
     if (!res.ok) return [];
@@ -73,6 +65,18 @@ export async function fetchStudioBbPresets(): Promise<StudioBbPreset[]> {
   } catch {
     return [];
   }
+}
+
+export async function fetchStudioBbPresets(): Promise<StudioBbPreset[]> {
+  if (isSupabaseConfigured()) {
+    try {
+      const store = await fetchBbPresetsFromSupabase();
+      if (store.presets.length > 0) return store.presets;
+    } catch (err) {
+      console.error("[fetchStudioBbPresets supabase]", err);
+    }
+  }
+  return fetchBbPresetsJson();
 }
 
 export async function fetchStudioGranularPresets(): Promise<StudioGranularPreset[]> {
@@ -117,17 +121,21 @@ export function studioGranularToParams(p: StudioGranularPreset): GranularParams 
   });
 }
 
-export function studioBbToBeatPreset(raw: StudioBbPreset): BinauralBeatPreset {
+export function bbPresetToBeatPreset(raw: StudioBbPreset): BinauralBeatPreset {
   const beatHz = Math.abs(raw.rightHz - raw.leftHz);
   const carrierHz = Math.min(raw.leftHz, raw.rightHz);
   return {
-    id: studioBbPresetId(raw.id),
+    id: raw.id,
     emoji: raw.icon ?? "",
     label: raw.name,
     waveLabel: studioBbToWaveLabel(raw),
     beatHz,
     carrierHz,
-    studio: true,
     memo: raw.memo,
   };
+}
+
+/** @deprecated use bbPresetToBeatPreset */
+export function studioBbToBeatPreset(raw: StudioBbPreset): BinauralBeatPreset {
+  return bbPresetToBeatPreset(raw);
 }

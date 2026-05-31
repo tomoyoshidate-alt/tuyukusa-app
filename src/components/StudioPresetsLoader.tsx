@@ -2,12 +2,12 @@
 
 import { useEffect } from "react";
 import {
+  bbPresetToBeatPreset,
   fetchStudioBbPresets,
   fetchStudioGranularPresets,
-  studioBbToBeatPreset,
   type StudioGranularPreset,
 } from "@/src/lib/studioPresets";
-import { setStudioBeatPresets } from "@/src/lib/binauralBeats";
+import { setLoadedBeatPresets } from "@/src/lib/binauralBeats";
 
 let studioGranularCache: StudioGranularPreset[] = [];
 
@@ -17,14 +17,22 @@ export function getStudioGranularPresets(): StudioGranularPreset[] {
 
 export const STUDIO_PRESETS_LOADED_EVENT = "tuyukusa-studio-presets-loaded";
 
+async function loadSharedPresets(): Promise<void> {
+  const [bb, gr] = await Promise.all([fetchStudioBbPresets(), fetchStudioGranularPresets()]);
+  setLoadedBeatPresets(bb.map(bbPresetToBeatPreset));
+  studioGranularCache = gr;
+  window.dispatchEvent(new CustomEvent(STUDIO_PRESETS_LOADED_EVENT));
+}
+
 export default function StudioPresetsLoader() {
   useEffect(() => {
-    void (async () => {
-      const [bb, gr] = await Promise.all([fetchStudioBbPresets(), fetchStudioGranularPresets()]);
-      setStudioBeatPresets(bb.map(studioBbToBeatPreset));
-      studioGranularCache = gr;
-      window.dispatchEvent(new CustomEvent(STUDIO_PRESETS_LOADED_EVENT));
-    })();
+    void loadSharedPresets();
+
+    const onVisible = () => {
+      if (document.visibilityState === "visible") void loadSharedPresets();
+    };
+    document.addEventListener("visibilitychange", onVisible);
+    return () => document.removeEventListener("visibilitychange", onVisible);
   }, []);
 
   return null;

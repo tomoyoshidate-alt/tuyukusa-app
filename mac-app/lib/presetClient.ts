@@ -27,7 +27,8 @@ export function assetUrl(relativePath: string): string {
 export async function fetchBbPresets(): Promise<PresetStore<BBPreset>> {
   if (isSupabaseConfigured()) {
     try {
-      return await fetchBbPresetsFromSupabase();
+      const store = await fetchBbPresetsFromSupabase();
+      if (store.presets.length > 0) return store;
     } catch (err) {
       console.error("[fetchBbPresets supabase]", err);
     }

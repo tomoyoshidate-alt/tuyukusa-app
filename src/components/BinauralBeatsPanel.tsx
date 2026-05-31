@@ -3,11 +3,10 @@
 import { useCallback, useEffect, useState, type ReactNode } from "react";
 import {
   AMBIENT_SOUND_PRESETS,
-  BINURAL_BEAT_PRESETS,
   TIMER_OPTIONS,
+  getAllBeatPresets,
   getBeatPreset,
   getRecommendedBeatId,
-  getStudioBeatPresets,
   type AmbientSoundId,
   type TimerMinutes,
 } from "@/src/lib/binauralBeats";
@@ -57,7 +56,7 @@ export default function BinauralBeatsPanel({ diagnosis, onClose, initialPanelMod
     setPanelMode(initialPanelMode);
   }, [initialPanelMode]);
   const [selectedBeat, setSelectedBeat] = useState<string>(recommendedId);
-  const [studioBbPresets, setStudioBbPresets] = useState(() => getStudioBeatPresets());
+  const [beatPresets, setBeatPresets] = useState(() => getAllBeatPresets());
   const [selectedAmbient, setSelectedAmbient] = useState<AmbientSoundId>("rain");
   const [timerMinutes, setTimerMinutes] = useState<TimerMinutes | null>(10);
   const [masterVolume, setMasterVolume] = useState(0.7);
@@ -77,7 +76,7 @@ export default function BinauralBeatsPanel({ diagnosis, onClose, initialPanelMod
   }, []);
 
   useEffect(() => {
-    const onLoaded = () => setStudioBbPresets(getStudioBeatPresets());
+    const onLoaded = () => setBeatPresets(getAllBeatPresets());
     window.addEventListener(STUDIO_PRESETS_LOADED_EVENT, onLoaded);
     return () => window.removeEventListener(STUDIO_PRESETS_LOADED_EVENT, onLoaded);
   }, []);
@@ -323,9 +322,9 @@ export default function BinauralBeatsPanel({ diagnosis, onClose, initialPanelMod
           )}
         </div>
 
-        <SectionTitle>バイノーラルビート（8種類）</SectionTitle>
+        <SectionTitle>バイノーラルビート（{beatPresets.length}種類）</SectionTitle>
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, marginBottom: 16 }}>
-          {BINURAL_BEAT_PRESETS.map(preset => {
+          {beatPresets.map(preset => {
             const selected = selectedBeat === preset.id;
             const isRecommended = preset.id === recommendedId;
             return (
@@ -347,44 +346,13 @@ export default function BinauralBeatsPanel({ diagnosis, onClose, initialPanelMod
                   {isRecommended && <span style={{ fontSize: 9, color: "#c17f4a", marginLeft: 4 }}>(推奨)</span>}
                 </div>
                 <div style={{ fontSize: 10, color: "#4a6741", marginTop: 2 }}>{preset.waveLabel}</div>
+                {preset.memo && (
+                  <div style={{ fontSize: 9, color: "#9a8b7a", marginTop: 4, lineHeight: 1.4 }}>{preset.memo}</div>
+                )}
               </button>
             );
           })}
         </div>
-
-        {studioBbPresets.length > 0 && (
-          <>
-            <SectionTitle>Studio プリセット</SectionTitle>
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, marginBottom: 16 }}>
-              {studioBbPresets.map(preset => {
-                const selected = selectedBeat === preset.id;
-                return (
-                  <button
-                    key={preset.id}
-                    type="button"
-                    onClick={() => setSelectedBeat(preset.id)}
-                    style={{
-                      textAlign: "left",
-                      padding: "10px 12px",
-                      borderRadius: 10,
-                      border: selected ? "2px solid #7ec8e3" : "1px solid rgba(60,40,20,0.12)",
-                      background: selected ? "#e8f4f8" : "white",
-                      cursor: "pointer",
-                    }}
-                  >
-                    <div style={{ fontSize: 13, fontWeight: "bold", color: "#3d3228" }}>
-                      {preset.emoji} {preset.label}
-                    </div>
-                    <div style={{ fontSize: 10, color: "#4a6741", marginTop: 2 }}>{preset.waveLabel}</div>
-                    {preset.memo && (
-                      <div style={{ fontSize: 9, color: "#9a8b7a", marginTop: 4, lineHeight: 1.4 }}>{preset.memo}</div>
-                    )}
-                  </button>
-                );
-              })}
-            </div>
-          </>
-        )}
 
         <SectionTitle>背景音（11種類）</SectionTitle>
         <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginBottom: 16 }}>

@@ -3,9 +3,8 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   AMBIENT_SOUND_PRESETS,
-  BINURAL_BEAT_PRESETS,
+  getAllBeatPresets,
   getRecommendedBeatId,
-  getStudioBeatPresets,
   type AmbientSoundId,
 } from "@/src/lib/binauralBeats";
 import { STUDIO_PRESETS_LOADED_EVENT, getStudioGranularPresets } from "@/src/components/StudioPresetsLoader";
@@ -154,7 +153,7 @@ export default function SoundSystemPanel({
   const [screensaver, setScreensaver] = useState(false);
   const [analyser, setAnalyser] = useState<AnalyserNode | null>(null);
   const [sceneViz, setSceneViz] = useState<SceneVizMode>("default");
-  const [studioBbPresets, setStudioBbPresets] = useState(() => getStudioBeatPresets());
+  const [beatPresets, setBeatPresets] = useState(() => getAllBeatPresets());
   const [studioGranularPresets, setStudioGranularPresets] = useState(() => getStudioGranularPresets());
   const [audioCatalog, setAudioCatalog] = useState<StudioAudioEntry[]>([]);
 
@@ -186,7 +185,7 @@ export default function SoundSystemPanel({
 
   useEffect(() => {
     const onLoaded = () => {
-      setStudioBbPresets(getStudioBeatPresets());
+      setBeatPresets(getAllBeatPresets());
       setStudioGranularPresets(getStudioGranularPresets());
     };
     window.addEventListener(STUDIO_PRESETS_LOADED_EVENT, onLoaded);
@@ -422,7 +421,7 @@ export default function SoundSystemPanel({
               </button>
               <SectionTitle>バイノーラルビート（Ch1）</SectionTitle>
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 6, marginBottom: 12 }}>
-                {BINURAL_BEAT_PRESETS.map(p => (
+                {beatPresets.map(p => (
                   <button
                     key={p.id}
                     type="button"
@@ -445,32 +444,6 @@ export default function SoundSystemPanel({
                   </button>
                 ))}
               </div>
-              {studioBbPresets.length > 0 && (
-                <>
-                  <SectionTitle>Studio BB プリセット</SectionTitle>
-                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 6, marginBottom: 12 }}>
-                    {studioBbPresets.map(p => (
-                      <button
-                        key={p.id}
-                        type="button"
-                        onClick={() => updateChannel(0, { ...ch0, binauralBeatId: p.id })}
-                        style={{
-                          textAlign: "left",
-                          padding: "8px",
-                          borderRadius: 8,
-                          border: ch0.binauralBeatId === p.id ? "2px solid #7ec8e3" : "1px solid rgba(255,255,255,0.1)",
-                          background: ch0.binauralBeatId === p.id ? "rgba(126,200,227,0.15)" : "rgba(255,255,255,0.03)",
-                          color: "#f5f0e8",
-                          fontSize: 11,
-                          cursor: "pointer",
-                        }}
-                      >
-                        {p.emoji} {p.label}
-                      </button>
-                    ))}
-                  </div>
-                </>
-              )}
               <SectionTitle>BB背景音</SectionTitle>
               <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginBottom: 12 }}>
                 {AMBIENT_SOUND_PRESETS.map(p => (

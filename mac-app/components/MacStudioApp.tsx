@@ -96,6 +96,20 @@ export function MacStudioApp() {
     if (!result.ok) exportJson("bb-presets.json", { presets: list });
   };
 
+  const deleteBb = async () => {
+    if (!selectedBbId) return;
+    const target = bbPresets.find(p => p.id === selectedBbId);
+    if (!target || !window.confirm(`「${target.name}」を削除しますか？`)) return;
+    const list = bbPresets.filter(p => p.id !== selectedBbId);
+    const result = await saveBbPresets({ presets: list });
+    setBbPresets(list);
+    const next = list[0] ?? DEFAULT_BB_PRESET();
+    setBbDraft(next);
+    setSelectedBbId(list[0]?.id ?? null);
+    setStatus(result.message ?? (result.ok ? "BBプリセットを削除しました" : "削除に失敗しました"));
+    if (!result.ok) exportJson("bb-presets.json", { presets: list });
+  };
+
   const saveGr = async () => {
     const updated = { ...grDraft, updatedAt: new Date().toISOString() };
     const list = selectedGrId
@@ -260,9 +274,16 @@ export function MacStudioApp() {
               メモ
               <textarea className="mac-input w-full mt-1 min-h-[80px]" value={bbDraft.memo} onChange={e => setBbDraft({ ...bbDraft, memo: e.target.value })} />
             </label>
-            <button type="button" onClick={() => void saveBb()} className="mac-btn-primary">
-              保存
-            </button>
+            <div className="flex gap-2">
+              <button type="button" onClick={() => void saveBb()} className="mac-btn-primary">
+                保存
+              </button>
+              {selectedBbId && (
+                <button type="button" onClick={() => void deleteBb()} className="mac-btn text-red-400">
+                  削除
+                </button>
+              )}
+            </div>
           </div>
         ) : (
           <div className="max-w-xl">

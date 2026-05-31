@@ -20,7 +20,8 @@ function readStore(): PresetStore<BBPreset> {
 export async function GET() {
   try {
     if (isSupabaseConfigured()) {
-      return NextResponse.json(await fetchBbPresetsFromSupabase());
+      const store = await fetchBbPresetsFromSupabase();
+      if (store.presets.length > 0) return NextResponse.json(store);
     }
     if (IS_VERCEL) {
       const url = new URL("/presets/bb-presets.json", process.env.NEXT_PUBLIC_ASSET_ORIGIN || "https://tuyukusa-app.vercel.app");

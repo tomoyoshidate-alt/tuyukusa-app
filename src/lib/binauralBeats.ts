@@ -6,7 +6,8 @@ export type BinauralBeatId =
   | "stress-alpha"
   | "energy-beta"
   | "breath-theta"
-  | "deep-relax-delta";
+  | "deep-relax-delta"
+  | "gamma-focus";
 
 export type AmbientSoundId =
   | "silent"
@@ -32,18 +33,29 @@ export type BinauralBeatPreset = {
   memo?: string;
 };
 
-let studioBeatPresets: BinauralBeatPreset[] = [];
+let loadedBeatPresets: BinauralBeatPreset[] | null = null;
 
-export function setStudioBeatPresets(presets: BinauralBeatPreset[]): void {
-  studioBeatPresets = presets;
+export function setLoadedBeatPresets(presets: BinauralBeatPreset[]): void {
+  loadedBeatPresets = presets.length > 0 ? presets : null;
 }
 
+/** @deprecated use setLoadedBeatPresets */
+export function setStudioBeatPresets(presets: BinauralBeatPreset[]): void {
+  setLoadedBeatPresets(presets);
+}
+
+export function getLoadedBeatPresets(): BinauralBeatPreset[] {
+  return loadedBeatPresets ?? [];
+}
+
+/** @deprecated use getLoadedBeatPresets */
 export function getStudioBeatPresets(): BinauralBeatPreset[] {
-  return studioBeatPresets;
+  return getLoadedBeatPresets();
 }
 
 export function getAllBeatPresets(): BinauralBeatPreset[] {
-  return [...BINURAL_BEAT_PRESETS, ...studioBeatPresets];
+  if (loadedBeatPresets && loadedBeatPresets.length > 0) return loadedBeatPresets;
+  return BINURAL_BEAT_PRESETS;
 }
 
 export type AmbientSoundPreset = {
