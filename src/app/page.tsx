@@ -36,7 +36,9 @@ import {
 import AddToHomeScreen from "@/src/components/AddToHomeScreen";
 import { AppSidebar } from "@/src/components/AppSidebar";
 import { PwaInstallSection } from "@/src/components/PwaInstallSection";
+import { PwaInstallGuideModal } from "@/src/components/PwaInstallGuideModal";
 import { useDesktopLayout } from "@/src/hooks/useDesktopLayout";
+import { usePwaInstall } from "@/src/hooks/usePwaInstall";
 import BinauralGlobalAlarm from "@/src/components/BinauralGlobalAlarm";
 import HealthKitBridge from "@/src/components/HealthKitBridge";
 import LanguageSettingsPanel from "@/src/components/LanguageSettingsPanel";
@@ -129,6 +131,7 @@ import {
   REGION_OPTIONS,
   type LocationSettings,
 } from "@/src/lib/regions";
+import { isMacSafari, isPwaInstallIntent } from "@/src/lib/pwaInstall";
 
 const DailyWeatherChart = dynamic(() => import("@/src/components/DailyWeatherChart"), {
   ssr: false,
@@ -816,12 +819,26 @@ function getDisplayName(profile: UserProfile): string {
   return profile.nickname.trim() || profile.name.trim() || DEFAULT_USER_NAME;
 }
 
+function markOnboardingCompleteInStorage(): void {
+  if (typeof window === "undefined") return;
+  try {
+    const raw = localStorage.getItem("tuyukusa-user-profile");
+    const base = raw ? (JSON.parse(raw) as Record<string, unknown>) : {};
+    localStorage.setItem(
+      "tuyukusa-user-profile",
+      JSON.stringify({ ...base, onboardingComplete: true }),
+    );
+  } catch {
+    /* ignore */
+  }
+}
+
 function normalizeUserProfile(data: unknown): UserProfile {
   if (!data || typeof data !== "object") return INITIAL_USER_PROFILE;
   const d = data as Partial<UserProfile>;
   const name = typeof d.name === "string" && d.name.trim() ? d.name.trim() : DEFAULT_USER_NAME;
   const nameConfigured = !!d.nameConfigured;
-  const onboardingComplete = d.onboardingComplete === true || (nameConfigured && d.onboardingComplete !== false);
+  const onboardingComplete = d.onboardingComplete === true;
   return {
     name,
     nickname: typeof d.nickname === "string" ? d.nickname.trim() : "",
@@ -2138,6 +2155,8 @@ function notionDbBody(settings: NotionSettings): Record<string, string | undefin
 export default function TuyukusaApp() {
   const { t, i18n } = useTranslation();
   const isDesktop = useDesktopLayout();
+  const { canPromptInstall, promptInstall } = usePwaInstall();
+  const [showPwaGuide, setShowPwaGuide] = useState(false);
   const appLocale = (i18n.language?.slice(0, 2) ?? "ja") as AppLocale;
   const [tab, setTab] = useState<Tab>("home");
   const [chatMessages, setChatMessages] = useState<Message[]>([]);
@@ -3417,6 +3436,7 @@ ${buildHealthSummary(healthForm)}`;
       nameConfigured: true,
       onboardingComplete: true,
     }));
+    markOnboardingCompleteInStorage();
     setChatKnowledge(prev => updateChatKnowledgeFromFlow(prev, data));
     clearOnboardingProgress();
     setChatMessages([
@@ -3489,7 +3509,8 @@ ${buildHealthSummary(healthForm)}`;
 
   const handleChoice = async (choice: string) => {
     if (choice === "続きから答える") {
-      resetOnboardingFlow();
+      setUserProfile(prev => ({ ...prev, onboardingComplete: false }));
+      setOnboardingPhase("questionnaire");
       return;
     }
     if (choice === "新機能について教えて") {
@@ -3524,6 +3545,25 @@ ${buildHealthSummary(healthForm)}`;
 
     if (isOnboardingResetIntent(text)) {
       resetOnboardingFlow();
+      return;
+    }
+
+    if (isPwaInstallIntent(text)) {
+      setChatMessages(prev => [...prev, { type: "user", text }]);
+      if (canPromptInstall) {
+        const outcome = await promptInstall();
+        const ack =
+          outcome === "accepted"
+            ? "ショートカットを追加しました。Dockやアプリ一覧から起動できます。"
+            : "インストールをキャンセルしました。設定画面からいつでも追加できます。";
+        setChatMessages(prev => [...prev, { type: "ai", text: ack }]);
+      } else if (isMacSafari()) {
+        setShowPwaGuide(true);
+        setChatMessages(prev => [...prev, { type: "ai", text: t("pwa.safariShortcutGuide") }]);
+      } else {
+        setShowPwaGuide(true);
+        setChatMessages(prev => [...prev, { type: "ai", text: t("pwa.chromeIntro") }]);
+      }
       return;
     }
 
@@ -3858,6 +3898,7 @@ ${buildHealthSummary(healthForm)}`;
       onboardingComplete: true,
       nameConfigured: prev.nameConfigured || !!(data.nickname?.trim() || data.name?.trim()),
     }));
+    markOnboardingCompleteInStorage();
     if (data.goal || data.bedtime || data.bath || data.wake || data.sleepDuration) {
       setChatKnowledge(prev => updateChatKnowledgeFromFlow(prev, data));
     }
@@ -4824,6 +4865,8 @@ ${buildHealthSummary(healthForm)}`;
           {reflectNotice}
         </div>
       )}
+
+      <PwaInstallGuideModal open={showPwaGuide} onClose={() => setShowPwaGuide(false)} />
 
       <BinauralGlobalAlarm />
 

@@ -3,6 +3,7 @@
 import { useState, type CSSProperties } from "react";
 import { useTranslation } from "react-i18next";
 import HealthKitBridge from "@/src/components/HealthKitBridge";
+import { PwaInstallSection } from "@/src/components/PwaInstallSection";
 import { SupabaseSetupWizard } from "@/src/components/SupabaseSetupWizard";
 import {
   INTEGRATION_ORDER,
@@ -434,6 +435,7 @@ export function OnboardingIntegrationsScreen({
             >
               {t("integrationGuide.reminderMessage")}
             </div>
+            <PwaInstallSection variant="onboarding" />
             <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
               <button
                 type="button"

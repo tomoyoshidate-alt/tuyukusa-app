@@ -25,3 +25,17 @@ export function isStandaloneMode(): boolean {
 export function isBeforeInstallPromptEvent(event: Event): event is BeforeInstallPromptEvent {
   return "prompt" in event && typeof (event as BeforeInstallPromptEvent).prompt === "function";
 }
+
+const PWA_INSTALL_INTENT_PATTERNS = [
+  /デスクトップにショートカット/,
+  /ショートカットを追加/,
+  /アプリとしてインストール/,
+  /ホーム画面に追加/,
+  /Dockに追加/,
+  /PWA.*インストール/i,
+];
+
+export function isPwaInstallIntent(text: string): boolean {
+  const trimmed = text.trim();
+  return PWA_INSTALL_INTENT_PATTERNS.some(p => p.test(trimmed));
+}

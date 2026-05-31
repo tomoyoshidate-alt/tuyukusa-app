@@ -10,6 +10,7 @@ import {
 import FontSizeSettingsPanel from "@/src/components/FontSizeSettingsPanel";
 import HealthKitBridge from "@/src/components/HealthKitBridge";
 import LanguageSettingsPanel from "@/src/components/LanguageSettingsPanel";
+import { PwaInstallSection } from "@/src/components/PwaInstallSection";
 import SectionOrderList from "@/src/components/SectionOrderList";
 import ThemeSettingsPanel from "@/src/components/ThemeSettingsPanel";
 import {
@@ -87,6 +88,7 @@ export default function ScreenSettingsTab({
       <ThemeSettingsPanel />
       <FontSizeSettingsPanel />
       <LanguageSettingsPanel />
+      <PwaInstallSection variant="settings" />
 
       <div style={themeSectionTitleStyle}>{t("screenSettings.profileTitle")}</div>
       <div style={{ ...themeMutedTextStyle, marginBottom: 12, lineHeight: 1.5 }}>{t("screenSettings.profileHint")}</div>

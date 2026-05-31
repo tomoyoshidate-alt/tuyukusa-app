@@ -133,6 +133,10 @@ export function recordDefer(progress: OnboardingProgress, step: OnboardingStep):
   return { ...progress, deferCounts: { ...progress.deferCounts, [step]: (progress.deferCounts[step] ?? 0) + 1 }, pausedAtStep: step, currentStep: step };
 }
 
+export function recordSkipToHome(progress: OnboardingProgress, step: OnboardingStep): OnboardingProgress {
+  return { ...progress, pausedAtStep: step, currentStep: step };
+}
+
 export function buildProgressFromFlowData(data: OnboardingFlowData): OnboardingProgress {
   const progress: OnboardingProgress = { ...INITIAL_ONBOARDING_PROGRESS, flowData: { ...data } };
   for (const step of ONBOARDING_QUESTION_ORDER) {

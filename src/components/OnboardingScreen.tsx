@@ -23,6 +23,7 @@ import {
   markVoiceHintShown,
   recordAnswer,
   recordDefer,
+  recordSkipToHome,
   resolveOnboardingResumeStep,
   saveOnboardingProgress,
   type OnboardingProgress,
@@ -227,6 +228,14 @@ export function OnboardingScreen({ fetchProposal, onQuestionnaireDone, onDeferTo
           window.setTimeout(() => onDeferToHome(flowDataRef.current), 1800);
           return;
         }
+        if (text === t("onboarding.skipQuestionnaire")) {
+          const nextProgress = recordSkipToHome(currentProgress, currentStep);
+          persist(nextProgress, currentStep, currentFlow);
+          pushUser(text);
+          pushAi(t("onboarding.skippedAck"));
+          window.setTimeout(() => onDeferToHome(flowDataRef.current), 1200);
+          return;
+        }
         if (currentStep === "gender") {
           const updated = { ...currentFlow, gender: text };
           const nextProgress = recordAnswer(currentProgress, "gender", { gender: text });
@@ -321,7 +330,14 @@ export function OnboardingScreen({ fetchProposal, onQuestionnaireDone, onDeferTo
     void processAnswer(text);
   }, [input, processAnswer]);
 
-  const canDefer = step !== "goal" && step !== "birthdate" && step !== "gender" && step !== "proposal";
+  const handleDeferQuestion = useCallback(() => {
+    void processAnswer(t("onboarding.deferQuestion"));
+  }, [processAnswer, t]);
+
+  const handleSkipQuestionnaire = useCallback(() => {
+    void processAnswer(t("onboarding.skipQuestionnaire"));
+  }, [processAnswer, t]);
+
   const activeChoiceMessageIndex = (() => {
     for (let i = messages.length - 1; i >= 0; i -= 1) {
       const msg = messages[i];
@@ -380,13 +396,49 @@ export function OnboardingScreen({ fetchProposal, onQuestionnaireDone, onDeferTo
         </div>
       )}
 
-      {canDefer && !isLoading && (
-        <div style={{ textAlign: "center", padding: "0 20px 8px" }}>
-          <button type="button" onClick={() => handleChoice(t("onboarding.deferQuestion"))} style={{ background: "none", border: "none", color: "#8b7355", fontSize: 12, cursor: "pointer", textDecoration: "underline" }}>
-            {t("onboarding.deferQuestion")}
-          </button>
-        </div>
-      )}
+      <div
+        style={{
+          display: "flex",
+          justifyContent: "center",
+          gap: 16,
+          padding: "8px 20px 10px",
+          background: "#f5f0e8",
+          borderTop: "1px solid rgba(60,40,20,0.08)",
+        }}
+      >
+        <button
+          type="button"
+          onClick={handleDeferQuestion}
+          disabled={isLoading}
+          style={{
+            background: "none",
+            border: "none",
+            color: "#8b7355",
+            fontSize: 12,
+            cursor: isLoading ? "default" : "pointer",
+            textDecoration: "underline",
+            opacity: isLoading ? 0.5 : 1,
+          }}
+        >
+          {t("onboarding.deferQuestion")}
+        </button>
+        <button
+          type="button"
+          onClick={handleSkipQuestionnaire}
+          disabled={isLoading}
+          style={{
+            background: "none",
+            border: "none",
+            color: "#8b7355",
+            fontSize: 12,
+            cursor: isLoading ? "default" : "pointer",
+            textDecoration: "underline",
+            opacity: isLoading ? 0.5 : 1,
+          }}
+        >
+          {t("onboarding.skipQuestionnaire")}
+        </button>
+      </div>
 
       <div style={{ padding: "12px 16px 24px", background: "white", borderTop: "1px solid rgba(60,40,20,0.1)", display: "flex", gap: 8, alignItems: "flex-end" }}>
         <textarea
