@@ -1217,8 +1217,10 @@ type ChatFlowData = {
   goal?: string;
   returnHome?: string;
   dinner?: string;
+  bedtime?: string;
   bath?: string;
   wake?: string;
+  sleepDuration?: string;
 };
 
 const CHAT_GOAL_FROM_CHOICE: Record<string, string> = {
@@ -3427,10 +3429,10 @@ ${buildHealthSummary(healthForm)}`;
     setChatFlowStep("free");
     setChatFlowData({
       goal: data.goal,
-      returnHome: data.returnHome,
-      dinner: data.dinner,
+      bedtime: data.bedtime,
       bath: data.bath,
       wake: data.wake,
+      sleepDuration: data.sleepDuration,
     });
     setPendingOnboarding(null);
     setOnboardingPhase("questionnaire");
@@ -3856,7 +3858,7 @@ ${buildHealthSummary(healthForm)}`;
       onboardingComplete: true,
       nameConfigured: prev.nameConfigured || !!(data.nickname?.trim() || data.name?.trim()),
     }));
-    if (data.goal || data.returnHome || data.dinner || data.bath || data.wake) {
+    if (data.goal || data.bedtime || data.bath || data.wake || data.sleepDuration) {
       setChatKnowledge(prev => updateChatKnowledgeFromFlow(prev, data));
     }
     setTab("home");

@@ -2,7 +2,7 @@ import type { OnboardingFlowData, OnboardingStep } from "./onboarding";
 
 export const ONBOARDING_PROGRESS_KEY = "tuyukusa-onboarding-progress";
 export const ONBOARDING_QUESTION_ORDER: OnboardingStep[] = [
-  "goal", "birthdate", "gender", "name", "return_home", "dinner", "bath", "wake",
+  "goal", "birthdate", "gender", "name", "bedtime", "wake", "bath", "sleep_duration",
 ];
 
 export type OnboardingProgress = {
@@ -64,10 +64,10 @@ function fieldAnswered(data: OnboardingFlowData, step: OnboardingStep): boolean 
     case "birthdate": return !!data.birthDate?.trim();
     case "gender": return !!data.gender?.trim();
     case "name": return !!(data.nickname?.trim() || data.name?.trim());
-    case "return_home": return !!data.returnHome?.trim();
-    case "dinner": return !!data.dinner?.trim();
-    case "bath": return !!data.bath?.trim();
+    case "bedtime": return !!data.bedtime?.trim();
     case "wake": return !!data.wake?.trim();
+    case "bath": return !!data.bath?.trim();
+    case "sleep_duration": return !!data.sleepDuration?.trim();
     default: return false;
   }
 }

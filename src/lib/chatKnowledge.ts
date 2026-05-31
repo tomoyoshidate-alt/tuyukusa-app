@@ -2,8 +2,10 @@ export type LifestyleKnowledge = {
   goal?: string;
   returnHome?: string;
   dinner?: string;
+  bedtime?: string;
   bath?: string;
   wake?: string;
+  sleepDuration?: string;
 };
 
 export type ChatKnowledge = {
@@ -49,8 +51,10 @@ export function normalizeChatKnowledge(data: unknown): ChatKnowledge {
       goal: typeof lifestyle.goal === "string" ? lifestyle.goal : undefined,
       returnHome: typeof lifestyle.returnHome === "string" ? lifestyle.returnHome : undefined,
       dinner: typeof lifestyle.dinner === "string" ? lifestyle.dinner : undefined,
+      bedtime: typeof lifestyle.bedtime === "string" ? lifestyle.bedtime : undefined,
       bath: typeof lifestyle.bath === "string" ? lifestyle.bath : undefined,
       wake: typeof lifestyle.wake === "string" ? lifestyle.wake : undefined,
+      sleepDuration: typeof lifestyle.sleepDuration === "string" ? lifestyle.sleepDuration : undefined,
     },
     userNotes: Array.isArray(d.userNotes)
       ? d.userNotes.filter(n => typeof n === "string").slice(0, MAX_NOTES)
@@ -132,8 +136,10 @@ export function buildUserKnowledgeContext(
       goal: "生活目標",
       returnHome: "帰宅時間",
       dinner: "夕食時間",
+      bedtime: "就寝時間",
       bath: "入浴時間",
       wake: "起床時間",
+      sleepDuration: "睡眠時間",
     };
     parts.push(
       "把握している生活リズム:",

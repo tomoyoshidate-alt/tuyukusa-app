@@ -257,6 +257,7 @@ const ja = {
     empathyName: "{{name}}さん、はじめまして。\nこれから生活リズムを一緒に整えていきましょう。",
     empathyNameSkipped: "承知しました。\nこれから生活リズムを一緒に整えていきましょう。",
     empathyLifestyleAnswer: "「{{answer}}」ですね。",
+    timeDetailLater: "詳細な時刻は後ほど一緒に決めていきましょう。",
   },
   update: {
     title: "つゆくさアプリが更新されました！",

@@ -245,6 +245,7 @@ const fr: TranslationSchema = {
     empathyName: "Nice to meet you, {{name}}.\nLet's build your life rhythm together.",
     empathyNameSkipped: "Understood.\nLet's build your life rhythm together.",
     empathyLifestyleAnswer: "\"{{answer}}\" — got it.",
+    timeDetailLater: "We can decide the exact times together later.",
   },
   update: {
     title: "Tsuyukusa app has been updated!",

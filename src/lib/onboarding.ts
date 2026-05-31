@@ -22,10 +22,10 @@ export type OnboardingStep =
   | "gender"
   | "goal"
   | "name"
-  | "return_home"
-  | "dinner"
-  | "bath"
+  | "bedtime"
   | "wake"
+  | "bath"
+  | "sleep_duration"
   | "proposal";
 
 export type OnboardingFlowData = LifestyleKnowledge & {
@@ -37,6 +37,48 @@ export type OnboardingFlowData = LifestyleKnowledge & {
 
 export const GENDER_CHOICES = ["男性", "女性", "回答しない"] as const;
 
+export const ONBOARDING_BEDTIME_CHOICES = [
+  "21時",
+  "22時",
+  "23時",
+  "24時",
+  "1時",
+  "2時以降",
+  "不規則",
+] as const;
+
+export const ONBOARDING_WAKE_CHOICES = [
+  "4時",
+  "5時",
+  "6時",
+  "7時",
+  "8時",
+  "9時",
+  "10時以降",
+  "不規則",
+] as const;
+
+export const ONBOARDING_BATH_CHOICES = [
+  "17時",
+  "18時",
+  "19時",
+  "20時",
+  "21時",
+  "22時以降",
+  "朝シャワー派",
+  "入浴しない",
+] as const;
+
+export const ONBOARDING_SLEEP_DURATION_CHOICES = [
+  "5時間",
+  "6時間",
+  "7時間",
+  "8時間",
+  "8時間以上",
+] as const;
+
+export const ONBOARDING_TIME_DETAIL_LATER = "詳細な時刻は後ほど一緒に決めていきましょう。";
+
 export function parseOnboardingGoalChoice(choice: string): string | null {
   if (choice === ONBOARDING_GOAL_FREE_LABEL || choice.includes("自由に入力")) return null;
   return choice.trim() || null;
@@ -44,34 +86,30 @@ export function parseOnboardingGoalChoice(choice: string): string | null {
 
 export const ONBOARDING_LIFESTYLE_STEPS: Record<
   Exclude<OnboardingStep, "welcome" | "birthdate" | "gender" | "goal" | "name" | "proposal">,
-  { question: string; choices: string[]; field: keyof OnboardingFlowData; hint: string; next: OnboardingStep }
+  { question: string; choices: string[]; field: keyof OnboardingFlowData; next: OnboardingStep }
 > = {
-  return_home: {
-    question: "だいたい何時頃に帰宅されますか？",
-    choices: ["17:00頃", "18:00頃", "19:00頃", "20:00以降"],
-    field: "returnHome",
-    hint: "帰宅後はまず足を温め、リラックスできる時間を確保しましょう。",
-    next: "dinner",
+  bedtime: {
+    question: "就寝時間はいつ頃が理想ですか？",
+    choices: [...ONBOARDING_BEDTIME_CHOICES],
+    field: "bedtime",
+    next: "wake",
   },
-  dinner: {
-    question: "夕食は何時頃にとりたいですか？",
-    choices: ["16:00頃", "17:00頃", "18:00頃", "19:00以降"],
-    field: "dinner",
-    hint: "18時以降の糖質は控えめに。消化に優しい塩・タンパク質・海産物中心の夕食が養生に合います。",
+  wake: {
+    question: "起床時間はいつ頃が理想ですか？",
+    choices: [...ONBOARDING_WAKE_CHOICES],
+    field: "wake",
     next: "bath",
   },
   bath: {
     question: "入浴は何時頃が理想ですか？",
-    choices: ["19:30頃", "20:00頃", "20:30頃", "21:00頃"],
+    choices: [...ONBOARDING_BATH_CHOICES],
     field: "bath",
-    hint: "38〜39度・30分以内の入浴で血行を促し、就寝90分前が理想です。",
-    next: "wake",
+    next: "sleep_duration",
   },
-  wake: {
-    question: "翌朝は何時に起きたいですか？",
-    choices: ["6:00", "6:30", "7:00", "7:30"],
-    field: "wake",
-    hint: "早寝早起きは気を補い、一日のリズムの土台になります。",
+  sleep_duration: {
+    question: "睡眠時間はどのくらい取りたいですか？",
+    choices: [...ONBOARDING_SLEEP_DURATION_CHOICES],
+    field: "sleepDuration",
     next: "proposal",
   },
 };
@@ -84,10 +122,10 @@ export function buildOnboardingProposalPrompt(data: OnboardingFlowData): string 
     `・性別: ${data.gender ?? "未設定"}`,
     `・お名前: ${data.nickname ?? data.name ?? "未設定"}`,
     `・実現したい生活: ${data.goal ?? "未設定"}`,
-    `・帰宅時間: ${data.returnHome ?? "未設定"}`,
-    `・夕食時間: ${data.dinner ?? "未設定"}`,
-    `・入浴時間: ${data.bath ?? "未設定"}`,
+    `・就寝時間: ${data.bedtime ?? "未設定"}`,
     `・起床時間: ${data.wake ?? "未設定"}`,
+    `・入浴時間: ${data.bath ?? "未設定"}`,
+    `・睡眠時間: ${data.sleepDuration ?? "未設定"}`,
     "",
     "起床・朝食・塩湯・夕食・入浴・就寝前塩湯・就寝の時刻を含め、",
     "最終的にREFLECT_SCHEDULE形式のJSONで5〜7項目返してください（ユーザーが反映できるように）。",

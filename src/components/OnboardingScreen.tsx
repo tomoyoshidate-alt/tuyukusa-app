@@ -120,7 +120,7 @@ export function OnboardingScreen({ fetchProposal, onQuestionnaireDone, onDeferTo
     if (config.next === "proposal") {
       setStep("proposal");
       const empathy = t("onboarding.empathyLifestyleAnswer", { answer });
-      pushAi(`${empathy}\n\n${config.hint}\n\n${t("onboarding.generating")}`);
+      pushAi(`${empathy}\n\n${t("onboarding.timeDetailLater")}\n\n${t("onboarding.generating")}`);
       setIsLoading(true);
       try {
         const reply = await fetchProposal(buildOnboardingProposalPrompt(updated));
@@ -193,13 +193,13 @@ export function OnboardingScreen({ fetchProposal, onQuestionnaireDone, onDeferTo
     }
     if (step === "name" && choice === t("onboarding.skip")) {
       const nextProgress = recordAnswer(progress, "name", flowData);
-      persist(nextProgress, "return_home", flowData);
+      persist(nextProgress, "bedtime", flowData);
       pushUser(choice);
-      setStep("return_home");
-      goToLifestyle("return_home", "name", choice, flowData);
+      setStep("bedtime");
+      goToLifestyle("bedtime", "name", choice, flowData);
       return;
     }
-    if (step === "return_home" || step === "dinner" || step === "bath" || step === "wake") {
+    if (step === "bedtime" || step === "wake" || step === "bath" || step === "sleep_duration") {
       await handleLifestyleAnswer(choice, step);
     }
   };
@@ -234,10 +234,10 @@ export function OnboardingScreen({ fetchProposal, onQuestionnaireDone, onDeferTo
       const updated = { ...flowData, nickname: text, name: text };
       const nextProgress = recordAnswer(progress, "name", { nickname: text, name: text });
       setFlowData(updated);
-      persist(nextProgress, "return_home", updated);
+      persist(nextProgress, "bedtime", updated);
       pushUser(text);
-      setStep("return_home");
-      goToLifestyle("return_home", "name", text, updated);
+      setStep("bedtime");
+      goToLifestyle("bedtime", "name", text, updated);
       return;
     }
     if (step === "goal") {

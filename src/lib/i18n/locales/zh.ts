@@ -245,6 +245,7 @@ const zh: TranslationSchema = {
     empathyName: "{{name}}，您好。\n让我们一起打造您的生活节奏。",
     empathyNameSkipped: "了解了。\n让我们一起打造您的生活节奏。",
     empathyLifestyleAnswer: "「{{answer}}」，了解了。",
+    timeDetailLater: "具体时间我们之后再一起决定。",
   },
   update: {
     title: "露草应用已更新！",

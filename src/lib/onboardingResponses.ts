@@ -24,10 +24,10 @@ function getStepPrompt(step: OnboardingStep, t: Translate): { question: string; 
       return { question: t("onboarding.genderQuestion"), choices: [...GENDER_CHOICES] };
     case "name":
       return { question: t("onboarding.nameQuestion"), choices: [t("onboarding.skip")] };
-    case "return_home":
-    case "dinner":
+    case "bedtime":
+    case "wake":
     case "bath":
-    case "wake": {
+    case "sleep_duration": {
       const config = ONBOARDING_LIFESTYLE_STEPS[step];
       return { question: config.question, choices: config.choices };
     }
@@ -61,18 +61,12 @@ export function buildOnboardingTransition(
       parts.push(name ? t("onboarding.empathyName", { name }) : t("onboarding.empathyNameSkipped"));
       break;
     }
-    case "return_home":
-    case "dinner":
-    case "bath": {
-      const config = ONBOARDING_LIFESTYLE_STEPS[fromStep];
+    case "bedtime":
+    case "wake":
+    case "bath":
+    case "sleep_duration": {
       parts.push(t("onboarding.empathyLifestyleAnswer", { answer }));
-      parts.push(config.hint);
-      break;
-    }
-    case "wake": {
-      const config = ONBOARDING_LIFESTYLE_STEPS.wake;
-      parts.push(t("onboarding.empathyLifestyleAnswer", { answer }));
-      parts.push(config.hint);
+      parts.push(t("onboarding.timeDetailLater"));
       break;
     }
     default:
