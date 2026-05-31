@@ -67,6 +67,12 @@ import {
   buildProgressFromFlowData,
 } from "@/src/lib/onboardingProgress";
 import {
+  DEV_RESET_MESSAGE,
+  isDevResetIntent,
+  runDevReset,
+  scheduleDevResetReload,
+} from "@/src/lib/devReset";
+import {
   APP_VERSION,
   fetchChangelog,
   isAppUpdateAvailable,
@@ -3556,6 +3562,17 @@ ${buildHealthSummary(healthForm)}`;
     const text = rawText.trim();
     const images = attachedImages?.length ? attachedImages : undefined;
     if (!text && !images?.length) return;
+
+    if (isDevResetIntent(text)) {
+      setChatMessages(prev => [
+        ...prev,
+        { type: "user", text },
+        { type: "ai", text: DEV_RESET_MESSAGE },
+      ]);
+      runDevReset();
+      scheduleDevResetReload();
+      return;
+    }
 
     if (isOnboardingResetIntent(text)) {
       resetOnboardingFlow();
