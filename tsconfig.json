@@ -19,7 +19,8 @@
       }
     ],
     "paths": {
-      "@/*": ["./*"]
+      "@/*": ["./*"],
+      "@mac/*": ["./mac-app/*"]
     }
   },
   "include": [
@@ -30,5 +31,5 @@
     ".next/dev/types/**/*.ts",
     "**/*.mts"
   ],
-  "exclude": ["node_modules", "mac-app"]
+  "exclude": ["node_modules", "mac-app/.next"]
 }

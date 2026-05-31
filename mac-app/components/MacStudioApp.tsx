@@ -1,10 +1,11 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { CustomSlider } from "@/components/CustomSlider";
-import { WaveformVisualizer } from "@/components/WaveformVisualizer";
-import { classifyBrainwave, brainwaveDescription, getBbDiffHz } from "@/lib/brainwave";
-import { MixerEngine, type MixerSlot } from "@/lib/mixerEngine";
+import { CustomSlider } from "@mac/components/CustomSlider";
+import { WaveformVisualizer } from "@mac/components/WaveformVisualizer";
+import { classifyBrainwave, brainwaveDescription, getBbDiffHz } from "@mac/lib/brainwave";
+import { getMacBasePath } from "@mac/lib/macBasePath";
+import { MixerEngine, type MixerSlot } from "@mac/lib/mixerEngine";
 import {
   exportJson,
   fetchAudioFiles,
@@ -12,7 +13,7 @@ import {
   fetchGranularPresets,
   saveBbPresets,
   saveGranularPresets,
-} from "@/lib/presetClient";
+} from "@mac/lib/presetClient";
 import {
   DEFAULT_BB_PRESET,
   DEFAULT_GRANULAR_PRESET,
@@ -20,7 +21,7 @@ import {
   type BBWaveform,
   type GranularPreset,
   type LfoWaveform,
-} from "@/lib/types";
+} from "@mac/lib/types";
 
 type EditorTab = "bb" | "granular";
 
@@ -110,8 +111,7 @@ export function MacStudioApp() {
 
   const audioBase = useMemo(() => {
     const origin = process.env.NEXT_PUBLIC_ASSET_ORIGIN ?? "";
-    const basePath = process.env.NEXT_PUBLIC_BASE_PATH ?? "";
-    return `${origin}${basePath}`;
+    return `${origin}${getMacBasePath()}`;
   }, []);
 
   const togglePlay = async () => {

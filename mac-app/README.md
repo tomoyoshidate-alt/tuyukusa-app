@@ -13,10 +13,15 @@ npm run dev:mac   # http://localhost:3001
 
 ## Vercel デプロイ
 
-1. Vercel で **新規プロジェクト** を作成（同一 GitHub リポジトリ）
-2. **Root Directory** を `mac-app` に設定
-3. 環境変数: `NEXT_PUBLIC_BASE_PATH=/mac`（任意）
-4. 本体アプリの `public/presets/*.json` を git にコミットして共有
+### 本体アプリと同一ドメイン（推奨）
+
+ルートの `vercel.json` で `NEXT_PUBLIC_MAC_BASE_PATH=/mac` を設定済みです。  
+本体アプリをデプロイすると **https://your-domain.vercel.app/mac** で Studio が利用できます。
+
+### 単体デプロイ（任意）
+
+1. Vercel で **新規プロジェクト** を作成（Root Directory: `mac-app`）
+2. `mac-app/vercel.json` の `NEXT_PUBLIC_BASE_PATH=/mac` が適用されます
 
 本番（Vercel）では fs 書き込み不可のため、保存時に JSON エクスポート → `public/presets/` にコミット → push してください。
 

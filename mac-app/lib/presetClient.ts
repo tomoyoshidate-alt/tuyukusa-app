@@ -1,20 +1,21 @@
 "use client";
 
-import type { PresetStore, BBPreset, GranularPreset } from "@/lib/types";
+import { getMacBasePath, macApiUrl } from "@mac/lib/macBasePath";
+import type { PresetStore, BBPreset, GranularPreset } from "@mac/lib/types";
 
 const BB_KEY = "tuyukusa-mac-bb-presets";
 const GR_KEY = "tuyukusa-mac-granular-presets";
 
 export function assetUrl(relativePath: string): string {
   const origin = process.env.NEXT_PUBLIC_ASSET_ORIGIN ?? "";
-  const basePath = process.env.NEXT_PUBLIC_BASE_PATH ?? "";
+  const basePath = getMacBasePath();
   if (relativePath.startsWith("/api/")) return `${origin}${basePath}${relativePath}`;
   if (relativePath.startsWith("/")) return `${origin}${basePath}${relativePath}`;
   return `${origin}${basePath}/api/audio/${encodeURIComponent(relativePath)}`;
 }
 
 export async function fetchBbPresets(): Promise<PresetStore<BBPreset>> {
-  const res = await fetch("/api/presets/bb");
+  const res = await fetch(macApiUrl("/api/presets/bb"));
   const data = (await res.json()) as PresetStore<BBPreset>;
   if (typeof window !== "undefined" && data.presets?.length) {
     localStorage.setItem(BB_KEY, JSON.stringify(data));
@@ -23,7 +24,7 @@ export async function fetchBbPresets(): Promise<PresetStore<BBPreset>> {
 }
 
 export async function fetchGranularPresets(): Promise<PresetStore<GranularPreset>> {
-  const res = await fetch("/api/presets/granular");
+  const res = await fetch(macApiUrl("/api/presets/granular"));
   const data = (await res.json()) as PresetStore<GranularPreset>;
   if (typeof window !== "undefined" && data.presets?.length) {
     localStorage.setItem(GR_KEY, JSON.stringify(data));
@@ -33,7 +34,7 @@ export async function fetchGranularPresets(): Promise<PresetStore<GranularPreset
 
 export async function saveBbPresets(store: PresetStore<BBPreset>): Promise<{ ok: boolean; message?: string }> {
   localStorage.setItem(BB_KEY, JSON.stringify(store));
-  const res = await fetch("/api/presets/bb", {
+  const res = await fetch(macApiUrl("/api/presets/bb"), {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(store),
@@ -44,7 +45,7 @@ export async function saveBbPresets(store: PresetStore<BBPreset>): Promise<{ ok:
 
 export async function saveGranularPresets(store: PresetStore<GranularPreset>): Promise<{ ok: boolean; message?: string }> {
   localStorage.setItem(GR_KEY, JSON.stringify(store));
-  const res = await fetch("/api/presets/granular", {
+  const res = await fetch(macApiUrl("/api/presets/granular"), {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(store),
@@ -63,7 +64,7 @@ export function exportJson(filename: string, data: unknown): void {
 }
 
 export async function fetchAudioFiles(): Promise<string[]> {
-  const res = await fetch("/api/audio");
+  const res = await fetch(macApiUrl("/api/audio"));
   const json = (await res.json()) as { files: string[] };
   return json.files ?? [];
 }

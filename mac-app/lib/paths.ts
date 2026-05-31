@@ -1,6 +1,9 @@
+import fs from "fs";
 import path from "path";
 
 export function repoPublicDir(): string {
+  const atRepoRoot = path.join(process.cwd(), "public");
+  if (fs.existsSync(atRepoRoot)) return atRepoRoot;
   return path.join(process.cwd(), "..", "public");
 }
 

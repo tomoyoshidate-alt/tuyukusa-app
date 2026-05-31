@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import fs from "fs";
 import path from "path";
-import { audioDir } from "@/lib/paths";
+import { audioDir } from "@mac/lib/paths";
 
 export async function GET(_req: Request, { params }: { params: Promise<{ name: string }> }) {
   const { name } = await params;

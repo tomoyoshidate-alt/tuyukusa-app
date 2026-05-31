@@ -2,7 +2,6 @@
   "$schema": "https://openapi.vercel.sh/vercel.json",
   "framework": "nextjs",
   "env": {
-    "NEXT_PUBLIC_BASE_PATH": "/mac",
     "NEXT_PUBLIC_MAC_BASE_PATH": "/mac"
   }
 }

@@ -1,8 +1,8 @@
 import { NextResponse } from "next/server";
 import fs from "fs";
 import path from "path";
-import { IS_VERCEL, presetsDir } from "@/lib/paths";
-import type { PresetStore, BBPreset } from "@/lib/types";
+import { IS_VERCEL, presetsDir } from "@mac/lib/paths";
+import type { PresetStore, BBPreset } from "@mac/lib/types";
 
 const FILE = "bb-presets.json";
 
