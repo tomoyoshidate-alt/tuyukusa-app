@@ -90,6 +90,29 @@ export function resolveStudioAudioUrl(audioFile: string, audioBaseUrl?: string):
   return macApiUrl(`/api/audio/${encodeURIComponent(safe)}`);
 }
 
+/** Normalize audioFile values (URL, path, or filename) for comparison. */
+export function normalizeAudioFileKey(value: string): string {
+  const trimmed = value.trim();
+  if (!trimmed) return "";
+  if (isHttpAudioUrl(trimmed)) {
+    const filename = filenameFromStorageUrl(trimmed);
+    return (filename ?? trimmed).toLowerCase();
+  }
+  return trimmed.replace(/^audio\//, "").toLowerCase();
+}
+
+/** True when two audioFile values refer to the same source. */
+export function audioFilesMatch(a: string | undefined, b: string | undefined): boolean {
+  if (!a || !b) return false;
+  if (a.trim() === b.trim()) return true;
+  if (normalizeAudioFileKey(a) === normalizeAudioFileKey(b)) return true;
+  try {
+    return resolveStudioAudioUrl(a) === resolveStudioAudioUrl(b);
+  } catch {
+    return false;
+  }
+}
+
 export async function listStorageAudioEntries(): Promise<StudioAudioEntry[]> {
   const sb = getSupabase();
   if (!sb) throw new Error("Supabase is not configured");

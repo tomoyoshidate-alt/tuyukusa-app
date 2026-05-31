@@ -9,6 +9,9 @@ import {
   type AmbientSoundId,
 } from "@/src/lib/binauralBeats";
 import { STUDIO_PRESETS_LOADED_EVENT, getStudioGranularPresets } from "@/src/components/StudioPresetsLoader";
+import { fetchAudioCatalog } from "@mac/lib/presetClient";
+import type { StudioAudioEntry } from "@mac/lib/audioStorage";
+import { audioFilesMatch } from "@mac/lib/audioStorage";
 import { studioGranularToParams } from "@/src/lib/studioPresets";
 import { readPresets, readPlaylistSettings } from "@/src/lib/soundSystem/presetStorage";
 import { soundSystemManager } from "@/src/lib/soundSystem/soundSystemManager";
@@ -41,6 +44,51 @@ type Props = {
   scheduleRemainingSec?: number;
   initialMode?: "mixer" | "pomodoro";
 };
+
+function selectedAudioStyle(selected: boolean): React.CSSProperties {
+  return selected
+    ? {
+        padding: "6px 10px",
+        borderRadius: 16,
+        border: "2px solid #4ade80",
+        background: "rgba(74,222,128,0.12)",
+        color: "#bbf7d0",
+        fontSize: 11,
+        cursor: "pointer",
+        display: "inline-flex",
+        alignItems: "center",
+        gap: 4,
+      }
+    : {
+        padding: "6px 10px",
+        borderRadius: 16,
+        border: "1px solid rgba(255,255,255,0.1)",
+        background: "rgba(255,255,255,0.03)",
+        color: "#f5f0e8",
+        fontSize: 11,
+        cursor: "pointer",
+        display: "inline-flex",
+        alignItems: "center",
+        gap: 4,
+      };
+}
+
+function AudioSourceButton({
+  selected,
+  onClick,
+  children,
+}: {
+  selected: boolean;
+  onClick: () => void;
+  children: React.ReactNode;
+}) {
+  return (
+    <button type="button" onClick={onClick} style={selectedAudioStyle(selected)}>
+      {selected && <span style={{ fontWeight: "bold", color: "#4ade80" }}>✓</span>}
+      {children}
+    </button>
+  );
+}
 
 function SectionTitle({ children }: { children: React.ReactNode }) {
   return (
@@ -108,6 +156,7 @@ export default function SoundSystemPanel({
   const [sceneViz, setSceneViz] = useState<SceneVizMode>("default");
   const [studioBbPresets, setStudioBbPresets] = useState(() => getStudioBeatPresets());
   const [studioGranularPresets, setStudioGranularPresets] = useState(() => getStudioGranularPresets());
+  const [audioCatalog, setAudioCatalog] = useState<StudioAudioEntry[]>([]);
 
   const updatePlaylist = (next: PlaylistSettings) => {
     soundSystemManager.setPlaylistSettings(next);
@@ -129,6 +178,10 @@ export default function SoundSystemPanel({
       unsub();
       soundSystemManager.dispose();
     };
+  }, []);
+
+  useEffect(() => {
+    void fetchAudioCatalog().then(setAudioCatalog).catch(() => setAudioCatalog([]));
   }, []);
 
   useEffect(() => {
@@ -446,59 +499,97 @@ export default function SoundSystemPanel({
 
           {activeSlot !== 0 && chActive.type === "granular" && (
             <>
+              {audioCatalog.length > 0 && (
+                <>
+                  <SectionTitle>音源ファイル</SectionTitle>
+                  <div style={{ display: "flex", flexDirection: "column", gap: 6, marginBottom: 12 }}>
+                    {audioCatalog.map(entry => {
+                      const selected = audioFilesMatch(chActive.audioFile, entry.url);
+                      return (
+                        <button
+                          key={entry.url}
+                          type="button"
+                          onClick={() =>
+                            updateChannel(activeSlot, {
+                              ...chActive,
+                              audioFile: entry.url,
+                              sourceId: "silent",
+                            })
+                          }
+                          style={{
+                            ...selectedAudioStyle(selected),
+                            width: "100%",
+                            borderRadius: 10,
+                            justifyContent: "flex-start",
+                            textAlign: "left",
+                          }}
+                        >
+                          {selected && (
+                            <span style={{ fontWeight: "bold", color: "#4ade80", flexShrink: 0 }}>✓</span>
+                          )}
+                          <span style={{ minWidth: 0 }}>
+                            <span style={{ display: "block", fontWeight: selected ? 600 : 400 }}>{entry.name}</span>
+                            <span
+                              style={{
+                                display: "block",
+                                fontSize: 9,
+                                color: selected ? "#86efac" : "#8b7355",
+                                overflow: "hidden",
+                                textOverflow: "ellipsis",
+                                whiteSpace: "nowrap",
+                              }}
+                            >
+                              {entry.url}
+                            </span>
+                          </span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </>
+              )}
               {studioGranularPresets.length > 0 && (
                 <>
                   <SectionTitle>Studio グラニュラー</SectionTitle>
                   <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginBottom: 12 }}>
-                    {studioGranularPresets.map(p => (
-                      <button
-                        key={p.id}
-                        type="button"
-                        onClick={() =>
-                          updateChannel(activeSlot, {
-                            ...chActive,
-                            audioFile: p.audioFile,
-                            granular: studioGranularToParams(p),
-                          })
-                        }
-                        style={{
-                          padding: "6px 10px",
-                          borderRadius: 16,
-                          border: chActive.audioFile === p.audioFile ? "2px solid #7ec8e3" : "1px solid rgba(255,255,255,0.1)",
-                          background: chActive.audioFile === p.audioFile ? "rgba(126,200,227,0.15)" : "rgba(255,255,255,0.03)",
-                          color: "#f5f0e8",
-                          fontSize: 11,
-                          cursor: "pointer",
-                        }}
-                      >
-                        {p.icon ?? ""} {p.name}
-                      </button>
-                    ))}
+                    {studioGranularPresets.map(p => {
+                      const selected = audioFilesMatch(chActive.audioFile, p.audioFile);
+                      return (
+                        <AudioSourceButton
+                          key={p.id}
+                          selected={selected}
+                          onClick={() =>
+                            updateChannel(activeSlot, {
+                              ...chActive,
+                              audioFile: p.audioFile,
+                              sourceId: "silent",
+                              granular: studioGranularToParams(p),
+                            })
+                          }
+                        >
+                          {p.icon ?? ""} {p.name}
+                        </AudioSourceButton>
+                      );
+                    })}
                   </div>
                 </>
               )}
               <SectionTitle>デモ音源</SectionTitle>
               <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginBottom: 12 }}>
-                {DEMO_SOURCE_OPTIONS.map(s => (
-                  <button
-                    key={s.id}
-                    type="button"
-                    onClick={() =>
-                      updateChannel(activeSlot, { ...chActive, sourceId: s.id, audioFile: undefined })
-                    }
-                    style={{
-                      padding: "6px 10px",
-                      borderRadius: 16,
-                      border: chActive.sourceId === s.id ? "2px solid #7ec8e3" : "1px solid rgba(255,255,255,0.1)",
-                      background: chActive.sourceId === s.id ? "rgba(126,200,227,0.15)" : "rgba(255,255,255,0.03)",
-                      color: "#f5f0e8",
-                      fontSize: 11,
-                      cursor: "pointer",
-                    }}
-                  >
-                    {s.emoji} {s.label}
-                  </button>
-                ))}
+                {DEMO_SOURCE_OPTIONS.map(s => {
+                  const selected = !chActive.audioFile && chActive.sourceId === s.id;
+                  return (
+                    <AudioSourceButton
+                      key={s.id}
+                      selected={selected}
+                      onClick={() =>
+                        updateChannel(activeSlot, { ...chActive, sourceId: s.id, audioFile: undefined })
+                      }
+                    >
+                      {s.emoji} {s.label}
+                    </AudioSourceButton>
+                  );
+                })}
               </div>
               <GranularControls
                 params={chActive.granular}

@@ -134,7 +134,7 @@ export const DEFAULT_GRANULAR_PARAMS: GranularParams = {
   grainSizeMs: 120,
   overlap: 50,
   position: 0,
-  randomness: 25,
+  randomness: 20,
   pitchShift: 0,
   lfoEnabled: false,
   lfoSpeed: 0.5,
