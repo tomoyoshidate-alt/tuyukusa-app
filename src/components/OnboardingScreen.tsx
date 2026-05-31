@@ -55,7 +55,6 @@ export function OnboardingScreen({ fetchProposal, onQuestionnaireDone, onDeferTo
   const [input, setInput] = useState("");
   const [isComposing, setIsComposing] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
-  const [freeGoalMode, setFreeGoalMode] = useState(false);
   const [showVoiceHint, setShowVoiceHint] = useState(() => !hasVoiceHintBeenShown());
   const endRef = useRef<HTMLDivElement>(null);
   const resumedRef = useRef(false);
@@ -149,73 +148,45 @@ export function OnboardingScreen({ fetchProposal, onQuestionnaireDone, onDeferTo
     pushTransition(currentStep, answer, config.next, updated);
   };
 
-  const handleChoice = async (choice: string) => {
-    if (choice === t("onboarding.applyAndContinue") || choice === t("onboarding.continueToIntegrations")) {
+  const processAnswer = async (answer: string) => {
+    const text = answer.trim();
+    if (!text || isLoading) return;
+
+    if (text === t("onboarding.applyAndContinue") || text === t("onboarding.continueToIntegrations")) {
       onQuestionnaireDone(flowData, [...messages].reverse().find(m => m.scheduleReflection)?.scheduleReflection ?? null);
       return;
     }
-    if (choice === t("onboarding.deferQuestion")) {
+    if (text === t("onboarding.deferQuestion")) {
       const nextProgress = recordDefer(progress, step);
       persist(nextProgress, step, flowData);
-      pushUser(choice);
+      pushUser(text);
       pushAi(t("onboarding.deferredAck"));
       window.setTimeout(() => onDeferToHome(flowData), 1800);
       return;
     }
     if (step === "gender") {
-      const updated = { ...flowData, gender: choice };
-      const nextProgress = recordAnswer(progress, "gender", { gender: choice });
+      const updated = { ...flowData, gender: text };
+      const nextProgress = recordAnswer(progress, "gender", { gender: text });
       setFlowData(updated);
       persist(nextProgress, "name", updated);
-      pushUser(choice);
+      pushUser(text);
       setStep("name");
-      pushTransition("gender", choice, "name", updated);
+      pushTransition("gender", text, "name", updated);
       return;
     }
-    if (step === "goal" && !freeGoalMode) {
-      if (choice === ONBOARDING_GOAL_FREE_LABEL) {
-        pushUser(choice);
-        setFreeGoalMode(true);
+    if (step === "goal") {
+      if (text === ONBOARDING_GOAL_FREE_LABEL) {
+        pushUser(text);
         pushAi(t("onboarding.goalFreeHint"));
         return;
       }
-      const goal = parseOnboardingGoalChoice(choice);
-      if (goal) {
-        const updated = { ...flowData, goal };
-        const nextProgress = recordAnswer(progress, "goal", { goal });
-        setFlowData(updated);
-        persist(nextProgress, "birthdate", updated);
-        pushUser(choice);
-        setStep("birthdate");
-        pushTransition("goal", choice, "birthdate", updated);
-        return;
-      }
-    }
-    if (step === "name" && choice === t("onboarding.skip")) {
-      const nextProgress = recordAnswer(progress, "name", flowData);
-      persist(nextProgress, "bedtime", flowData);
-      pushUser(choice);
-      setStep("bedtime");
-      goToLifestyle("bedtime", "name", choice, flowData);
-      return;
-    }
-    if (step === "bedtime" || step === "wake" || step === "bath" || step === "sleep_duration") {
-      await handleLifestyleAnswer(choice, step);
-    }
-  };
-
-  const handleSend = async () => {
-    const text = input.trim();
-    if (!text || isLoading) return;
-    setInput("");
-
-    if (step === "goal" && freeGoalMode) {
-      const updated = { ...flowData, goal: text };
-      const nextProgress = recordAnswer(progress, "goal", { goal: text });
+      const goal = parseOnboardingGoalChoice(text) ?? text;
+      if (!goal) return;
+      const updated = { ...flowData, goal };
+      const nextProgress = recordAnswer(progress, "goal", { goal });
       setFlowData(updated);
       persist(nextProgress, "birthdate", updated);
       pushUser(text);
-      setFreeGoalMode(false);
       setStep("birthdate");
       pushTransition("goal", text, "birthdate", updated);
       return;
@@ -231,6 +202,14 @@ export function OnboardingScreen({ fetchProposal, onQuestionnaireDone, onDeferTo
       return;
     }
     if (step === "name") {
+      if (text === t("onboarding.skip")) {
+        const nextProgress = recordAnswer(progress, "name", flowData);
+        persist(nextProgress, "bedtime", flowData);
+        pushUser(text);
+        setStep("bedtime");
+        goToLifestyle("bedtime", "name", text, flowData);
+        return;
+      }
       const updated = { ...flowData, nickname: text, name: text };
       const nextProgress = recordAnswer(progress, "name", { nickname: text, name: text });
       setFlowData(updated);
@@ -240,17 +219,20 @@ export function OnboardingScreen({ fetchProposal, onQuestionnaireDone, onDeferTo
       goToLifestyle("bedtime", "name", text, updated);
       return;
     }
-    if (step === "goal") {
-      const goal = parseOnboardingGoalChoice(text) ?? text;
-      if (!goal) return;
-      const updated = { ...flowData, goal };
-      const nextProgress = recordAnswer(progress, "goal", { goal });
-      setFlowData(updated);
-      persist(nextProgress, "birthdate", updated);
-      pushUser(text);
-      setStep("birthdate");
-      pushTransition("goal", text, "birthdate", updated);
+    if (step === "bedtime" || step === "wake" || step === "bath" || step === "sleep_duration") {
+      await handleLifestyleAnswer(text, step);
     }
+  };
+
+  const handleChoice = async (choice: string) => {
+    await processAnswer(choice);
+  };
+
+  const handleSend = async () => {
+    const text = input.trim();
+    if (!text || isLoading) return;
+    setInput("");
+    await processAnswer(text);
   };
 
   const canDefer = step !== "goal" && step !== "birthdate" && step !== "gender" && step !== "proposal";
