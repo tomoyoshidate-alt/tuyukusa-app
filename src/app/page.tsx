@@ -3844,6 +3844,24 @@ ${buildHealthSummary(healthForm)}`;
     );
   }
 
+  const handleDeferOnboardingToHome = (data: OnboardingFlowData) => {
+    const progress = loadOnboardingProgress();
+    if (progress) saveOnboardingProgress(progress);
+    setUserProfile(prev => ({
+      ...prev,
+      birthDate: data.birthDate ?? prev.birthDate,
+      gender: data.gender ?? prev.gender,
+      name: data.name?.trim() || data.nickname?.trim() || prev.name,
+      nickname: data.nickname?.trim() || prev.nickname,
+      onboardingComplete: true,
+      nameConfigured: prev.nameConfigured || !!(data.nickname?.trim() || data.name?.trim()),
+    }));
+    if (data.goal || data.returnHome || data.dinner || data.bath || data.wake) {
+      setChatKnowledge(prev => updateChatKnowledgeFromFlow(prev, data));
+    }
+    setTab("home");
+  };
+
   if (!userProfile.onboardingComplete) {
     if (onboardingPhase === "integrations" && pendingOnboarding) {
       return (
@@ -3865,6 +3883,7 @@ ${buildHealthSummary(healthForm)}`;
       <OnboardingScreen
         fetchProposal={fetchOnboardingProposal}
         onQuestionnaireDone={(data, reflection) => void handleQuestionnaireDone(data, reflection)}
+        onDeferToHome={data => handleDeferOnboardingToHome(data)}
       />
     );
   }
