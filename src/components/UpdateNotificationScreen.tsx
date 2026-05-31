@@ -15,7 +15,7 @@ export function UpdateNotificationScreen({ oldVersion, newVersion, changes, onAs
   return (
     <div style={{ position: "fixed", inset: 0, zIndex: 21000, background: "#f5f0e8", display: "flex", flexDirection: "column", padding: "24px 20px 32px", overflowY: "auto" }}>
       <div style={{ textAlign: "center", marginBottom: 24 }}>
-        <div style={{ fontSize: 28, marginBottom: 8 }}>🌿</div>
+        <div style={{ fontSize: 28, marginBottom: 8 }}></div>
         <div style={{ fontSize: 18, fontWeight: "bold", color: "#1a1410" }}>{t("update.title")}</div>
       </div>
       <div style={{ background: "white", borderRadius: 16, padding: "20px 18px", border: "1px solid rgba(60,40,20,0.1)", marginBottom: 20, lineHeight: 1.75, fontSize: 14, color: "#1a1410" }}>

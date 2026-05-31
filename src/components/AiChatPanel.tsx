@@ -87,7 +87,7 @@ export function AiChatPanel({
             borderBottom: "1px solid var(--t-border)",
           }}
         >
-          💬 {t("home.homeAiChat")}
+          {t("home.homeAiChat")}
         </div>
       )}
       <div
@@ -212,8 +212,8 @@ export function AiChatPanel({
                     }}
                   >
                     {msg.scheduleSuggestions.every(s => msg.addedScheduleIds?.includes(s.id))
-                      ? "✓ 今日のスケジュールに反映済み"
-                      : "📅 今日のスケジュールに反映する"}
+                      ? "今日のスケジュールに反映済み"
+                      : "今日のスケジュールに反映する"}
                   </button>
                 )}
                 {!msg.showSchedule &&
@@ -238,7 +238,7 @@ export function AiChatPanel({
                         }}
                       >
                         <div style={{ fontWeight: "bold", marginBottom: 2 }}>
-                          {added ? "✓ スケジュールに追加済み" : "📅 スケジュールに追加"}
+                          {added ? "スケジュールに追加済み" : "スケジュールに追加"}
                         </div>
                         <div>
                           {sug.time} {sug.label}
@@ -317,7 +317,7 @@ export function AiChatPanel({
             flexShrink: 0,
           }}
         >
-          ↑
+          送信
         </button>
       </div>
     </div>

@@ -35,14 +35,14 @@ export default function HealthKitBridge({ healthData, compact }: Props) {
         }}
       >
         <div style={{ fontSize: 13, fontWeight: "bold", color: "#4a6741", marginBottom: 6 }}>
-          ❤️ iOSヘルスケア連携
+          iOSヘルスケア連携
         </div>
         <div style={{ fontSize: 11, color: "#9a8b7a", marginBottom: 10, lineHeight: 1.6 }}>
           ショートカット経由で睡眠・歩数・心拍数を送信。AI診断と相談に活用されます。
         </div>
         {healthData.updatedAt && (
           <div style={{ fontSize: 12, color: "#3d3228", marginBottom: 10, padding: "8px 10px", background: "#e8f0e4", borderRadius: 8 }}>
-            ✓ {formatHealthSummary(healthData)}
+            {formatHealthSummary(healthData)}
           </div>
         )}
         <div style={{ display: "flex", gap: 8 }}>

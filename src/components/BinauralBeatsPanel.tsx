@@ -185,7 +185,7 @@ export default function BinauralBeatsPanel({ diagnosis, onClose, initialPanelMod
       >
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
           <div>
-            <div style={{ fontSize: 18, fontWeight: "bold", color: "#3d3228" }}>🎧 サウンド & タイマー</div>
+            <div style={{ fontSize: 18, fontWeight: "bold", color: "#3d3228" }}>サウンド & タイマー</div>
             <div style={{ fontSize: 11, color: "#9a8b7a", marginTop: 2 }}>バイノーラルビート · ポモドーロ</div>
           </div>
           <button
@@ -198,8 +198,8 @@ export default function BinauralBeatsPanel({ diagnosis, onClose, initialPanelMod
         </div>
 
         <div style={{ display: "flex", gap: 8, marginBottom: 16 }}>
-          <TabChip label="🎧 ビート" selected={panelMode === "beats"} onClick={() => setPanelMode("beats")} />
-          <TabChip label="🍅 ポモドーロ" selected={panelMode === "pomodoro"} onClick={() => setPanelMode("pomodoro")} />
+          <TabChip label="ビート" selected={panelMode === "beats"} onClick={() => setPanelMode("beats")} />
+          <TabChip label="ポモドーロ" selected={panelMode === "pomodoro"} onClick={() => setPanelMode("pomodoro")} />
         </div>
 
         {panelMode === "pomodoro" ? (
@@ -228,7 +228,7 @@ export default function BinauralBeatsPanel({ diagnosis, onClose, initialPanelMod
             textAlign: "left",
           }}
         >
-          🎧 バイノーラルビートとは？
+          バイノーラルビートとは？
         </button>
 
         <div
@@ -241,7 +241,7 @@ export default function BinauralBeatsPanel({ diagnosis, onClose, initialPanelMod
           }}
         >
           <div style={{ fontSize: 11, color: "#8b5a2b", fontWeight: "bold", marginBottom: 4 }}>
-            ✨ 今日の診断「{diagnosis}」におすすめ
+            今日の診断「{diagnosis}」におすすめ
           </div>
           <div style={{ fontSize: 14, color: "#3d3228", fontWeight: "bold" }}>
             {recommended.emoji} {recommended.label}
@@ -288,7 +288,7 @@ export default function BinauralBeatsPanel({ diagnosis, onClose, initialPanelMod
               >
                 <div style={{ fontSize: 13, fontWeight: "bold", color: "#3d3228" }}>
                   {preset.emoji} {preset.label}
-                  {isRecommended && <span style={{ fontSize: 9, color: "#c17f4a", marginLeft: 4 }}>★</span>}
+                  {isRecommended && <span style={{ fontSize: 9, color: "#c17f4a", marginLeft: 4 }}>(推奨)</span>}
                 </div>
                 <div style={{ fontSize: 10, color: "#4a6741", marginTop: 2 }}>{preset.waveLabel}</div>
               </button>
@@ -451,7 +451,7 @@ export default function BinauralBeatsPanel({ diagnosis, onClose, initialPanelMod
               opacity: isApplying || playback.isTransitioning ? 0.7 : 1,
             }}
           >
-            {isApplying || playback.isTransitioning ? "切り替え中..." : "🔄 変更適応"}
+            {isApplying || playback.isTransitioning ? "切り替え中..." : "変更適応"}
           </button>
         )}
 
@@ -477,7 +477,7 @@ export default function BinauralBeatsPanel({ diagnosis, onClose, initialPanelMod
               cursor: "pointer",
             }}
           >
-            {isPlaying ? "⏹ 停止" : "▶ 再生"}
+            {isPlaying ? "停止" : "再生"}
           </button>
           {isPlaying && timerMinutes !== null && remainingSec > 0 && (
             <div style={{ fontSize: 18, fontWeight: "bold", color: "#c17f4a", minWidth: 52, textAlign: "center" }}>

@@ -257,7 +257,7 @@ export function OnboardingScreen({ fetchProposal, onQuestionnaireDone }: Props) 
     <div style={{ position: "fixed", inset: 0, zIndex: 20000, background: "#f5f0e8", display: "flex", flexDirection: "column" }}>
       <div style={{ flex: 1, overflowY: "auto", padding: "32px 20px 16px", display: "flex", flexDirection: "column", gap: 12 }}>
         <div style={{ textAlign: "center", marginBottom: 8 }}>
-          <div style={{ fontSize: 22, fontWeight: "bold", color: "#1a1410" }}>🌿 {t("common.appName")}</div>
+          <div style={{ fontSize: 22, fontWeight: "bold", color: "#1a1410" }}>{t("common.appName")}</div>
         </div>
         {messages.map((msg, i) => (
           <div key={i}>

@@ -698,13 +698,13 @@ const MOOD_ITEMS: { key: MoodKey; label: string }[] = [
 const COUNT_OPTIONS: CountOption[] = [0, 1, 2, 3, 4, 5, "5回以上"];
 
 const HEALTH_FIELD_OPTIONS: { id: HealthFieldId; icon: string; label: string; description: string }[] = [
-  { id: "bloodPressure", icon: "🩺", label: "血圧", description: "収縮期・拡張期" },
-  { id: "menstrual", icon: "🌸", label: "生理関連", description: "生理痛・塊・PMS・過食・イライラ・不安" },
-  { id: "allergy", icon: "🤧", label: "アレルギー", description: "鼻水・鼻づまり・目のかゆみ（各5段階）" },
-  { id: "alcohol", icon: "🍶", label: "飲酒", description: "種類・量" },
-  { id: "kampo", icon: "💊", label: "漢方・薬の内服", description: "内服チェック" },
-  { id: "phoneTime", icon: "📱", label: "携帯使用時間", description: "1日の使用時間（分）" },
-  { id: "weightTemp", icon: "⚖️", label: "体重・体温", description: "kg・℃" },
+  { id: "bloodPressure", icon: "", label: "血圧", description: "収縮期・拡張期" },
+  { id: "menstrual", icon: "", label: "生理関連", description: "生理痛・塊・PMS・過食・イライラ・不安" },
+  { id: "allergy", icon: "", label: "アレルギー", description: "鼻水・鼻づまり・目のかゆみ（各5段階）" },
+  { id: "alcohol", icon: "", label: "飲酒", description: "種類・量" },
+  { id: "kampo", icon: "", label: "漢方・薬の内服", description: "内服チェック" },
+  { id: "phoneTime", icon: "", label: "携帯使用時間", description: "1日の使用時間（分）" },
+  { id: "weightTemp", icon: "", label: "体重・体温", description: "kg・℃" },
 ];
 
 const MENSTRUAL_ITEMS: { key: MenstrualKey; label: string }[] = [
@@ -771,14 +771,14 @@ type HourlyWeather = {
 const DEFAULT_USER_NAME = "つゆくさ太郎";
 
 const USER_MANUAL_STEP_KEYS = [
-  { icon: "🖥", titleKey: "manual.display.title", bodyKey: "manual.display.body" },
-  { icon: "🏠", titleKey: "manual.home.title", bodyKey: "manual.home.body" },
-  { icon: "📻", titleKey: "manual.radio.title", bodyKey: "manual.radio.body" },
-  { icon: "🎧", titleKey: "manual.binaural.title", bodyKey: "manual.binaural.body" },
-  { icon: "💬", titleKey: "manual.chat.title", bodyKey: "manual.chat.body" },
-  { icon: "❤️", titleKey: "manual.health.title", bodyKey: "manual.health.body" },
-  { icon: "📆", titleKey: "manual.calendar.title", bodyKey: "manual.calendar.body" },
-  { icon: "🔒", titleKey: "manual.data.title", bodyKey: "manual.data.body" },
+  { icon: "", titleKey: "manual.display.title", bodyKey: "manual.display.body" },
+  { icon: "", titleKey: "manual.home.title", bodyKey: "manual.home.body" },
+  { icon: "", titleKey: "manual.radio.title", bodyKey: "manual.radio.body" },
+  { icon: "", titleKey: "manual.binaural.title", bodyKey: "manual.binaural.body" },
+  { icon: "", titleKey: "manual.chat.title", bodyKey: "manual.chat.body" },
+  { icon: "", titleKey: "manual.health.title", bodyKey: "manual.health.body" },
+  { icon: "", titleKey: "manual.calendar.title", bodyKey: "manual.calendar.body" },
+  { icon: "", titleKey: "manual.data.title", bodyKey: "manual.data.body" },
 ] as const;
 
 type WeatherData = {
@@ -1151,24 +1151,24 @@ function getChatTimeBand(hour = new Date().getHours()): ChatTimeBand {
 function buildTemperatureComment(temperature: number | null | undefined): string {
   if (temperature == null || Number.isNaN(temperature)) return "";
   if (temperature >= 28) {
-    return `\n\n🌡️ 今日は${temperature}℃と暑いです。熱中症に注意し、こまめな塩・水分補給を意識しましょう。`;
+    return `\n\n今日は${temperature}℃と暑いです。熱中症に注意し、こまめな塩・水分補給を意識しましょう。`;
   }
   if (temperature <= 10) {
-    return `\n\n🌡️ 今日は${temperature}℃と冷え込んでいます。体を温めるため、入浴と塩湯で足元から温まりましょう。`;
+    return `\n\n今日は${temperature}℃と冷え込んでいます。体を温めるため、入浴と塩湯で足元から温まりましょう。`;
   }
   return "";
 }
 
 function buildReturnUserGreeting(name: string): { text: string; choices: string[] } {
   return {
-    text: `お久しぶりです、${name}さん🌿\n前回から生活リズムに変化はありましたか？`,
+    text: `お久しぶりです、${name}さん\n前回から生活リズムに変化はありましたか？`,
     choices: ["変化あり（教える）", "変化なし", "新機能について教えて"],
   };
 }
 
 function buildUpdateAiMessage(changes: string[]): string {
   const list = changes.length ? changes.map(c => `・${c}`).join("\n") : "・機能改善と安定性の向上";
-  return `今回のアップデート内容です🌿\n\n${list}\n\n気になる点があれば、何でもお聞きください。`;
+  return `今回のアップデート内容です\n\n${list}\n\n気になる点があれば、何でもお聞きください。`;
 }
 
 function buildResumeOnboardingPrompt(): { text: string; choices: string[] } {
@@ -1194,7 +1194,7 @@ function buildChatOpeningMessage(weather: WeatherData | null): { text: string; c
 
   const text =
     `${greetingByBand[band]}${weatherLine}${tempComment}\n\n` +
-    "🌿 つゆくさAIです。漢方・養生の知恵をもとに、あなたの生活リズムを整えるお手伝いをします。\n\n" +
+    "つゆくさAIです。漢方・養生の知恵をもとに、あなたの生活リズムを整えるお手伝いをします。\n\n" +
     "眠れない・早起きしたい・集中力を上げたいなど、今の悩みや「こうしたい」を自由に教えてください。";
 
   return {
@@ -1203,7 +1203,7 @@ function buildChatOpeningMessage(weather: WeatherData | null): { text: string; c
       "最近眠れない",
       "22時に寝たい",
       "集中力を上げたい",
-      "💬 自由に相談する",
+      "自由に相談する",
     ],
   };
 }
@@ -1222,9 +1222,9 @@ const CHAT_GOAL_FROM_CHOICE: Record<string, string> = {
   "最近眠れない": "最近眠れない",
   "22時に寝たい": "22時に寝たい",
   "集中力を上げたい": "集中力を上げたい",
-  "🛏 22時には眠りたい": "22時には眠りたい",
-  "🌅 早起きしたい": "早起きしたい",
-  "⚖️ 食事の時間を整えたい": "食事の時間を整えたい",
+  "22時には眠りたい": "22時には眠りたい",
+  "早起きしたい": "早起きしたい",
+  "食事の時間を整えたい": "食事の時間を整えたい",
 };
 
 type FlowQuestionStep = Exclude<ChatFlowStep, "intro" | "goal" | "proposal" | "free">;
@@ -1265,7 +1265,7 @@ const FLOW_STEP_CONFIG: Record<
 
 function parseGoalFromChoice(choice: string): string | null {
   if (choice in CHAT_GOAL_FROM_CHOICE) return CHAT_GOAL_FROM_CHOICE[choice];
-  if (choice === "💬 自分で入力する" || choice === "💬 自由に相談する") return null;
+  if (choice === "自分で入力する" || choice === "自由に相談する") return null;
   return choice.trim() || null;
 }
 
@@ -1619,7 +1619,7 @@ function PeriodGoalCard({
             opacity: isSuggesting ? 0.7 : 1,
           }}
         >
-          {isSuggesting ? "AIが提案中..." : "✨ AIに提案してもらう"}
+          {isSuggesting ? "AIが提案中..." : "AIに提案してもらう"}
         </button>
       )}
       {aiSuggestion?.text && onAdoptAi && (
@@ -1778,7 +1778,7 @@ function HomeGoalSection({
               opacity: isSuggesting ? 0.7 : 1,
             }}
           >
-            {isSuggesting ? "AIが提案中..." : "✨ AIに提案してもらう"}
+            {isSuggesting ? "AIが提案中..." : "AIに提案してもらう"}
           </button>
           {aiSuggestion?.text && (
             <div style={{ marginTop: 10, padding: 10, background: "#e8f0e4", borderRadius: 8, fontSize: 12 }}>
@@ -1913,7 +1913,7 @@ function HomeDeadlineGoalsSection({
   return (
     <div style={{ margin: "12px 16px 0", background: "white", borderRadius: 12, padding: "14px 16px", border: "1px solid rgba(60,40,20,0.1)" }}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
-        <div style={{ fontSize: 13, fontWeight: "bold", color: "#4a6741" }}>📅 期限付き目標</div>
+        <div style={{ fontSize: 13, fontWeight: "bold", color: "#4a6741" }}>期限付き目標</div>
         {activeGoals.length > 0 && <RateBadge rate={rate} />}
       </div>
 
@@ -1997,7 +1997,7 @@ function HomeDeadlineGoalsSection({
           opacity: isSuggesting ? 0.7 : 1,
         }}
       >
-        {isSuggesting ? "AIが提案中..." : "✨ AIに提案してもらう"}
+        {isSuggesting ? "AIが提案中..." : "AIに提案してもらう"}
       </button>
 
       {aiSuggestion?.text && (
@@ -3083,7 +3083,7 @@ ${buildHealthSummary(healthForm)}`;
       ...userMessages,
       {
         type: "ai",
-        text: `「${goal}」ですね。素晴らしい目標です🌿\n\n${FLOW_STEP_CONFIG.return_home.question}`,
+        text: `「${goal}」ですね。素晴らしい目標です\n\n${FLOW_STEP_CONFIG.return_home.question}`,
         choices: FLOW_STEP_CONFIG.return_home.choices,
         step: "return_home",
       },
@@ -3130,7 +3130,7 @@ ${buildHealthSummary(healthForm)}`;
     const userMessages: Message[] = [...chatMessages, { type: "user", text: trimmed }];
 
     if (fromStep === "intro") {
-      if (trimmed === "💬 自分で入力する") {
+      if (trimmed === "自分で入力する") {
         setChatMessages([
           ...userMessages,
           {
@@ -3142,7 +3142,7 @@ ${buildHealthSummary(healthForm)}`;
         setChatFlowStep("goal");
         return;
       }
-      if (trimmed === "💬 自由に相談する") {
+      if (trimmed === "自由に相談する") {
         setChatMessages([
           ...userMessages,
           {
@@ -3416,7 +3416,7 @@ ${buildHealthSummary(healthForm)}`;
     setChatMessages([
       {
         type: "ai",
-        text: `${displayName}さん、セットアップが完了しました🌿\n\nどんなライフスタイルにしたいですか？`,
+        text: `${displayName}さん、セットアップが完了しました\n\nどんなライフスタイルにしたいですか？`,
         step: "free",
       },
     ]);
@@ -3609,11 +3609,11 @@ ${buildHealthSummary(healthForm)}`;
         return (
           <div style={{ margin: "12px 16px 0", background: "var(--t-card-bg)", borderRadius: "var(--t-radius-md)", padding: "12px 14px", border: "1px solid var(--t-border)" }}>
             <div style={{ fontSize: "var(--t-font-size-sm)", color: "var(--t-text-muted)", marginBottom: 8, textAlign: "center" }}>
-              📍 {getRegionById(locationSettings.regionId).label}
+              {getRegionById(locationSettings.regionId).label}
             </div>
             <div style={{ display: "flex", justifyContent: "space-around", fontSize: "var(--t-font-size-base)", color: "var(--t-text)" }}>
-              {weather.sunrise && <span>🌅 {t("home.sunrise")} <strong>{weather.sunrise}</strong></span>}
-              {weather.sunset && <span>🌇 {t("home.sunset")} <strong>{weather.sunset}</strong></span>}
+              {weather.sunrise && <span>{t("home.sunrise")} <strong>{weather.sunrise}</strong></span>}
+              {weather.sunset && <span>{t("home.sunset")} <strong>{weather.sunset}</strong></span>}
             </div>
           </div>
         );
@@ -3647,7 +3647,7 @@ ${buildHealthSummary(healthForm)}`;
         return (
           <>
             <HomeGoalSection
-              title={`🎯 ${t("home.todayGoal")}`}
+              title={`${t("home.todayGoal")}`}
               goalList={goals.daily}
               collapsed={false}
               collapsible={false}
@@ -3697,7 +3697,7 @@ ${buildHealthSummary(healthForm)}`;
       case "monthlyGoal":
         return (
           <HomeGoalSection
-            title="🗓 今月の目標"
+            title="今月の目標"
             goalList={goals.monthly}
             collapsed={false}
             collapsible={false}
@@ -3737,7 +3737,7 @@ ${buildHealthSummary(healthForm)}`;
         return (
           <>
             <div style={{ padding: "20px 20px 8px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-              <div style={{ fontSize: "var(--t-font-size-lg)", fontWeight: "bold", color: "var(--t-text)" }}>📅 {t("home.todaySchedule")}</div>
+              <div style={{ fontSize: "var(--t-font-size-lg)", fontWeight: "bold", color: "var(--t-text)" }}>{t("home.todaySchedule")}</div>
               <button
                 type="button"
                 onClick={() => setScheduleEdit({ mode: "add", item: { id: "", time: "12:00", label: "", sub: "" } })}
@@ -3801,7 +3801,7 @@ ${buildHealthSummary(healthForm)}`;
       case "binaural":
         return (
           <div style={{ margin: "12px 16px 0", background: "var(--t-card-bg)", borderRadius: "var(--t-radius-md)", padding: "14px", border: "1px solid var(--t-border)" }}>
-            <div style={{ fontSize: "var(--t-font-size-base)", fontWeight: "bold", color: "var(--t-primary)", marginBottom: 8 }}>🎵 {t("home.soundPlayer")}</div>
+            <div style={{ fontSize: "var(--t-font-size-base)", fontWeight: "bold", color: "var(--t-primary)", marginBottom: 8 }}>{t("home.soundPlayer")}</div>
             <div style={{ fontSize: "var(--t-font-size-sm)", color: "var(--t-text-muted)", marginBottom: 10, lineHeight: 1.5 }}>
               {t("home.soundPlayerHint")}
             </div>
@@ -3813,7 +3813,7 @@ ${buildHealthSummary(healthForm)}`;
       case "pomodoro":
         return (
           <div style={{ margin: "12px 16px 0", background: "var(--t-card-bg)", borderRadius: "var(--t-radius-md)", padding: "14px", border: "1px solid var(--t-border)" }}>
-            <div style={{ fontSize: "var(--t-font-size-base)", fontWeight: "bold", color: "var(--t-primary)", marginBottom: 8 }}>🍅 {t("home.pomodoroTitle")}</div>
+            <div style={{ fontSize: "var(--t-font-size-base)", fontWeight: "bold", color: "var(--t-primary)", marginBottom: 8 }}>{t("home.pomodoroTitle")}</div>
             <div style={{ fontSize: "var(--t-font-size-sm)", color: "var(--t-text-muted)", marginBottom: 10, lineHeight: 1.5 }}>
               {t("home.pomodoroHint")}
             </div>
@@ -3831,7 +3831,7 @@ ${buildHealthSummary(healthForm)}`;
     return (
       <div style={themeAppShellStyle}>
         <div style={themeHeaderStyle}>
-          <div style={{ fontSize: "var(--t-font-size-xl)", fontWeight: "bold" }}>🌿 {t("common.appName")}</div>
+          <div style={{ fontSize: "var(--t-font-size-xl)", fontWeight: "bold" }}>{t("common.appName")}</div>
         </div>
         <div style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", fontSize: "var(--t-font-size-base)", color: "var(--t-text-muted)" }}>
           {t("common.loading")}
@@ -3880,7 +3880,7 @@ ${buildHealthSummary(healthForm)}`;
       {/* ヘッダー */}
       <div style={themeHeaderStyle}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: weather || weatherLoading ? 10 : 0 }}>
-          <div style={{ fontSize: "var(--t-font-size-xl)", fontWeight: "bold" }}>🌿 {t("common.appName")}</div>
+          <div style={{ fontSize: "var(--t-font-size-xl)", fontWeight: "bold" }}>{t("common.appName")}</div>
           <ClientFormattedDate />
         </div>
         {weatherLoading && (
@@ -3888,10 +3888,10 @@ ${buildHealthSummary(healthForm)}`;
         )}
         {weather && !weatherLoading && (
           <div style={{ display: "flex", flexWrap: "wrap", gap: "8px 14px", fontSize: 11, opacity: 0.85 }}>
-            <span>🌡️ {weather.temperature}℃</span>
-            <span>💧 {weather.humidity}%</span>
-            <span>☁️ {weatherLabel(weather.weatherCode)}</span>
-            <span>🌙 {weather.moonPhase}</span>
+            <span>{weather.temperature}℃</span>
+            <span>{weather.humidity}%</span>
+            <span>{weatherLabel(weather.weatherCode)}</span>
+            <span>{weather.moonPhase}</span>
           </div>
         )}
       </div>
@@ -3906,7 +3906,7 @@ ${buildHealthSummary(healthForm)}`;
             <HealthKitBridge healthData={healthData} />
             {healthImportMessage && (
               <div style={{ margin: "8px 16px 0", padding: "10px 12px", background: "#e8f0e4", borderRadius: 10, fontSize: 12, color: "#4a6741", textAlign: "center" }}>
-                ✓ {healthImportMessage}
+                {healthImportMessage}
               </div>
             )}
             <HomeAiChatTeaser
@@ -3942,16 +3942,16 @@ ${buildHealthSummary(healthForm)}`;
                   textAlign: "left",
                 }}
               >
-                🎧 バイノーラルビート · リラックス・集中サポート
+                バイノーラルビート · リラックス・集中サポート
               </button>
             </div>
             {weather && (
               <div style={{ margin: "12px 16px 0", background: "white", borderRadius: 10, padding: "10px 12px", border: "1px solid rgba(60,40,20,0.1)", fontSize: 11, color: "#3d3228", lineHeight: 1.6 }}>
-                <div style={{ fontWeight: "bold", color: "#4a6741", marginBottom: 4 }}>🌿 本日の環境（診断に反映）</div>
-                <span>🌡️ {weather.temperature}℃ </span>
-                <span>💧 {weather.humidity}% </span>
+                <div style={{ fontWeight: "bold", color: "#4a6741", marginBottom: 4 }}>本日の環境（診断に反映）</div>
+                <span>{weather.temperature}℃ </span>
+                <span>{weather.humidity}% </span>
                 <span>{weatherLabel(weather.weatherCode)} </span>
-                <span>🌙 {weather.moonPhase}</span>
+                <span>{weather.moonPhase}</span>
                 {weather.moonPhase === "満月" && (
                   <div style={{ color: "#c17f4a", marginTop: 4 }}>満月は水滞が悪化しやすい時期です</div>
                 )}
@@ -3977,7 +3977,7 @@ ${buildHealthSummary(healthForm)}`;
         {/* 設定 */}
         {tab === "settings" && (
           <div style={{ padding: 16 }}>
-            <div style={{ fontSize: 15, fontWeight: "bold", color: "#3d3228", marginBottom: 4 }}>📖 使い方ガイド</div>
+            <div style={{ fontSize: 15, fontWeight: "bold", color: "#3d3228", marginBottom: 4 }}>使い方ガイド</div>
             <div style={{ fontSize: 11, color: "#9a8b7a", marginBottom: 12, lineHeight: 1.5 }}>
               つゆくさ生活リズムアプリの主な機能と設定手順
             </div>
@@ -3994,7 +3994,7 @@ ${buildHealthSummary(healthForm)}`;
 
             <LanguageSettingsPanel />
 
-            <div style={{ fontSize: 15, fontWeight: "bold", color: "#3d3228", marginBottom: 4, paddingTop: 8, borderTop: "1px solid rgba(60,40,20,0.12)" }}>📅 曜日別スケジュール</div>
+            <div style={{ fontSize: 15, fontWeight: "bold", color: "#3d3228", marginBottom: 4, paddingTop: 8, borderTop: "1px solid rgba(60,40,20,0.12)" }}>曜日別スケジュール</div>
             <div style={{ fontSize: 11, color: "#3d3228", opacity: 0.6, marginBottom: 12, lineHeight: 1.5 }}>
               月〜日それぞれの基本スケジュールを設定できます。毎朝、その曜日のテンプレートから今日のスケジュールが自動生成されます。
             </div>
@@ -4100,7 +4100,7 @@ ${buildHealthSummary(healthForm)}`;
               }}
             />
 
-            <div style={{ fontSize: 15, fontWeight: "bold", color: "#3d3228", marginBottom: 4, paddingTop: 12, borderTop: "1px solid rgba(60,40,20,0.12)", marginTop: 8 }}>🎯 目標設定</div>
+            <div style={{ fontSize: 15, fontWeight: "bold", color: "#3d3228", marginBottom: 4, paddingTop: 12, borderTop: "1px solid rgba(60,40,20,0.12)", marginTop: 8 }}>目標設定</div>
             <div style={{ fontSize: 11, color: "#3d3228", opacity: 0.6, marginBottom: 8, lineHeight: 1.5 }}>
               すべて任意入力です。未設定の場合、AIが体調・季節・天気から今日の目標を提案します。
             </div>
@@ -4207,7 +4207,7 @@ ${buildHealthSummary(healthForm)}`;
               </button>
             </div>
 
-            <div style={{ fontSize: 15, fontWeight: "bold", color: "#3d3228", marginBottom: 4, paddingTop: 8, borderTop: "1px solid rgba(60,40,20,0.12)" }}>📋 体調チェックの表示項目</div>
+            <div style={{ fontSize: 15, fontWeight: "bold", color: "#3d3228", marginBottom: 4, paddingTop: 8, borderTop: "1px solid rgba(60,40,20,0.12)" }}>体調チェックの表示項目</div>
             <div style={{ fontSize: 11, color: "#3d3228", opacity: 0.6, marginBottom: 12 }}>
               選んだ項目だけが履歴タブの体調チェックに表示されます
             </div>
@@ -4251,7 +4251,7 @@ ${buildHealthSummary(healthForm)}`;
                     justifyContent: "center",
                     flexShrink: 0,
                   }}>
-                    {enabled && "✓"}
+                    {enabled && "·"}
                   </div>
                 </button>
               );
@@ -4263,17 +4263,17 @@ ${buildHealthSummary(healthForm)}`;
                 : `${enabledFields.length}項目を体調チェックに表示中`}
             </div>
 
-            <div style={{ fontSize: 15, fontWeight: "bold", color: "#3d3228", marginBottom: 12, paddingTop: 8, borderTop: "1px solid rgba(60,40,20,0.12)" }}>⚙️ 通知・連携</div>
+            <div style={{ fontSize: 15, fontWeight: "bold", color: "#3d3228", marginBottom: 12, paddingTop: 8, borderTop: "1px solid rgba(60,40,20,0.12)" }}>通知・連携</div>
             {[
-              { icon: "⏰", label: "起床アラート", val: MOCK_SCHEDULE.wakeTime },
-              { icon: "🍚", label: "食事アラート", val: `${MOCK_SCHEDULE.mealTime1} / ${MOCK_SCHEDULE.mealTime2}` },
-              { icon: "🛁", label: "入浴アラート", val: MOCK_SCHEDULE.bathTime },
-              { icon: "🌙", label: "就寝アラート", val: MOCK_SCHEDULE.sleepTime },
-              { icon: "📅", label: "Googleカレンダー連携", val: googleCalendar.connected ? "接続済み" : "未連携" },
-              { icon: "📲", label: "PWA（ホーム画面追加）", val: "対応" },
+              { icon: "", label: "起床アラート", val: MOCK_SCHEDULE.wakeTime },
+              { icon: "", label: "食事アラート", val: `${MOCK_SCHEDULE.mealTime1} / ${MOCK_SCHEDULE.mealTime2}` },
+              { icon: "", label: "入浴アラート", val: MOCK_SCHEDULE.bathTime },
+              { icon: "", label: "就寝アラート", val: MOCK_SCHEDULE.sleepTime },
+              { icon: "", label: "Googleカレンダー連携", val: googleCalendar.connected ? "接続済み" : "未連携" },
+              { icon: "", label: "PWA（ホーム画面追加）", val: "対応" },
             ].map((item, i) => (
               <div key={i} style={{ ...cardStyle, display: "flex", alignItems: "center", gap: 12 }}>
-                <div style={{ fontSize: 20 }}>{item.icon}</div>
+                {item.icon ? <div style={{ fontSize: 20 }}>{item.icon}</div> : null}
                 <div style={{ flex: 1, fontSize: 14 }}>{item.label}</div>
                 <div style={{ fontSize: 12, opacity: 0.6 }}>{item.val}</div>
               </div>
@@ -4284,7 +4284,7 @@ ${buildHealthSummary(healthForm)}`;
         {/* 履歴 */}
         {tab === "history" && (
           <div style={{ padding: 16 }}>
-            <div style={{ fontSize: 15, fontWeight: "bold", color: "#3d3228", marginBottom: 4 }}>🌿 今日の体調チェック</div>
+            <div style={{ fontSize: 15, fontWeight: "bold", color: "#3d3228", marginBottom: 4 }}>今日の体調チェック</div>
             <div style={{ fontSize: 11, color: "#3d3228", opacity: 0.6, marginBottom: 16 }}>毎朝の記録が、あなたに合った生活リズムの土台になります</div>
 
             {enabledFields.length === 0 && (
@@ -4304,19 +4304,19 @@ ${buildHealthSummary(healthForm)}`;
                   lineHeight: 1.6,
                 }}
               >
-                💡 設定タブで血圧・アレルギーなどの追加項目を選べます
+                設定タブで血圧・アレルギーなどの追加項目を選べます
               </button>
             )}
 
             {saveMessage && (
               <div style={{ background: "#e8f0e4", border: "1px solid #c5d8be", borderRadius: 12, padding: "10px 14px", marginBottom: 12, fontSize: 13, color: "#4a6741", textAlign: "center" }}>
-                ✓ {saveMessage}
+                {saveMessage}
               </div>
             )}
 
             {/* 睡眠時間 */}
             <div style={cardStyle}>
-              <div style={fieldLabelStyle}>🌙 睡眠時間</div>
+              <div style={fieldLabelStyle}>睡眠時間</div>
               <div style={{ display: "flex", gap: 12 }}>
                 <div style={{ flex: 1 }}>
                   <div style={{ fontSize: 11, color: "#3d3228", opacity: 0.6, marginBottom: 6 }}>入眠</div>
@@ -4355,7 +4355,7 @@ ${buildHealthSummary(healthForm)}`;
             {/* 夕食時間 */}
             <div style={cardStyle}>
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
-                <div style={{ ...fieldLabelStyle, marginBottom: 0 }}>🍚 夕食時間</div>
+                <div style={{ ...fieldLabelStyle, marginBottom: 0 }}>夕食時間</div>
                 <span style={{ fontSize: 18, fontWeight: "bold", color: "#1a1410" }}>{healthForm.dinnerTime}</span>
               </div>
               <input
@@ -4372,7 +4372,7 @@ ${buildHealthSummary(healthForm)}`;
             {/* 朝の体調 */}
             <div style={cardStyle}>
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
-                <div style={{ ...fieldLabelStyle, marginBottom: 0 }}>☀️ 朝の体調</div>
+                <div style={{ ...fieldLabelStyle, marginBottom: 0 }}>朝の体調</div>
                 <span style={{ fontSize: 16, fontWeight: "bold", color: "#c17f4a" }}>{healthForm.morningCondition}</span>
               </div>
               <input
@@ -4440,7 +4440,7 @@ ${buildHealthSummary(healthForm)}`;
             {/* 血圧 */}
             {isFieldEnabled("bloodPressure") && (
               <div style={cardStyle}>
-                <div style={fieldLabelStyle}>🩺 血圧</div>
+                <div style={fieldLabelStyle}>血圧</div>
                 <div style={{ display: "flex", gap: 12 }}>
                   <div style={{ flex: 1 }}>
                     <div style={{ fontSize: 11, color: "#3d3228", opacity: 0.6, marginBottom: 6 }}>収縮期</div>
@@ -4477,7 +4477,7 @@ ${buildHealthSummary(healthForm)}`;
             {/* 生理関連 */}
             {isFieldEnabled("menstrual") && (
               <div style={cardStyle}>
-                <div style={fieldLabelStyle}>🌸 生理関連（各10段階）</div>
+                <div style={fieldLabelStyle}>生理関連（各10段階）</div>
                 {MENSTRUAL_ITEMS.map(item => (
                   <LevelSlider
                     key={item.key}
@@ -4499,7 +4499,7 @@ ${buildHealthSummary(healthForm)}`;
             {/* アレルギー */}
             {isFieldEnabled("allergy") && (
               <div style={cardStyle}>
-                <div style={fieldLabelStyle}>🤧 アレルギー（各5段階）</div>
+                <div style={fieldLabelStyle}>アレルギー（各5段階）</div>
                 {ALLERGY_ITEMS.map(item => (
                   <LevelSlider
                     key={item.key}
@@ -4521,7 +4521,7 @@ ${buildHealthSummary(healthForm)}`;
             {/* 飲酒 */}
             {isFieldEnabled("alcohol") && (
               <div style={cardStyle}>
-                <div style={fieldLabelStyle}>🍶 飲酒</div>
+                <div style={fieldLabelStyle}>飲酒</div>
                 <div style={{ marginBottom: 10 }}>
                   <div style={{ fontSize: 11, color: "#3d3228", opacity: 0.6, marginBottom: 6 }}>種類</div>
                   <input
@@ -4554,7 +4554,7 @@ ${buildHealthSummary(healthForm)}`;
             {/* 漢方・薬 */}
             {isFieldEnabled("kampo") && (
               <div style={cardStyle}>
-                <div style={fieldLabelStyle}>💊 漢方・薬の内服（複数選択可）</div>
+                <div style={fieldLabelStyle}>漢方・薬の内服（複数選択可）</div>
                 <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
                   {KAMPO_OPTIONS.map(item => (
                     <ChipButton
@@ -4573,7 +4573,7 @@ ${buildHealthSummary(healthForm)}`;
             {/* 携帯使用時間 */}
             {isFieldEnabled("phoneTime") && (
               <div style={cardStyle}>
-                <div style={fieldLabelStyle}>📱 携帯使用時間</div>
+                <div style={fieldLabelStyle}>携帯使用時間</div>
                 <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
                   <input
                     type="number"
@@ -4605,7 +4605,7 @@ ${buildHealthSummary(healthForm)}`;
             {/* 体重・体温 */}
             {isFieldEnabled("weightTemp") && (
               <div style={cardStyle}>
-                <div style={fieldLabelStyle}>⚖️ 体重・体温</div>
+                <div style={fieldLabelStyle}>体重・体温</div>
                 <div style={{ display: "flex", gap: 12 }}>
                   <div style={{ flex: 1 }}>
                     <div style={{ fontSize: 11, color: "#3d3228", opacity: 0.6, marginBottom: 6 }}>体重</div>
@@ -4696,7 +4696,7 @@ ${buildHealthSummary(healthForm)}`;
               保存する
             </button>
 
-            <div style={{ fontSize: 15, fontWeight: "bold", color: "#3d3228", marginBottom: 12, paddingTop: 8, borderTop: "1px solid rgba(60,40,20,0.12)" }}>📊 過去の記録</div>
+            <div style={{ fontSize: 15, fontWeight: "bold", color: "#3d3228", marginBottom: 12, paddingTop: 8, borderTop: "1px solid rgba(60,40,20,0.12)" }}>過去の記録</div>
             {[
               { date: "5月29日（木）", diagnosis: "水滞", wake: "06:00", sleep: "22:30" },
               { date: "5月28日（水）", diagnosis: "血熱", wake: "06:30", sleep: "22:00" },
@@ -4707,7 +4707,7 @@ ${buildHealthSummary(healthForm)}`;
                 <div style={{ display: "inline-block", background: "#fdf0e4", color: "#c17f4a", borderRadius: 12, padding: "3px 10px", fontSize: 11, marginBottom: 6 }}>{h.diagnosis}</div>
                 <div style={{ display: "flex", gap: 12, fontSize: 12, opacity: 0.7 }}>
                   <span>⏰ {h.wake}</span>
-                  <span>🌙 {h.sleep}</span>
+                  <span>{h.sleep}</span>
                 </div>
               </div>
             ))}
@@ -4803,18 +4803,18 @@ ${buildHealthSummary(healthForm)}`;
       {/* ボトムナビ */}
       <div style={themeNavStyle}>
         {[
-          { key: "home", icon: "🏠", labelKey: "tabs.home" },
-          { key: "chat", icon: "💬", labelKey: "tabs.chat" },
-          { key: "sound", icon: "🎵", labelKey: "tabs.sound" },
-          { key: "history", icon: "📊", labelKey: "tabs.history" },
-          { key: "display", icon: "🖥", labelKey: "tabs.display" },
-          { key: "settings", icon: "⚙️", labelKey: "tabs.settings" },
+          { key: "home", icon: "", labelKey: "tabs.home" },
+          { key: "chat", icon: "", labelKey: "tabs.chat" },
+          { key: "sound", icon: "", labelKey: "tabs.sound" },
+          { key: "history", icon: "", labelKey: "tabs.history" },
+          { key: "display", icon: "", labelKey: "tabs.display" },
+          { key: "settings", icon: "", labelKey: "tabs.settings" },
         ].map(item => (
           <button key={item.key} onClick={() => setTab(item.key as Tab)} style={{
             flex: 1, display: "flex", flexDirection: "column", alignItems: "center", padding: "10px 0 12px", gap: 4, cursor: "pointer", border: "none", background: "none",
             color: tab === item.key ? "var(--t-nav-active)" : "var(--t-nav-inactive)", fontSize: "var(--t-font-size-sm)", fontFamily: "var(--t-font-family)"
           }}>
-            <div style={{ fontSize: 20 }}>{item.icon}</div>
+            {item.icon ? <div style={{ fontSize: 20 }}>{item.icon}</div> : null}
             {t(item.labelKey)}
           </button>
         ))}

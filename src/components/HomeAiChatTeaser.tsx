@@ -19,7 +19,7 @@ export function HomeAiChatTeaser({ latestMessage, onOpenChat, onSubmit }: Props)
   return (
     <div style={{ margin: "12px 16px 0", background: "var(--t-card-bg)", border: "1px solid var(--t-border)", borderRadius: "var(--t-radius-md)", padding: "14px 16px" }}>
       <div style={{ fontSize: "var(--t-font-size-base)", fontWeight: "bold", color: "var(--t-text)", marginBottom: 8 }}>
-        🌿 {t("home.homeAiChatTitle")}
+        {t("home.homeAiChatTitle")}
       </div>
       <div style={{ fontSize: "var(--t-font-size-sm)", color: "var(--t-text-muted)", marginBottom: 12, lineHeight: 1.5 }}>
         「{latestMessage ? truncateOneLine(latestMessage) : t("home.homeAiChatPrompt")}」

@@ -217,7 +217,7 @@ export default function PomodoroTimer({
     endAtRef.current = Date.now() + dur * 1000;
     scheduleSwAlarm(
       endAtRef.current,
-      `🍅 ${phaseLabel(phase)}終了`,
+      `${phaseLabel(phase)}終了`,
       `第${setNumber}セット · ${phaseLabel(phase)}`,
       "pomodoro"
     );
@@ -351,7 +351,7 @@ export default function PomodoroTimer({
         <div style={{ fontSize: 11, color: "#4a6741", marginTop: 6 }}>
           {linkBinaural && (
             <>
-              🎧 {phase === "work" ? "ベータ波（集中）" : "アルファ波（リラックス）"} 自動切替
+              {phase === "work" ? "ベータ波（集中）" : "アルファ波（リラックス）"} 自動切替
             </>
           )}
         </div>
@@ -425,7 +425,7 @@ export default function PomodoroTimer({
             cursor: "pointer",
           }}
         >
-          {isRunning ? "⏸ 一時停止" : "▶ ポモドーロ開始"}
+          {isRunning ? "一時停止" : "ポモドーロ開始"}
         </button>
         <button
           type="button"

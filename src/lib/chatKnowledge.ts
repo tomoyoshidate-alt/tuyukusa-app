@@ -95,7 +95,7 @@ export function updateChatKnowledgeFromFlow(
 export function updateChatKnowledgeFromUserMessage(prev: ChatKnowledge, text: string): ChatKnowledge {
   const trimmed = text.trim();
   if (!trimmed || trimmed.length > MAX_NOTE_LENGTH) return prev;
-  if (/^(🛏|🌅|⚖️|💬)/.test(trimmed)) return prev;
+  if (/^(自分で入力|自由に)/.test(trimmed)) return prev;
   if (/^\d{1,2}:\d{0,2}/.test(trimmed) && trimmed.length <= 12) return prev;
 
   let goals = prev.goals;

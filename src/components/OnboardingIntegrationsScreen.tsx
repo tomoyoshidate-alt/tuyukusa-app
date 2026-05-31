@@ -160,11 +160,11 @@ export function OnboardingIntegrationsScreen({
   };
 
   const cardEmoji: Record<IntegrationId, string> = {
-    supabase: "☁️",
-    notion: "📓",
-    googleCalendar: "📅",
-    healthkit: "❤️",
-    sound: "🎵",
+    supabase: "",
+    notion: "",
+    googleCalendar: "",
+    healthkit: "",
+    sound: "",
   };
 
   return (
@@ -179,7 +179,7 @@ export function OnboardingIntegrationsScreen({
       }}
     >
       <div style={{ padding: "16px 20px 12px", background: "#1a1410", color: "#f5f0e8" }}>
-        <div style={{ fontSize: 18, fontWeight: "bold" }}>🔗 {t("integrationGuide.title")}</div>
+        <div style={{ fontSize: 18, fontWeight: "bold" }}>{t("integrationGuide.title")}</div>
         <div style={{ fontSize: 11, opacity: 0.7, marginTop: 4 }}>{t("integrationGuide.subtitle")}</div>
       </div>
 
@@ -257,7 +257,7 @@ export function OnboardingIntegrationsScreen({
               <div style={{ fontSize: 14, lineHeight: 1.75, color: "#3d3228", marginBottom: 12, whiteSpace: "pre-line" }}>
                 {t(cardMeta.body)}
               </div>
-              <div style={{ fontSize: 11, color: "#8b7355", marginBottom: 8 }}>⏱ {t(cardMeta.duration)}</div>
+              <div style={{ fontSize: 11, color: "#8b7355", marginBottom: 8 }}>{t(cardMeta.duration)}</div>
               {cardMeta.pcNote && (
                 <div style={{ fontSize: 11, color: "#c17f4a", marginBottom: 12 }}>※ {t(cardMeta.pcNote)}</div>
               )}
@@ -300,7 +300,7 @@ export function OnboardingIntegrationsScreen({
 
         {phase === "cards" && activeSetup === "notion" && (
           <div style={{ background: "white", borderRadius: 16, padding: 16, border: "1px solid rgba(126,200,227,0.35)" }}>
-            <div style={{ fontSize: 16, fontWeight: "bold", marginBottom: 10 }}>📓 {t("notion.settingsTitle")}</div>
+            <div style={{ fontSize: 16, fontWeight: "bold", marginBottom: 10 }}>{t("notion.settingsTitle")}</div>
             <div style={{ fontSize: 12, color: "#3d3228", marginBottom: 10, lineHeight: 1.6 }}>
               {t("notion.settingsDescription")}
             </div>
@@ -349,7 +349,7 @@ export function OnboardingIntegrationsScreen({
 
         {phase === "cards" && activeSetup === "googleCalendar" && (
           <div style={{ background: "white", borderRadius: 16, padding: 16 }}>
-            <div style={{ fontSize: 16, fontWeight: "bold", marginBottom: 10 }}>📅 {t("settings.calendarTitle")}</div>
+            <div style={{ fontSize: 16, fontWeight: "bold", marginBottom: 10 }}>{t("settings.calendarTitle")}</div>
             <input
               type="url"
               placeholder="https://calendar.google.com/calendar/ical/..."

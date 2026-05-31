@@ -191,15 +191,15 @@ export default function SoundVisualizer({
         ctx2d.font = fullscreen ? "18px sans-serif" : "13px sans-serif";
         ctx2d.fillStyle = "rgba(245,240,232,0.85)";
         const lines: string[] = [];
-        if (overlays.includes("clock")) lines.push(`🕐 ${formatClock(new Date())}`);
+        if (overlays.includes("clock")) lines.push(`${formatClock(new Date())}`);
         if (overlays.includes("pomodoro") && pomodoroRemainingSec > 0) {
-          lines.push(`⏱️ ${formatDuration(pomodoroRemainingSec)}`);
+          lines.push(`${formatDuration(pomodoroRemainingSec)}`);
         }
         if (overlays.includes("schedule") && scheduleRemainingSec > 0) {
-          lines.push(`📅 ${formatDuration(scheduleRemainingSec)}`);
+          lines.push(`${formatDuration(scheduleRemainingSec)}`);
         }
         if (overlays.includes("presetTimer") && presetRemainingSec > 0) {
-          lines.push(`⏳ ${formatDuration(presetRemainingSec)}`);
+          lines.push(`${formatDuration(presetRemainingSec)}`);
         }
         lines.forEach((line, i) => ctx2d.fillText(line, 16, 24 + i * 22));
       }

@@ -35,7 +35,7 @@ export default function VoiceTaskConfirmModal({ task, loading = false, onConfirm
         }}
       >
         <div style={{ fontSize: 16, fontWeight: "bold", color: "#3d3228", marginBottom: 8 }}>
-          🎤 タスクを登録しますか？
+          タスクを登録しますか？
         </div>
         <div style={{ fontSize: 12, color: "#9a8b7a", marginBottom: 16, lineHeight: 1.6 }}>
           {task.summary}

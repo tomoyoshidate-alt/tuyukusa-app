@@ -32,7 +32,7 @@ export default function NotionManualPage({ onClose, onOpenSettings }: Props) {
         }}
       >
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
-          <div style={{ fontSize: 18, fontWeight: "bold", color: "#3d3228" }}>🔗 Notion連携の設定方法</div>
+          <div style={{ fontSize: 18, fontWeight: "bold", color: "#3d3228" }}>Notion連携の設定方法</div>
           <button type="button" onClick={onClose} style={{ background: "none", border: "none", fontSize: 22, cursor: "pointer", color: "#9a8b7a" }}>
             ×
           </button>
@@ -46,13 +46,13 @@ export default function NotionManualPage({ onClose, onOpenSettings }: Props) {
 
           <Section title="ステップ1：Notionアカウントを作成">
             <a href="https://notion.so" target="_blank" rel="noopener noreferrer" style={linkStyle}>
-              👉 Notionに登録する
+              Notionに登録する
             </a>
           </Section>
 
           <Section title="ステップ2：APIキーを取得">
             <a href="https://www.notion.so/my-integrations" target="_blank" rel="noopener noreferrer" style={linkStyle}>
-              👉 notion.so/my-integrations
+              notion.so/my-integrations
             </a>
             <ol style={olStyle}>
               <li>「新規インテグレーション」をクリック</li>
@@ -84,7 +84,7 @@ export default function NotionManualPage({ onClose, onOpenSettings }: Props) {
           </Section>
 
           <div style={{ marginTop: 20, padding: "12px 14px", background: "#e8f0e4", borderRadius: 10, fontSize: 12, color: "#4a6741" }}>
-            ❓ わからない場合はAI相談でサポートします
+            わからない場合はAI相談でサポートします
           </div>
         </div>
       </div>

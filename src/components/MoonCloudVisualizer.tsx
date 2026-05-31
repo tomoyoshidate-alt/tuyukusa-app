@@ -429,7 +429,7 @@ export default function MoonCloudVisualizer() {
             fontSize: 13, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center",
             flexShrink: 0,
           }}>
-            {playing ? "⏸" : "▶"}
+            {playing ? "停止" : "再生"}
           </button>
           {/* Settings toggle */}
           <button onClick={() => setShowSettings(s => !s)} style={{
@@ -439,7 +439,7 @@ export default function MoonCloudVisualizer() {
             color: "rgba(220,235,200,0.8)", fontSize: 12, cursor: "pointer",
             fontFamily: "sans-serif", letterSpacing: "0.05em",
           }}>
-            ⚙ 設定
+            設定
           </button>
         </div>
 
@@ -520,7 +520,7 @@ export default function MoonCloudVisualizer() {
                 background: "rgba(200,215,180,0.1)", color: "rgba(220,235,200,0.9)",
                 fontSize: 12, cursor: "pointer", fontFamily: "sans-serif", whiteSpace: "nowrap",
               }}>
-                ★ 保存
+                保存
               </button>
             </div>
           </div>

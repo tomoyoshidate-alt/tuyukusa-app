@@ -70,7 +70,7 @@ export default function BinauralExplainPage({ onClose, onTryBB }: Props) {
 
         <div style={{ flex: 1, overflowY: "auto", padding: "16px 16px 8px" }}>
           <h1 style={{ fontSize: 18, fontWeight: "bold", color: "#3d3228", margin: "0 0 16px", lineHeight: 1.4 }}>
-            🎧 バイノーラルビート（BB）とは？
+            バイノーラルビート（BB）とは？
           </h1>
 
           <Section>
@@ -82,15 +82,15 @@ export default function BinauralExplainPage({ onClose, onTryBB }: Props) {
               例：左耳200Hz＋右耳210Hz → 脳が10Hzのアルファ波を生成
             </p>
             <div style={warningStyle}>
-              ⚠️ 効果的に使うには必ずステレオイヤホンまたはヘッドホンが必要です。
+              効果的に使うには必ずステレオイヤホンまたはヘッドホンが必要です。
             </div>
           </Section>
 
           <Section title="【脳波と効果】">
-            <Bullet>🌙 デルタ波（0.5-4Hz）：深い睡眠・回復・無意識</Bullet>
-            <Bullet>🌀 シータ波（4-8Hz）：瞑想・創造性・深いリラックス・入眠</Bullet>
-            <Bullet>😌 アルファ波（8-13Hz）：リラックス・集中・ストレス軽減</Bullet>
-            <Bullet>☀️ ベータ波（13-30Hz）：集中・思考・問題解決・活動</Bullet>
+            <Bullet>デルタ波（0.5-4Hz）：深い睡眠・回復・無意識</Bullet>
+            <Bullet>シータ波（4-8Hz）：瞑想・創造性・深いリラックス・入眠</Bullet>
+            <Bullet>アルファ波（8-13Hz）：リラックス・集中・ストレス軽減</Bullet>
+            <Bullet>ベータ波（13-30Hz）：集中・思考・問題解決・活動</Bullet>
           </Section>
 
           <Section title="【漢方・養生との関連】">
@@ -101,11 +101,11 @@ export default function BinauralExplainPage({ onClose, onTryBB }: Props) {
           </Section>
 
           <Section title="【おすすめの使い方】">
-            <Bullet>🌅 朝：アルファ波10Hz＋森の音で目覚めを整える</Bullet>
-            <Bullet>☀️ 集中：ベータ波20Hz＋雨音または無音</Bullet>
-            <Bullet>🧘 瞑想：シータ波6Hz＋水琴窟または焚き火</Bullet>
-            <Bullet>🌙 就寝前：デルタ波2Hz＋波音または雨音</Bullet>
-            <Bullet>😌 ストレス時：アルファ波8Hz＋焚き火または水琴窟</Bullet>
+            <Bullet>朝：アルファ波10Hz＋森の音で目覚めを整える</Bullet>
+            <Bullet>集中：ベータ波20Hz＋雨音または無音</Bullet>
+            <Bullet>瞑想：シータ波6Hz＋水琴窟または焚き火</Bullet>
+            <Bullet>就寝前：デルタ波2Hz＋波音または雨音</Bullet>
+            <Bullet>ストレス時：アルファ波8Hz＋焚き火または水琴窟</Bullet>
           </Section>
 
           <Section title="【使用上の注意】">

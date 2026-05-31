@@ -203,7 +203,7 @@ export default function SoundSystemPanel({
   return (
     <div style={{ padding: "16px 16px 100px", color: "#f5f0e8" }}>
       <div style={{ marginBottom: 16 }}>
-        <div style={{ fontSize: 20, fontWeight: "bold" }}>🎵 サウンド</div>
+        <div style={{ fontSize: 20, fontWeight: "bold" }}>サウンド</div>
         <div style={{ fontSize: 11, opacity: 0.6, marginTop: 4 }}>
           グラニュライザー · 3chミキサー · プレイリスト
         </div>
@@ -226,7 +226,7 @@ export default function SoundSystemPanel({
               cursor: "pointer",
             }}
           >
-            {mode === "mixer" ? "🎛 ミキサー" : "🍅 ポモドーロ"}
+            {mode === "mixer" ? "ミキサー" : "ポモドーロ"}
           </button>
         ))}
       </div>
@@ -270,7 +270,7 @@ export default function SoundSystemPanel({
                 cursor: "pointer",
               }}
             >
-              {snapshot.isPlaying ? "⏹ 停止" : "▶ 再生"}
+              {snapshot.isPlaying ? "停止" : "再生"}
             </button>
             <button
               type="button"
@@ -284,7 +284,7 @@ export default function SoundSystemPanel({
                 cursor: "pointer",
               }}
             >
-              🖥
+              全画面
             </button>
           </div>
 
@@ -347,7 +347,7 @@ export default function SoundSystemPanel({
                   fontSize: 12,
                 }}
               >
-                🎧 バイノーラルビートとは？
+                バイノーラルビートとは？
               </button>
               <SectionTitle>バイノーラルビート（Ch1）</SectionTitle>
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 6, marginBottom: 12 }}>
@@ -370,7 +370,7 @@ export default function SoundSystemPanel({
                     }}
                   >
                     {p.emoji} {p.label}
-                    {p.id === recommendedId && " ★"}
+                    {p.id === recommendedId && " (推奨)"}
                   </button>
                 ))}
               </div>
@@ -505,7 +505,7 @@ export default function SoundSystemPanel({
                   cursor: "pointer",
                 }}
               >
-                {m === "asc" ? "▶️ 昇順" : m === "desc" ? "◀️ 降順" : "🔀 ランダム"}
+                {m === "asc" ? "昇順" : m === "desc" ? "降順" : "ランダム"}
               </button>
             ))}
           </div>
@@ -550,7 +550,7 @@ export default function SoundSystemPanel({
                     cursor: "pointer",
                   }}
                 >
-                  {inList ? "✓ " : "+ "}{p.name}
+                  {inList ? "" : "+ "}{p.name}
                 </button>
               );
             })}
@@ -571,7 +571,7 @@ export default function SoundSystemPanel({
                 opacity: playlistPresets.length ? 1 : 0.5,
               }}
             >
-              ▶ プレイリスト再生
+              プレイリスト再生
             </button>
             <button
               type="button"
@@ -610,7 +610,7 @@ export default function SoundSystemPanel({
                 cursor: "pointer",
               }}
             >
-              📊 スペクトラム
+              スペクトラム
             </button>
             <button
               type="button"
@@ -625,7 +625,7 @@ export default function SoundSystemPanel({
                 cursor: "pointer",
               }}
             >
-              🌙 月の水面
+              月の水面
             </button>
             <button
               type="button"
@@ -640,7 +640,7 @@ export default function SoundSystemPanel({
                 cursor: "pointer",
               }}
             >
-              🌙 月夜
+              月夜
             </button>
           </div>
           {sceneViz === "default" && (

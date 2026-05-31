@@ -35,7 +35,7 @@ function MockScreenshot({ label, step }: { label: string; step: number }) {
         justifyContent: "center",
       }}
     >
-      <div style={{ fontSize: 28, marginBottom: 8 }}>🖼️</div>
+      <div style={{ fontSize: 28, marginBottom: 8 }}></div>
       <div style={{ fontSize: 11, fontWeight: "bold", color: "#4a6741", marginBottom: 4 }}>
         STEP {step} {label}
       </div>
@@ -95,7 +95,7 @@ export function SupabaseSetupWizard({ settings, onChange, onComplete, onCancel, 
       >
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
           <div style={{ fontSize: 17, fontWeight: "bold", color: "#1a1410" }}>
-            ☁️ {t("integrationGuide.supabaseWizardTitle")}
+            {t("integrationGuide.supabaseWizardTitle")}
           </div>
           <button
             type="button"

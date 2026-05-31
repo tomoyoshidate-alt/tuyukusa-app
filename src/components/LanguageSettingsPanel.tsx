@@ -11,7 +11,7 @@ export default function LanguageSettingsPanel() {
 
   return (
     <>
-      <div style={themeSectionTitleStyle}>🌐 {t("language.title")}</div>
+      <div style={themeSectionTitleStyle}>{t("language.title")}</div>
       <div style={{ ...themeMutedTextStyle, marginBottom: 10, lineHeight: 1.5 }}>{t("language.description")}</div>
       <div style={{ ...themeCardStyle, display: "flex", flexDirection: "column", gap: 6 }}>
         {APP_LOCALES.map(locale => (
@@ -34,7 +34,7 @@ export default function LanguageSettingsPanel() {
             }}
           >
             <span>{t(LOCALE_LABEL_KEYS[locale])}</span>
-            {current === locale && <span style={{ color: "var(--t-primary)" }}>✓</span>}
+            {current === locale ? <span style={{ color: "var(--t-primary)", fontSize: 11 }}>選択中</span> : null}
           </button>
         ))}
       </div>

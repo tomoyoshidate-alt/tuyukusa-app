@@ -36,7 +36,7 @@ export function LocalTodayTasksSection({ tasks, onToggle, onAdd, onRemove }: Pro
       }}
     >
       <div style={{ fontSize: "var(--t-font-size-lg)", fontWeight: "bold", color: "var(--t-text)", marginBottom: 10 }}>
-        📋 {t("home.todayTasks")}
+        {t("home.todayTasks")}
       </div>
 
       <div style={{ display: "flex", gap: 6, marginBottom: 10 }}>

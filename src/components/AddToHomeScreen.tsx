@@ -80,7 +80,7 @@ export default function AddToHomeScreen() {
         }}
       >
         <div style={{ fontSize: 12, fontWeight: "bold", color: "#3d3228", marginBottom: 4 }}>
-          📲 ホーム画面に追加
+          ホーム画面に追加
         </div>
         <div style={{ fontSize: 11, color: "#9a8b7a", marginBottom: 10, lineHeight: 1.5 }}>
           アプリのように素早く起動できます。オフラインでも基本画面を表示します。
@@ -149,7 +149,7 @@ export default function AddToHomeScreen() {
             </div>
             {isIos() ? (
               <ol style={{ fontSize: 13, color: "#3d3228", lineHeight: 1.8, paddingLeft: 20, margin: 0 }}>
-                <li>Safari 下部の <strong>共有</strong> ボタン（□↑）をタップ</li>
+                <li>Safari 下部の <strong>共有</strong> ボタンをタップ</li>
                 <li><strong>ホーム画面に追加</strong> を選択</li>
                 <li><strong>追加</strong> をタップ</li>
               </ol>

@@ -136,7 +136,7 @@ export function AiDailyInsightSection({
             color: "#c5d8be",
           }}
         >
-          ❤️ {healthSummary}
+          {healthSummary}
         </div>
       )}
 

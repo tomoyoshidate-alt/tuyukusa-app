@@ -26,7 +26,7 @@ export default function NotionHomeBar({ connected, lastSyncAt, syncing, onSync }
       }}
     >
       <div style={{ flex: 1, minWidth: 0 }}>
-        <div style={{ fontSize: "var(--t-font-size-base)", fontWeight: "bold", color: "var(--t-text)" }}>🔗 {t("notion.title")}</div>
+        <div style={{ fontSize: "var(--t-font-size-base)", fontWeight: "bold", color: "var(--t-text)" }}>{t("notion.title")}</div>
         <div style={{ fontSize: "var(--t-font-size-sm)", color: "var(--t-text-muted)", marginTop: 2 }}>
           {connected ? `${t("notion.lastSync")}: ${formatSyncTime(lastSyncAt)}` : t("notion.notConnected")}
         </div>
@@ -49,7 +49,7 @@ export default function NotionHomeBar({ connected, lastSyncAt, syncing, onSync }
           fontFamily: "var(--t-font-family)",
         }}
       >
-        {syncing ? t("common.syncing") : `🔄 ${t("common.sync")}`}
+        {syncing ? t("common.syncing") : `${t("common.sync")}`}
       </button>
     </div>
   );

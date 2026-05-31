@@ -110,7 +110,7 @@ class BinauralPlaybackManager {
       this.endAtRef = Date.now() + timerMinutes * 60 * 1000;
       scheduleSwAlarm(
         this.endAtRef,
-        "🎧 バイノーラルタイマー終了",
+        "バイノーラルタイマー終了",
         `${preset.label} · ${timerMinutes}分が経過しました`,
         "binaural"
       );
@@ -216,7 +216,7 @@ class BinauralPlaybackManager {
 
   private handleTimerEnd(): void {
     stopSwAlarm();
-    this.onTimerExpiredFromSw("🎧 タイマー終了", "バイノーラルビートのセッションが終わりました");
+    this.onTimerExpiredFromSw("タイマー終了", "バイノーラルビートのセッションが終わりました");
   }
 
   private clearTick(): void {

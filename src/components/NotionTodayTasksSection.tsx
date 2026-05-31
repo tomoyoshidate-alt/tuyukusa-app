@@ -44,7 +44,7 @@ export default function NotionTodayTasksSection({
     >
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 10 }}>
         <div>
-          <div style={{ fontSize: "var(--t-font-size-lg)", fontWeight: "bold", color: "var(--t-text)" }}>📋 {t("home.notionTasks")}</div>
+          <div style={{ fontSize: "var(--t-font-size-lg)", fontWeight: "bold", color: "var(--t-text)" }}>{t("home.notionTasks")}</div>
           <div style={{ fontSize: "var(--t-font-size-sm)", color: "var(--t-text-muted)", marginTop: 2 }}>
             {connected ? `Notion · ${formatSyncTime(lastSyncAt)}` : t("notion.notConnected")}
           </div>
@@ -66,7 +66,7 @@ export default function NotionTodayTasksSection({
             fontFamily: "var(--t-font-family)",
           }}
         >
-          {syncing ? t("common.syncing") : "🔄"}
+          {syncing ? t("common.syncing") : t("common.sync")}
         </button>
       </div>
 

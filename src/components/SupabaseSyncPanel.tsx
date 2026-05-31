@@ -46,7 +46,7 @@ export function SupabaseSyncPanel({ settings, onChange, onSynced }: Props) {
   return (
     <div style={{ marginBottom: 12 }}>
       <div style={{ fontSize: 15, fontWeight: "bold", color: "#3d3228", marginBottom: 4 }}>
-        ☁️ {t("supabase.title")}
+        {t("supabase.title")}
       </div>
       <div
         style={{
@@ -186,7 +186,7 @@ export function SupabaseSyncPanel({ settings, onChange, onSynced }: Props) {
               cursor: configured && !syncing ? "pointer" : "default",
             }}
           >
-            ↑
+            送信
           </button>
           <button
             type="button"

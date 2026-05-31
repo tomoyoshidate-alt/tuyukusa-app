@@ -57,7 +57,7 @@ export function ExternalIntegrationsPanel({
           marginTop: 8,
         }}
       >
-        🔗 {t("integrations.title")}
+        {t("integrations.title")}
       </div>
       <div style={{ fontSize: 11, color: "#3d3228", opacity: 0.65, marginBottom: 10, lineHeight: 1.5 }}>
         {t("integrations.hint")}
@@ -66,7 +66,7 @@ export function ExternalIntegrationsPanel({
       {/* Google Calendar */}
       <div style={{ ...cardStyle, marginBottom: 12 }}>
         <div style={{ fontSize: 13, fontWeight: "bold", color: "#3d3228", marginBottom: 8 }}>
-          📅 {t("settings.calendarTitle")}
+          {t("settings.calendarTitle")}
         </div>
         <div style={fieldLabelStyle}>iCal URL（非公開）</div>
         <input
@@ -235,7 +235,7 @@ export function ExternalIntegrationsPanel({
         </div>
         {notion.settings.connected && notion.settings.enabled && (
           <div style={{ fontSize: 11, color: "#4a6741", marginTop: 10 }}>
-            ✓ {t("notion.connected")}
+            {t("notion.connected")}
             {notion.settings.lastSyncAt
               ? ` · ${t("notion.lastAt")} ${new Date(notion.settings.lastSyncAt).toLocaleTimeString("ja-JP", { hour: "2-digit", minute: "2-digit" })}`
               : ""}

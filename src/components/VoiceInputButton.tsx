@@ -87,7 +87,7 @@ export default function VoiceInputButton({ onTranscript, disabled = false, size 
         opacity: disabled ? 0.5 : 1,
       }}
     >
-      {listening ? "⏹" : "🎤"}
+      {listening ? "停止" : "音声"}
     </button>
   );
 }

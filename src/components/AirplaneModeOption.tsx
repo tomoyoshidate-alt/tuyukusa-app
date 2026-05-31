@@ -80,7 +80,7 @@ export default function AirplaneModeOption() {
           }}
         >
           <div style={{ fontWeight: "bold", color: "#8b5a2b", marginBottom: 8 }}>
-            📱 iOS「ショートカット」で機内モードをオンにする
+            iOS「ショートカット」で機内モードをオンにする
           </div>
           <ol style={{ margin: 0, paddingLeft: 18 }}>
             <li>iPhoneの「ショートカット」アプリを開く</li>

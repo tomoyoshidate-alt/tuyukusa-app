@@ -43,13 +43,13 @@ const sharedNatural: ThemePreset["vars"] = {
 export const THEME_PRESETS: Record<ThemeId, ThemePreset> = {
   natural: {
     id: "natural",
-    emoji: "🌿",
+    emoji: "",
     nameKey: "theme.natural",
     vars: { ...sharedNatural },
   },
   cute: {
     id: "cute",
-    emoji: "🎨",
+    emoji: "",
     nameKey: "theme.cute",
     vars: {
       ...sharedNatural,
@@ -81,7 +81,7 @@ export const THEME_PRESETS: Record<ThemeId, ThemePreset> = {
   },
   philosophical: {
     id: "philosophical",
-    emoji: "🔮",
+    emoji: "",
     nameKey: "theme.philosophical",
     vars: {
       ...sharedNatural,
@@ -115,7 +115,7 @@ export const THEME_PRESETS: Record<ThemeId, ThemePreset> = {
   },
   kids: {
     id: "kids",
-    emoji: "🧒",
+    emoji: "",
     nameKey: "theme.kids",
     vars: {
       ...sharedNatural,
@@ -150,7 +150,7 @@ export const THEME_PRESETS: Record<ThemeId, ThemePreset> = {
   },
   senior: {
     id: "senior",
-    emoji: "👴",
+    emoji: "",
     nameKey: "theme.senior",
     vars: {
       ...sharedNatural,
@@ -187,7 +187,7 @@ export const THEME_PRESETS: Record<ThemeId, ThemePreset> = {
   },
   "minimal-bw": {
     id: "minimal-bw",
-    emoji: "⬜",
+    emoji: "",
     nameKey: "theme.minimalBw",
     vars: {
       ...sharedNatural,
@@ -218,7 +218,7 @@ export const THEME_PRESETS: Record<ThemeId, ThemePreset> = {
   },
   simple: {
     id: "simple",
-    emoji: "📐",
+    emoji: "",
     nameKey: "theme.simple",
     vars: {
       ...sharedNatural,
@@ -249,7 +249,7 @@ export const THEME_PRESETS: Record<ThemeId, ThemePreset> = {
   },
   gradient: {
     id: "gradient",
-    emoji: "🌈",
+    emoji: "",
     nameKey: "theme.gradient",
     vars: {
       ...sharedNatural,
@@ -278,7 +278,7 @@ export const THEME_PRESETS: Record<ThemeId, ThemePreset> = {
   },
   dark: {
     id: "dark",
-    emoji: "🌙",
+    emoji: "",
     nameKey: "theme.dark",
     vars: {
       ...sharedNatural,
@@ -307,7 +307,7 @@ export const THEME_PRESETS: Record<ThemeId, ThemePreset> = {
   },
   japanese: {
     id: "japanese",
-    emoji: "🏮",
+    emoji: "",
     nameKey: "theme.japanese",
     vars: {
       ...sharedNatural,

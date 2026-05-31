@@ -50,7 +50,7 @@ export function DataManagementPanel({ onImported }: Props) {
           marginTop: 8,
         }}
       >
-        💾 {t("dataManagement.title")}
+        {t("dataManagement.title")}
       </div>
       <div
         style={{

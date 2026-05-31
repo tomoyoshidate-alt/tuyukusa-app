@@ -26,24 +26,24 @@ type DailyWeatherChartProps = {
 };
 
 function weatherIconLabel(code: number): { icon: string; label: string } {
-  if (code === 0) return { icon: '☀️', label: '晴' };
-  if (code <= 3) return { icon: '☁️', label: '曇' };
-  if (code <= 67) return { icon: '🌧️', label: '雨' };
-  if (code <= 77) return { icon: '❄️', label: '雪' };
-  if (code <= 82) return { icon: '🌧️', label: '雨' };
-  return { icon: '☁️', label: '曇' };
+  if (code === 0) return { icon: "", label: "晴" };
+  if (code <= 3) return { icon: "", label: "曇" };
+  if (code <= 67) return { icon: "", label: "雨" };
+  if (code <= 77) return { icon: "", label: "雪" };
+  if (code <= 82) return { icon: "", label: "雨" };
+  return { icon: "", label: "曇" };
 }
 
-function moonEmoji(age: number): string {
-  if (age < 1.85) return '🌑';
-  if (age < 7.38) return '🌒';
-  if (age < 9.22) return '🌓';
-  if (age < 12.92) return '🌔';
-  if (age < 14.77) return '🌕';
-  if (age < 18.48) return '🌖';
-  if (age < 22.15) return '🌗';
-  if (age < 25.83) return '🌘';
-  return '🌑';
+function moonPhaseShort(age: number): string {
+  if (age < 1.85) return "新月";
+  if (age < 7.38) return "三日月";
+  if (age < 9.22) return "上弦";
+  if (age < 12.92) return "十三夜";
+  if (age < 14.77) return "満月";
+  if (age < 18.48) return "十六夜";
+  if (age < 22.15) return "下弦";
+  if (age < 25.83) return "二十六夜";
+  return "新月";
 }
 
 export default function DailyWeatherChart({
@@ -81,7 +81,7 @@ export default function DailyWeatherChart({
             zIndex: 2,
           }}
         >
-          <div style={{ fontSize: 20, lineHeight: 1 }}>{moonEmoji(moonAge)}</div>
+          <div style={{ fontSize: 11, fontWeight: "bold", color: "#3d3228", lineHeight: 1 }}>{moonPhaseShort(moonAge)}</div>
           <div style={{ fontSize: 9, color: '#3d3228', opacity: 0.7, marginTop: 2 }}>
             {moonPhase}
           </div>
@@ -98,8 +98,7 @@ export default function DailyWeatherChart({
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(8, 1fr)', gap: 2, marginBottom: 6, paddingLeft: 24, paddingRight: 32 }}>
             {data.filter(h => h.hour % 3 === 0).map(h => (
               <div key={h.hour} style={{ textAlign: 'center', fontSize: 9, color: '#3d3228' }}>
-                <div style={{ fontSize: 11 }}>{h.icon}</div>
-                <div style={{ opacity: 0.65 }}>{h.weatherLabel}</div>
+                <div style={{ fontSize: 11, fontWeight: "bold" }}>{h.weatherLabel}</div>
                 <div style={{ fontSize: 8, color: '#9a8b7a' }}>{h.hour}時</div>
               </div>
             ))}

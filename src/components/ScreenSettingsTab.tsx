@@ -88,7 +88,7 @@ export default function ScreenSettingsTab({
       <FontSizeSettingsPanel />
       <LanguageSettingsPanel />
 
-      <div style={themeSectionTitleStyle}>👤 {t("screenSettings.profileTitle")}</div>
+      <div style={themeSectionTitleStyle}>{t("screenSettings.profileTitle")}</div>
       <div style={{ ...themeMutedTextStyle, marginBottom: 12, lineHeight: 1.5 }}>{t("screenSettings.profileHint")}</div>
       <div style={themeCardStyle}>
         <div style={labelStyle}>{t("screenSettings.nameLabel")}</div>
@@ -114,7 +114,7 @@ export default function ScreenSettingsTab({
         />
       </div>
 
-      <div style={themeSectionTitleStyle}>📍 {t("screenSettings.locationTitle")}</div>
+      <div style={themeSectionTitleStyle}>{t("screenSettings.locationTitle")}</div>
       <div style={{ ...themeMutedTextStyle, marginBottom: 8, lineHeight: 1.5 }}>{t("screenSettings.locationHint")}</div>
       <div style={themeCardStyle}>
         <div style={labelStyle}>{t("screenSettings.regionLabel")}</div>
@@ -132,7 +132,7 @@ export default function ScreenSettingsTab({
         </button>
         {geoStatus === "ok" && (
           <div style={{ fontSize: "var(--t-font-size-sm)", color: "var(--t-success)", marginTop: 8 }}>
-            ✓ {REGION_OPTIONS.find(r => r.id === locationSettings.regionId)?.label} {t("screenSettings.geoOk")}
+            {REGION_OPTIONS.find(r => r.id === locationSettings.regionId)?.label} {t("screenSettings.geoOk")}
           </div>
         )}
         {geoStatus === "error" && (
@@ -142,10 +142,10 @@ export default function ScreenSettingsTab({
         )}
       </div>
 
-      <div style={themeSectionTitleStyle}>❤️ {t("screenSettings.healthTitle")}</div>
+      <div style={themeSectionTitleStyle}>{t("screenSettings.healthTitle")}</div>
       <HealthKitBridge healthData={healthData} compact />
 
-      <div style={themeSectionTitleStyle}>🏠 {t("screenSettings.homeDisplayTitle")}</div>
+      <div style={themeSectionTitleStyle}>{t("screenSettings.homeDisplayTitle")}</div>
       <div style={{ ...themeMutedTextStyle, marginBottom: 8 }}>{t("screenSettings.weatherChartGroup")}</div>
       {HOME_WEATHER_TOGGLE_I18N_OPTIONS.map(opt => (
         <ToggleRow
@@ -164,7 +164,7 @@ export default function ScreenSettingsTab({
         />
       ))}
 
-      <div style={themeSectionTitleStyle}>↕️ {t("screenSettings.orderTitle")}</div>
+      <div style={themeSectionTitleStyle}>{t("screenSettings.orderTitle")}</div>
       <div style={{ ...themeMutedTextStyle, marginBottom: 8, lineHeight: 1.5 }}>{t("screenSettings.orderHint")}</div>
       <div style={themeCardStyle}>
         <SectionOrderList

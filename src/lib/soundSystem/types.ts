@@ -141,19 +141,19 @@ export const DEMO_SOURCE_OPTIONS: { id: DemoSourceId; emoji: string; label: stri
 ];
 
 export const VISUALIZER_EFFECTS: { id: VisualizerEffect; emoji: string; label: string }[] = [
-  { id: "waveform", emoji: "🌊", label: "波形" },
-  { id: "circle", emoji: "🔵", label: "円形スペクトラム" },
-  { id: "particle", emoji: "✨", label: "パーティクル" },
-  { id: "spiral", emoji: "🌀", label: "渦巻き" },
-  { id: "aurora", emoji: "🎆", label: "オーロラ" },
-  { id: "stars", emoji: "💫", label: "星空" },
-  { id: "petals", emoji: "🌸", label: "花びら" },
+  { id: "waveform", emoji: "", label: "波形" },
+  { id: "circle", emoji: "", label: "円形スペクトラム" },
+  { id: "particle", emoji: "", label: "パーティクル" },
+  { id: "spiral", emoji: "", label: "渦巻き" },
+  { id: "aurora", emoji: "", label: "オーロラ" },
+  { id: "stars", emoji: "", label: "星空" },
+  { id: "petals", emoji: "", label: "花びら" },
 ];
 
 export const OVERLAY_OPTIONS: { id: OverlayOption; emoji: string; label: string }[] = [
-  { id: "clock", emoji: "🕐", label: "現在時刻" },
-  { id: "pomodoro", emoji: "⏱️", label: "ポモドーロ残り" },
-  { id: "schedule", emoji: "📅", label: "次スケジュールまで" },
-  { id: "presetTimer", emoji: "⏳", label: "プリセット切替まで" },
-  { id: "none", emoji: "🔇", label: "何も表示しない" },
+  { id: "clock", emoji: "", label: "現在時刻" },
+  { id: "pomodoro", emoji: "", label: "ポモドーロ残り" },
+  { id: "schedule", emoji: "", label: "次スケジュールまで" },
+  { id: "presetTimer", emoji: "", label: "プリセット切替まで" },
+  { id: "none", emoji: "", label: "何も表示しない" },
 ];

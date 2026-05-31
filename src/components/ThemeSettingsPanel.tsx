@@ -11,7 +11,7 @@ export default function ThemeSettingsPanel() {
 
   return (
     <>
-      <div style={themeSectionTitleStyle}>🎨 {t("theme.title")}</div>
+      <div style={themeSectionTitleStyle}>{t("theme.title")}</div>
       <div style={{ ...themeMutedTextStyle, marginBottom: 10, lineHeight: 1.5 }}>{t("theme.description")}</div>
       <div style={{ ...themeCardStyle, display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
         {THEME_IDS.map(id => {
@@ -34,7 +34,7 @@ export default function ThemeSettingsPanel() {
                 fontFamily: "var(--t-font-family)",
               }}
             >
-              <span style={{ marginRight: 4 }}>{preset.emoji}</span>
+              {preset.emoji ? <span style={{ marginRight: 4 }}>{preset.emoji}</span> : null}
               {t(preset.nameKey)}
             </button>
           );

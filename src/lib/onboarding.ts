@@ -7,12 +7,12 @@ export const ONBOARDING_WELCOME_MESSAGE = `こんにちは。
 サポートと健康相談が
 できるアプリです。`;
 
-export const ONBOARDING_GOAL_FREE_LABEL = "④ 自由に入力する";
+export const ONBOARDING_GOAL_FREE_LABEL = "自由に入力する";
 
 export const ONBOARDING_GOAL_CHOICES = [
-  "① 睡眠の質を上げたい",
-  "② 集中力を高めたい",
-  "③ 心身を整えたい",
+  "睡眠の質を上げたい",
+  "集中力を高めたい",
+  "心身を整えたい",
   ONBOARDING_GOAL_FREE_LABEL,
 ];
 
@@ -38,9 +38,7 @@ export type OnboardingFlowData = LifestyleKnowledge & {
 export const GENDER_CHOICES = ["男性", "女性", "回答しない"] as const;
 
 export function parseOnboardingGoalChoice(choice: string): string | null {
-  if (choice === ONBOARDING_GOAL_FREE_LABEL || choice === "💬 自由に入力する" || choice.includes("自由に入力")) return null;
-  const numbered = choice.match(/^[①②③④]\s*(.+)$/);
-  if (numbered) return numbered[1].trim() || null;
+  if (choice === ONBOARDING_GOAL_FREE_LABEL || choice.includes("自由に入力")) return null;
   return choice.trim() || null;
 }
 

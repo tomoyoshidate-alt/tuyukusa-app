@@ -164,11 +164,11 @@ export default function TsuyukusaRadio({
     <>
       <div style={cardStyle}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
-          <div style={{ fontSize: 14, fontWeight: "bold", color: "#3d3228" }}>📻 {activeTitle}</div>
+          <div style={{ fontSize: 14, fontWeight: "bold", color: "#3d3228" }}>{activeTitle}</div>
           {showBinauralSwitch && (
             <div style={{ display: "flex", gap: 6 }}>
-              <button type="button" onClick={onOpenBinaural} style={switchBtnStyle}>🎧 ビート</button>
-              <button type="button" onClick={onOpenPomodoro} style={switchBtnStyle}>🍅 タイマー</button>
+              <button type="button" onClick={onOpenBinaural} style={switchBtnStyle}>ビート</button>
+              <button type="button" onClick={onOpenPomodoro} style={switchBtnStyle}>タイマー</button>
             </div>
           )}
         </div>
@@ -191,7 +191,7 @@ export default function TsuyukusaRadio({
                 cursor: "pointer",
               }}
             >
-              {isPlayingThisSource ? "⏸ 停止" : `▶ ${activeTitle} を再生`}
+              {isPlayingThisSource ? "停止" : `${activeTitle} を再生`}
             </button>
             {isPlayingThisSource && (
               <div style={{ fontSize: 11, color: "#4a6741", textAlign: "center" }}>
@@ -206,7 +206,7 @@ export default function TsuyukusaRadio({
         )}
 
         <div style={{ marginTop: 14 }}>
-          <div style={sectionLabelStyle}>🎧 プレイリスト</div>
+          <div style={sectionLabelStyle}>プレイリスト</div>
           {episodesLoading ? (
             <div style={{ fontSize: 12, color: "#9a8b7a", padding: "8px 0" }}>エピソードを読み込み中...</div>
           ) : episodes.length === 0 ? (
@@ -220,7 +220,7 @@ export default function TsuyukusaRadio({
                 onClick={selectShow}
                 style={playlistItemStyle(isShowDefault)}
               >
-                <div style={{ fontSize: 12, fontWeight: "bold", color: "#3d3228" }}>📻 {TSUYUKUSA_RADIO_TITLE}（最新）</div>
+                <div style={{ fontSize: 12, fontWeight: "bold", color: "#3d3228" }}>{TSUYUKUSA_RADIO_TITLE}（最新）</div>
                 <div style={{ fontSize: 10, color: "#9a8b7a", marginTop: 2 }}>ショー全体を再生</div>
               </button>
               {episodes.map(ep => {

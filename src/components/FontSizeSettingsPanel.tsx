@@ -11,7 +11,7 @@ export default function FontSizeSettingsPanel() {
 
   return (
     <>
-      <div style={themeSectionTitleStyle}>🔤 {t("fontSize.title")}</div>
+      <div style={themeSectionTitleStyle}>{t("fontSize.title")}</div>
       <div style={{ ...themeMutedTextStyle, marginBottom: 10, lineHeight: 1.5 }}>{t("fontSize.description")}</div>
       <div style={{ ...themeCardStyle, display: "flex", flexDirection: "column", gap: 6 }}>
         {FONT_SIZE_IDS.map(id => (
@@ -35,7 +35,7 @@ export default function FontSizeSettingsPanel() {
             }}
           >
             <span>{t(FONT_SIZE_I18N_KEYS[id])}</span>
-            {fontSizeId === id && <span style={{ color: "var(--t-primary)", fontSize: "var(--t-font-size-sm)" }}>✓</span>}
+            {fontSizeId === id ? <span style={{ color: "var(--t-primary)", fontSize: "var(--t-font-size-sm)" }}>選択中</span> : null}
           </button>
         ))}
       </div>

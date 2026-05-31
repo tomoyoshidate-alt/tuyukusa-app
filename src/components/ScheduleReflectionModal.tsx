@@ -76,7 +76,7 @@ export function ScheduleReflectionModal({ reflection, open, applying, onConfirm,
             </div>
             {reflection.habits.map((habit, i) => (
               <div key={`${habit.title}-${i}`} style={{ fontSize: 12, color: "#3d3228", marginBottom: 4 }}>
-                🌿 {habit.title}
+                {habit.title}
                 {habit.time ? `（${habit.time}）` : ""}
               </div>
             ))}
