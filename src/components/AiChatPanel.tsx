@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, type RefObject } from "react";
 import { useTranslation } from "react-i18next";
-import { handleChatTextareaKeyDown, isMacPlatform as detectMacPlatform } from "@/src/lib/chatSubmitKeyboard";
+import { handleAiChatEnterSendKeyDown } from "@/src/lib/chatSubmitKeyboard";
 import type { ScheduleReflection } from "@/src/lib/scheduleReflection";
 
 export type ScheduleSuggestion = {
@@ -61,7 +61,6 @@ export function AiChatPanel({
   const { t } = useTranslation();
   const internalEndRef = useRef<HTMLDivElement>(null);
   const messagesEndRef = externalEndRef ?? internalEndRef;
-  const macPlatform = detectMacPlatform();
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -296,7 +295,7 @@ export function AiChatPanel({
           onChange={e => onChatInputChange(e.target.value)}
           onCompositionStart={onCompositionStart}
           onCompositionEnd={onCompositionEnd}
-          onKeyDown={e => handleChatTextareaKeyDown(e, onSend, isComposing)}
+          onKeyDown={e => handleAiChatEnterSendKeyDown(e, onSend, isComposing)}
           rows={2}
         />
         <button
@@ -317,7 +316,7 @@ export function AiChatPanel({
             fontFamily: "inherit",
           }}
         >
-          {macPlatform ? t("chat.sendMac") : t("chat.sendWin")}
+          {t("chat.send")}
         </button>
       </div>
     </div>

@@ -4,6 +4,20 @@ export function isImeComposing(e: KeyboardEvent): boolean {
   return e.nativeEvent.isComposing || e.keyCode === 229;
 }
 
+/** Enter = send; Shift+Enter = newline. IME composition Enter is ignored. */
+export function handleAiChatEnterSendKeyDown(
+  e: KeyboardEvent<HTMLTextAreaElement>,
+  onSend: () => void,
+  isComposing = false,
+): void {
+  if (e.key !== "Enter") return;
+  if (isImeComposing(e) || isComposing) return;
+  if (e.shiftKey) return;
+
+  e.preventDefault();
+  onSend();
+}
+
 /** Enter = newline; Cmd/Ctrl+Enter = send. IME composition Enter is ignored. */
 export function handleChatTextareaKeyDown(
   e: KeyboardEvent<HTMLTextAreaElement>,
