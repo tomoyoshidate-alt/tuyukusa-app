@@ -77,4 +77,5 @@ export type TranslationSchema = {
   onboarding: Record<string, string>;
   integrationGuide: Record<string, string>;
   update: Record<string, string>;
+  pwa: Record<string, string>;
 };

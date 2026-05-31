@@ -34,6 +34,9 @@ import {
   type HealthData,
 } from "@/src/lib/healthData";
 import AddToHomeScreen from "@/src/components/AddToHomeScreen";
+import { AppSidebar } from "@/src/components/AppSidebar";
+import { PwaInstallSection } from "@/src/components/PwaInstallSection";
+import { useDesktopLayout } from "@/src/hooks/useDesktopLayout";
 import BinauralGlobalAlarm from "@/src/components/BinauralGlobalAlarm";
 import HealthKitBridge from "@/src/components/HealthKitBridge";
 import LanguageSettingsPanel from "@/src/components/LanguageSettingsPanel";
@@ -2132,6 +2135,7 @@ function notionDbBody(settings: NotionSettings): Record<string, string | undefin
 
 export default function TuyukusaApp() {
   const { t, i18n } = useTranslation();
+  const isDesktop = useDesktopLayout();
   const appLocale = (i18n.language?.slice(0, 2) ?? "ja") as AppLocale;
   const [tab, setTab] = useState<Tab>("home");
   const [chatMessages, setChatMessages] = useState<Message[]>([]);
@@ -3866,7 +3870,7 @@ ${buildHealthSummary(healthForm)}`;
   }
 
   return (
-    <div style={themeAppShellStyle}>
+    <div className="app-shell" style={themeAppShellStyle}>
       {updateNotification && (
         <UpdateNotificationScreen
           oldVersion={updateNotification.oldVersion}
@@ -3876,9 +3880,12 @@ ${buildHealthSummary(healthForm)}`;
           onGoHome={() => dismissUpdateNotification("home")}
         />
       )}
-      
+
+      {isDesktop && <AppSidebar activeTab={tab} onTabChange={setTab} />}
+
+      <div className="app-main-column">
       {/* ヘッダー */}
-      <div style={themeHeaderStyle}>
+      <div className={isDesktop ? "app-header--desktop" : undefined} style={themeHeaderStyle}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: weather || weatherLoading ? 10 : 0 }}>
           <div style={{ fontSize: "var(--t-font-size-xl)", fontWeight: "bold" }}>{t("common.appName")}</div>
           <ClientFormattedDate />
@@ -3897,7 +3904,7 @@ ${buildHealthSummary(healthForm)}`;
       </div>
 
       {/* コンテンツ */}
-      <div style={{ flex: 1, overflowY: "auto", paddingBottom: 20 }}>
+      <div className={`app-main-scroll${isDesktop ? " app-content-desktop" : ""}`} style={{ flex: 1, overflowY: "auto", paddingBottom: isDesktop ? 0 : 20 }}>
         
         {/* ホーム */}
         {tab === "home" && (
@@ -3924,7 +3931,7 @@ ${buildHealthSummary(healthForm)}`;
 
         {/* AI相談 */}
         {tab === "chat" && (
-          <div style={{ display: "flex", flexDirection: "column", height: "calc(100vh - 120px)" }}>
+          <div style={{ display: "flex", flexDirection: "column", height: isDesktop ? "calc(100vh - 100px)" : "calc(100vh - 120px)" }}>
             <div style={{ margin: "12px 16px 0" }}>
               <button
                 type="button"
@@ -3976,7 +3983,8 @@ ${buildHealthSummary(healthForm)}`;
 
         {/* 設定 */}
         {tab === "settings" && (
-          <div style={{ padding: 16 }}>
+          <div style={{ padding: isDesktop ? "8px 16px 24px" : 16 }}>
+            <PwaInstallSection variant="settings" />
             <div style={{ fontSize: 15, fontWeight: "bold", color: "#3d3228", marginBottom: 4 }}>使い方ガイド</div>
             <div style={{ fontSize: 11, color: "#9a8b7a", marginBottom: 12, lineHeight: 1.5 }}>
               つゆくさ生活リズムアプリの主な機能と設定手順
@@ -4800,8 +4808,8 @@ ${buildHealthSummary(healthForm)}`;
 
       <RadioMiniPlayer />
 
-      {/* ボトムナビ */}
-      <div style={themeNavStyle}>
+      {/* ボトムナビ（モバイル） */}
+      <div className="app-bottom-nav" style={themeNavStyle}>
         {[
           { key: "home", icon: "", labelKey: "tabs.home" },
           { key: "chat", icon: "", labelKey: "tabs.chat" },
@@ -4818,6 +4826,7 @@ ${buildHealthSummary(healthForm)}`;
             {t(item.labelKey)}
           </button>
         ))}
+      </div>
       </div>
     </div>
   );

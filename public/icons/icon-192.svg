@@ -1,4 +1,5 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 192 192" fill="none">
   <rect width="192" height="192" rx="40" fill="#1a1410"/>
-  <text x="96" y="118" text-anchor="middle" font-size="88"><?</text>
+  <circle cx="96" cy="96" r="54" fill="#4a6741" opacity="0.35"/>
+  <text x="96" y="118" text-anchor="middle" fill="#e8a86a" font-size="78" font-family="serif">つ</text>
 </svg>
