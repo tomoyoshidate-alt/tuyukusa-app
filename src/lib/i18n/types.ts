@@ -15,7 +15,7 @@ export type TranslationSchema = {
     tapToEdit: string;
     today: string;
   };
-  tabs: Record<"home" | "chat" | "sound" | "history" | "display" | "settings", string>;
+  tabs: Record<"home" | "chat" | "sound" | "history" | "display" | "integrations" | "settings", string>;
   theme: {
     title: string;
     description: string;
@@ -86,4 +86,5 @@ export type TranslationSchema = {
   integrationGuide: Record<string, string>;
   update: Record<string, string>;
   pwa: Record<string, string>;
+  intro: Record<string, string>;
 };

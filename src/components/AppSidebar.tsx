@@ -2,7 +2,7 @@
 
 import { useTranslation } from "react-i18next";
 
-const TAB_KEYS = ["home", "chat", "sound", "history", "display", "settings"] as const;
+const TAB_KEYS = ["home", "chat", "sound", "history", "display", "integrations", "settings"] as const;
 
 type TabKey = (typeof TAB_KEYS)[number];
 

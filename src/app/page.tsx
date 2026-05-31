@@ -50,10 +50,11 @@ import { AiDailyInsightSection } from "@/src/components/AiDailyInsightSection";
 import { ScheduleReflectionModal } from "@/src/components/ScheduleReflectionModal";
 import { LocalTodayTasksSection } from "@/src/components/LocalTodayTasksSection";
 import { DataManagementPanel } from "@/src/components/DataManagementPanel";
-import { SupabaseSyncPanel } from "@/src/components/SupabaseSyncPanel";
 import { HomeIntegrationCards } from "@/src/components/HomeIntegrationCards";
-import { ExternalIntegrationsPanel } from "@/src/components/ExternalIntegrationsPanel";
 import { OnboardingScreen } from "@/src/components/OnboardingScreen";
+import { OnboardingIntroScreen } from "@/src/components/OnboardingIntroScreen";
+import { IntegrationsTabPanel } from "@/src/components/IntegrationsTabPanel";
+import { isIntroCompleted, markIntroCompleted } from "@/src/lib/introStorage";
 import { OnboardingIntegrationsScreen, type IntegrationFinishOptions } from "@/src/components/OnboardingIntegrationsScreen";
 import { AiChatPanel } from "@/src/components/AiChatPanel";
 import type { OnboardingFlowData } from "@/src/lib/onboarding";
@@ -638,7 +639,7 @@ type Message = {
   addedScheduleIds?: string[];
 };
 
-type Tab = "home" | "chat" | "history" | "sound" | "display" | "settings";
+type Tab = "home" | "chat" | "history" | "sound" | "display" | "integrations" | "settings";
 type MoodKey = "anger" | "anxiety" | "sadness" | "fog" | "manic";
 type CountOption = number | "5回以上";
 type HealthFieldId =
@@ -1201,7 +1202,7 @@ function buildUpdateAiMessage(changes: string[]): string {
 function buildResumeOnboardingPrompt(): { text: string; choices: string[] } {
   return {
     text: "まだお聞きしていないことがあります。\nよろしければ教えてください。",
-    choices: ["続きから答える", "後で"],
+    choices: ["続きから答える", "後で", "新機能について教えて"],
   };
 }
 
@@ -2278,6 +2279,8 @@ export default function TuyukusaApp() {
   const [reflectNotice, setReflectNotice] = useState("");
   const [reflectMessageIndex, setReflectMessageIndex] = useState<number | null>(null);
   const [onboardingPhase, setOnboardingPhase] = useState<"questionnaire" | "integrations">("questionnaire");
+  const [introDone, setIntroDone] = useState(true);
+  const [showIntroReplay, setShowIntroReplay] = useState(false);
   const [pendingOnboarding, setPendingOnboarding] = useState<{
     data: OnboardingFlowData;
     reflection: ScheduleReflection | null;
@@ -2370,6 +2373,11 @@ export default function TuyukusaApp() {
       setPendingOnboarding({ data: progress.flowData, reflection: null });
     }
   }, [userProfileHydrated, userProfile.onboardingComplete]);
+
+  useEffect(() => {
+    if (!storageReady) return;
+    setIntroDone(isIntroCompleted());
+  }, [storageReady]);
 
   useEffect(() => {
     if (!storageReady || !userProfile.onboardingComplete) return;
@@ -3917,6 +3925,18 @@ ${buildHealthSummary(healthForm)}`;
     setTab("home");
   };
 
+  if (storageReady && (!introDone || showIntroReplay)) {
+    return (
+      <OnboardingIntroScreen
+        onComplete={() => {
+          markIntroCompleted();
+          setIntroDone(true);
+          setShowIntroReplay(false);
+        }}
+      />
+    );
+  }
+
   if (!userProfile.onboardingComplete) {
     if (onboardingPhase === "integrations" && pendingOnboarding) {
       return (
@@ -4065,9 +4085,59 @@ ${buildHealthSummary(healthForm)}`;
           />
         )}
 
+        {tab === "integrations" && (
+          <IntegrationsTabPanel
+            isDesktop={isDesktop}
+            cardStyle={cardStyle}
+            fieldLabelStyle={fieldLabelStyle}
+            inputStyle={inputStyle}
+            supabaseSettings={supabaseSettings}
+            onSupabaseChange={patch => setSupabaseSettings(prev => ({ ...prev, ...patch }))}
+            onSupabaseSynced={() => window.location.reload()}
+            googleCalendar={{
+              connected: googleCalendar.connected,
+              icalUrl: googleCalendar.icalUrl,
+              syncing: false,
+              message: calendarMessage,
+              onIcalUrlChange: url =>
+                setGoogleCalendar(prev => ({ ...prev, icalUrl: url, connected: false })),
+              onConnect: () => void connectGoogleCalendar(),
+              onDisconnect: disconnectGoogleCalendar,
+              onSync: () => void syncGoogleCalendar(),
+            }}
+            notionSettings={notionSettings}
+            notionSyncing={notionSyncing}
+            notionMessage={notionMessage}
+            showNotionManual={showNotionManual}
+            onShowNotionManual={setShowNotionManual}
+            onNotionChange={patch => setNotionSettings(prev => ({ ...prev, ...patch }))}
+            onNotionSetup={() => void setupNotion()}
+            onNotionSync={() => void syncNotion()}
+          />
+        )}
+
         {/* 設定 */}
         {tab === "settings" && (
           <div style={{ padding: isDesktop ? "8px 16px 24px" : 16 }}>
+            <button
+              type="button"
+              onClick={() => setShowIntroReplay(true)}
+              style={{
+                width: "100%",
+                padding: "12px 16px",
+                marginBottom: 16,
+                borderRadius: 12,
+                border: "1.5px solid rgba(60,40,20,0.12)",
+                background: "white",
+                color: "#3d3228",
+                fontSize: 14,
+                fontWeight: "bold",
+                cursor: "pointer",
+                textAlign: "left",
+              }}
+            >
+              🌿 {t("intro.replay")}
+            </button>
             <SettingsConvenientUsageSection healthData={healthData} />
             <div style={{ fontSize: 15, fontWeight: "bold", color: "#3d3228", marginBottom: 4, paddingTop: 8, borderTop: "1px solid rgba(60,40,20,0.12)" }}>使い方ガイド</div>
             <div style={{ fontSize: 11, color: "#9a8b7a", marginBottom: 12, lineHeight: 1.5 }}>
@@ -4156,41 +4226,6 @@ ${buildHealthSummary(healthForm)}`;
             </div>
 
             <DataManagementPanel onImported={() => {}} />
-
-            <SupabaseSyncPanel
-              settings={supabaseSettings}
-              onChange={patch => setSupabaseSettings(prev => ({ ...prev, ...patch }))}
-              onSynced={() => window.location.reload()}
-            />
-
-            <ExternalIntegrationsPanel
-              cardStyle={cardStyle}
-              fieldLabelStyle={fieldLabelStyle}
-              inputStyle={inputStyle}
-              googleCalendar={{
-                connected: googleCalendar.connected,
-                icalUrl: googleCalendar.icalUrl,
-                syncing: false,
-                message: calendarMessage,
-                onIcalUrlChange: url =>
-                  setGoogleCalendar(prev => ({ ...prev, icalUrl: url, connected: false })),
-                onConnect: () => void connectGoogleCalendar(),
-                onDisconnect: disconnectGoogleCalendar,
-                onSync: () => void syncGoogleCalendar(),
-              }}
-              notion={{
-                settings: notionSettings,
-                syncing: notionSyncing,
-                message: notionMessage,
-                showManual: showNotionManual,
-                onShowManual: setShowNotionManual,
-                onSettingsChange: patch => setNotionSettings(prev => ({ ...prev, ...patch })),
-                onSetup: () => void setupNotion(),
-                onSync: () => void syncNotion(),
-                onToggleEnabled: enabled =>
-                  setNotionSettings(prev => ({ ...prev, enabled, connected: enabled ? prev.connected : false })),
-              }}
-            />
 
             <div style={{ fontSize: 15, fontWeight: "bold", color: "#3d3228", marginBottom: 4, paddingTop: 12, borderTop: "1px solid rgba(60,40,20,0.12)", marginTop: 8 }}>目標設定</div>
             <div style={{ fontSize: 11, color: "#3d3228", opacity: 0.6, marginBottom: 8, lineHeight: 1.5 }}>
@@ -4902,6 +4937,7 @@ ${buildHealthSummary(healthForm)}`;
           { key: "sound", icon: "🎵", labelKey: "tabs.sound" },
           { key: "history", icon: "📋", labelKey: "tabs.history" },
           { key: "display", icon: "", labelKey: "tabs.display" },
+          { key: "integrations", icon: "🔗", labelKey: "tabs.integrations" },
           { key: "settings", icon: "⚙️", labelKey: "tabs.settings" },
         ].map(item => (
           <button key={item.key} onClick={() => setTab(item.key as Tab)} style={{

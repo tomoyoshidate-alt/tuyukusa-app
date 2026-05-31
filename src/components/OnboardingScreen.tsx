@@ -171,7 +171,9 @@ export function OnboardingScreen({ fetchProposal, onQuestionnaireDone, onDeferTo
               {
                 type: "ai",
                 text: aiMsg.scheduleReflection ? t("onboarding.applyPrompt") : t("onboarding.completeFallback"),
-                choices: aiMsg.scheduleReflection ? [t("onboarding.applyAndContinue")] : [t("onboarding.continueToIntegrations")],
+                choices: aiMsg.scheduleReflection
+                  ? [t("onboarding.applyAndContinue"), t("onboarding.continueToIntegrations"), t("onboarding.deferQuestion")]
+                  : [t("onboarding.continueToIntegrations"), t("onboarding.deferQuestion"), t("onboarding.skipQuestionnaire")],
               },
             ];
             messagesRef.current = next;
@@ -182,7 +184,7 @@ export function OnboardingScreen({ fetchProposal, onQuestionnaireDone, onDeferTo
           setMessages(prev => {
             const next: OnboardingMessage[] = [
               ...prev.slice(0, -1),
-              { type: "ai", text: t("onboarding.proposalFailed"), choices: [t("onboarding.continueToIntegrations")] },
+              { type: "ai", text: t("onboarding.proposalFailed"), choices: [t("onboarding.continueToIntegrations"), t("onboarding.deferQuestion"), t("onboarding.skipQuestionnaire")] },
             ];
             messagesRef.current = next;
             return next;
@@ -314,9 +316,9 @@ export function OnboardingScreen({ fetchProposal, onQuestionnaireDone, onDeferTo
           try {
             const reply = await fetchProposal(text);
             const aiMsg = createAiChatMessageFromReply(reply.content, reply);
-            pushAi(aiMsg.text, [t("onboarding.continueToIntegrations")]);
+            pushAi(aiMsg.text, [t("onboarding.continueToIntegrations"), t("onboarding.applyAndContinue"), t("onboarding.deferQuestion")]);
           } catch {
-            pushAi(t("onboarding.proposalFailed"), [t("onboarding.continueToIntegrations")]);
+            pushAi(t("onboarding.proposalFailed"), [t("onboarding.continueToIntegrations"), t("onboarding.deferQuestion"), t("onboarding.skipQuestionnaire")]);
           } finally {
             setIsLoading(false);
             isLoadingRef.current = false;

@@ -23,6 +23,7 @@ const en: TranslationSchema = {
     sound: "Sound",
     history: "History",
     display: "Display",
+    integrations: "Integrations",
     settings: "Settings",
   },
   theme: {
@@ -363,6 +364,31 @@ const en: TranslationSchema = {
     copySafariButton: "Copy URL for Safari",
     safariPasteToast: "Paste the URL in Safari",
     later: "Later",
+  },
+  intro: {
+    page1Title: "Tuyukusa App",
+    page1Description:
+      "An AI doctor blending Eastern and Western medicine supports your daily rhythm based on your health and goals.",
+    page1Subtext: "Three things you can do with this app",
+    card1Title: "Build your daily rhythm",
+    card1Body:
+      "Create a medically informed rhythm through consultation. Alerts and focus, relax, and sleep sounds are auto-scheduled.",
+    card2Title: "Ask the AI doctor anytime",
+    card2Body:
+      "Consult about health anytime. Tuyukusa AI knows Western medicine, Eastern medicine, kampo, and food therapy.",
+    card3Title: "Switch brain modes instantly",
+    card3Body:
+      "Ambient music fused with binaural beats helps you focus, relax, or fall asleep right away.",
+    page1Closing: "The more you use it, the more personalized it becomes.",
+    page2Title: "How you can use it",
+    step1: "Tell the AI your goals and condition",
+    step2: "Receive a lifestyle plan from a medical perspective",
+    step3: "Tap Apply to set schedule and alerts automatically",
+    step4: "Music plays automatically at the right time",
+    page3Message: "Let's create your own rhythm.",
+    next: "Next",
+    start: "Get started",
+    replay: "View intro again",
   },
 };
 
