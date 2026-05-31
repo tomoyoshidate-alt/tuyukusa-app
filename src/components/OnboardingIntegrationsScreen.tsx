@@ -10,6 +10,10 @@ import {
   type IntegrationChoice,
   type IntegrationId,
 } from "@/src/lib/integrationGuide";
+import {
+  clearIntegrationSkipped,
+  markIntegrationSkipped,
+} from "@/src/lib/integrationSkipFlags";
 import { applySupabaseConnection, type SupabaseSettings } from "@/src/lib/supabaseSync";
 import type { NotionSettings } from "@/src/lib/notion";
 import type { GoogleCalendarSettings } from "@/src/lib/googleCalendar";
@@ -112,6 +116,7 @@ export function OnboardingIntegrationsScreen({
 
   const handleLater = () => {
     if (!currentId) return;
+    markIntegrationSkipped(currentId);
     recordChoice(currentId, "later");
     advanceOrFinish({ ...choices, [currentId]: "later" });
   };
@@ -131,6 +136,7 @@ export function OnboardingIntegrationsScreen({
   };
 
   const completeSetup = (id: IntegrationId) => {
+    clearIntegrationSkipped(id);
     recordChoice(id, "setup");
     advanceOrFinish({ ...choices, [id]: "setup" });
   };
@@ -455,7 +461,10 @@ export function OnboardingIntegrationsScreen({
               </button>
               <button
                 type="button"
-                onClick={() => onFinish({ allDeferred: true, openTab: "home" })}
+                onClick={() => {
+                  markIntegrationSkipped("supabase");
+                  onFinish({ allDeferred: true, openTab: "home" });
+                }}
                 style={{
                   padding: "14px",
                   borderRadius: 12,
@@ -477,6 +486,7 @@ export function OnboardingIntegrationsScreen({
         isOpen={showSupabaseWizard}
         onClose={() => setShowSupabaseWizard(false)}
         onComplete={(url, anonKey, syncKey) => {
+          clearIntegrationSkipped("supabase");
           onSupabaseChange(applySupabaseConnection(url, anonKey, syncKey));
           if (phase === "reminder") {
             onFinish({ allDeferred: true, openTab: "home" });

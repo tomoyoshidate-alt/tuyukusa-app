@@ -1,5 +1,6 @@
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import { collectLocalStorageExport, importLocalStorageExport, type TuyukusaDataExport } from "./dataExport";
+import { clearIntegrationSkipped } from "./integrationSkipFlags";
 
 export type SupabaseSettings = {
   url: string;
@@ -49,6 +50,7 @@ export function applySupabaseConnection(url: string, anonKey: string, syncKey: s
     localStorage.setItem("supabaseAnonKey", settings.anonKey);
     localStorage.setItem("syncKey", settings.syncId);
     localStorage.setItem("supabaseConnected", "true");
+    clearIntegrationSkipped("supabase");
   }
 
   return settings;

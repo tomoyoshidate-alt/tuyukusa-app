@@ -40,7 +40,6 @@ import { PwaInstallGuideModal } from "@/src/components/PwaInstallGuideModal";
 import { useDesktopLayout } from "@/src/hooks/useDesktopLayout";
 import { usePwaInstall } from "@/src/hooks/usePwaInstall";
 import BinauralGlobalAlarm from "@/src/components/BinauralGlobalAlarm";
-import HealthKitBridge from "@/src/components/HealthKitBridge";
 import LanguageSettingsPanel from "@/src/components/LanguageSettingsPanel";
 import RadioMiniPlayer from "@/src/components/RadioMiniPlayer";
 import ScreenSettingsTab from "@/src/components/ScreenSettingsTab";
@@ -53,7 +52,7 @@ import { ScheduleReflectionModal } from "@/src/components/ScheduleReflectionModa
 import { LocalTodayTasksSection } from "@/src/components/LocalTodayTasksSection";
 import { DataManagementPanel } from "@/src/components/DataManagementPanel";
 import { SupabaseSyncPanel } from "@/src/components/SupabaseSyncPanel";
-import { HomeCloudSyncCard } from "@/src/components/HomeCloudSyncCard";
+import { HomeIntegrationCards } from "@/src/components/HomeIntegrationCards";
 import { ExternalIntegrationsPanel } from "@/src/components/ExternalIntegrationsPanel";
 import { OnboardingScreen } from "@/src/components/OnboardingScreen";
 import { OnboardingIntegrationsScreen, type IntegrationFinishOptions } from "@/src/components/OnboardingIntegrationsScreen";
@@ -3986,7 +3985,6 @@ ${buildHealthSummary(healthForm)}`;
         {tab === "home" && (
           <div>
             <AddToHomeScreen />
-            <HealthKitBridge healthData={healthData} />
             {healthImportMessage && (
               <div style={{ margin: "8px 16px 0", padding: "10px 12px", background: "#e8f0e4", borderRadius: 10, fontSize: 12, color: "#4a6741", textAlign: "center" }}>
                 {healthImportMessage}
@@ -3997,9 +3995,15 @@ ${buildHealthSummary(healthForm)}`;
               onOpenChat={() => openChatFromHome()}
               onSubmit={text => openChatFromHome(text)}
             />
-            <HomeCloudSyncCard
-              settings={supabaseSettings}
-              onComplete={(url, anonKey, syncKey) => {
+            <HomeIntegrationCards
+              isHomeActive={tab === "home"}
+              supabaseSettings={supabaseSettings}
+              notionSettings={notionSettings}
+              googleCalendar={googleCalendar}
+              healthData={healthData}
+              onOpenSettings={() => setTab("settings")}
+              onOpenDisplaySettings={() => setTab("display")}
+              onSupabaseComplete={(url, anonKey, syncKey) => {
                 const next = applySupabaseConnection(url, anonKey, syncKey);
                 setSupabaseSettings(next);
                 void syncWithSupabase(next, "merge").catch(() => {});
