@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState, type ChangeEvent, type ClipboardEvent, type RefObject } from "react";
 import { useTranslation } from "react-i18next";
+import { ChatMarkdown } from "@/src/components/ChatMarkdown";
 import { handleAiChatEnterSendKeyDown } from "@/src/lib/chatSubmitKeyboard";
 import { fileToChatImage, readClipboardImages, type ChatImagePayload } from "@/src/lib/chatImages";
 import type { ScheduleReflection } from "@/src/lib/scheduleReflection";
@@ -196,13 +197,18 @@ export function AiChatPanel({
                     ))}
                   </div>
                 )}
-                {msg.text && msg.text !== "[画像]" &&
-                  msg.text.split("\n").map((line, j) => (
-                    <span key={j}>
-                      {line}
-                      {j < msg.text.split("\n").length - 1 && <br />}
-                    </span>
-                  ))}
+                {msg.text && msg.text !== "[画像]" && (
+                  msg.type === "ai" ? (
+                    <ChatMarkdown text={msg.text} variant="ai" />
+                  ) : (
+                    msg.text.split("\n").map((line, j) => (
+                      <span key={j}>
+                        {line}
+                        {j < msg.text.split("\n").length - 1 && <br />}
+                      </span>
+                    ))
+                  )
+                )}
               </div>
             </div>
             {msg.choices && (

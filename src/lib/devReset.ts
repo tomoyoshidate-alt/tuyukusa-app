@@ -19,6 +19,7 @@ const DEV_RESET_KEYS = [
   "tuyukusa-chat-knowledge",
   "tuyukusa-local-tasks",
   "tuyukusa-onboarding-progress",
+  "tuyukusa-intro-draft",
   "tuyukusa-health-data",
   "tuyukusa-voice-hint-shown",
   "skipped_supabase",

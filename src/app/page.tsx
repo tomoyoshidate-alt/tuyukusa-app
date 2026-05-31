@@ -2285,7 +2285,6 @@ export default function TuyukusaApp() {
   const [reflectNotice, setReflectNotice] = useState("");
   const [reflectMessageIndex, setReflectMessageIndex] = useState<number | null>(null);
   const [onboardingPhase, setOnboardingPhase] = useState<"questionnaire" | "integrations">("questionnaire");
-  const [introDone, setIntroDone] = useState(true);
   const [showIntroReplay, setShowIntroReplay] = useState(false);
   const [pendingOnboarding, setPendingOnboarding] = useState<{
     data: OnboardingFlowData;
@@ -2379,11 +2378,6 @@ export default function TuyukusaApp() {
       setPendingOnboarding({ data: progress.flowData, reflection: null });
     }
   }, [userProfileHydrated, userProfile.onboardingComplete]);
-
-  useEffect(() => {
-    if (!storageReady) return;
-    setIntroDone(isIntroCompleted());
-  }, [storageReady]);
 
   useEffect(() => {
     if (!storageReady || !userProfile.onboardingComplete) return;
@@ -3942,12 +3936,11 @@ ${buildHealthSummary(healthForm)}`;
     setTab("home");
   };
 
-  if (storageReady && (!introDone || showIntroReplay)) {
+  if (storageReady && (showIntroReplay || !isIntroCompleted())) {
     return (
       <OnboardingIntroScreen
         onComplete={() => {
           markIntroCompleted();
-          setIntroDone(true);
           setShowIntroReplay(false);
         }}
       />

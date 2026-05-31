@@ -5,6 +5,7 @@ import {
   type OnboardingFlowData,
   type OnboardingStep,
 } from "./onboarding";
+import type { IntroDraft } from "./introStorage";
 
 type Translate = (key: string, options?: Record<string, unknown>) => string;
 
@@ -83,6 +84,44 @@ export function buildOnboardingTransition(
 export function buildWelcomeMessage(t: Translate): { text: string; choices: string[] } {
   return {
     text: `${t("onboarding.welcomeBody")}\n\n${t("onboarding.goalQuestionShort")}`,
+    choices: [...ONBOARDING_GOAL_CHOICES],
+  };
+}
+
+export function buildWelcomeMessageFromIntro(
+  draft: IntroDraft,
+  t: Translate,
+): { text: string; choices: string[] } {
+  const parts: string[] = [];
+
+  if (draft.skipNickname || !draft.nickname?.trim()) {
+    parts.push("はじめまして。");
+  } else {
+    parts.push(`${draft.nickname.trim()}さん、はじめまして。`);
+  }
+
+  const interests = draft.featureInterests.filter(Boolean);
+  if (interests.length === 1) {
+    parts.push(`「${interests[0]}」に興味があるとのこと、承知しました。`);
+  } else if (interests.length > 1) {
+    parts.push(`次の機能に興味があるとのこと、承知しました。\n${interests.map(i => `・${i}`).join("\n")}`);
+  }
+
+  if (draft.featureOther?.trim()) {
+    parts.push(`その他のご希望：「${draft.featureOther.trim()}」`);
+  }
+
+  const profileBits: string[] = [];
+  if (draft.birthDate?.trim()) profileBits.push(`生年月日：${draft.birthDate.trim()}`);
+  if (draft.gender?.trim()) profileBits.push(`身体的な性別：${draft.gender.trim()}`);
+  if (profileBits.length) {
+    parts.push(`いただいたプロフィール（${profileBits.join(" / ")}）をもとに、あなたに合ったサポートをします。`);
+  }
+
+  parts.push(t("onboarding.goalQuestionShort"));
+
+  return {
+    text: parts.join("\n\n"),
     choices: [...ONBOARDING_GOAL_CHOICES],
   };
 }

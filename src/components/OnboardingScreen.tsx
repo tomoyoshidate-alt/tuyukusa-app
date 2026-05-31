@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
+import { ChatMarkdown } from "@/src/components/ChatMarkdown";
 import { handleAiChatEnterSendKeyDown } from "@/src/lib/chatSubmitKeyboard";
 import {
   buildOnboardingProposalPrompt,
@@ -14,8 +15,10 @@ import {
 import {
   buildOnboardingTransition,
   buildWelcomeMessage,
+  buildWelcomeMessageFromIntro,
   getOnboardingStepPrompt,
 } from "@/src/lib/onboardingResponses";
+import { introDraftToFlowData, loadIntroDraft } from "@/src/lib/introStorage";
 import {
   buildProgressFromFlowData,
   hasVoiceHintBeenShown,
@@ -45,8 +48,26 @@ type Props = {
 };
 
 function buildWelcomeMessages(t: (k: string) => string): OnboardingMessage[] {
-  const welcome = buildWelcomeMessage(t);
+  const introDraft = loadIntroDraft();
+  const welcome = introDraft
+    ? buildWelcomeMessageFromIntro(introDraft, t)
+    : buildWelcomeMessage(t);
   return [{ type: "ai", text: welcome.text, choices: welcome.choices }];
+}
+
+function buildInitialFlowState(): {
+  step: OnboardingStep;
+  progress: OnboardingProgress;
+  flowData: OnboardingFlowData;
+} {
+  const savedProgress = loadOnboardingProgress();
+  const introFlow = introDraftToFlowData(loadIntroDraft());
+  const mergedFlow: OnboardingFlowData = { ...(savedProgress?.flowData ?? {}), ...introFlow };
+  const progress = savedProgress
+    ? { ...savedProgress, flowData: { ...savedProgress.flowData, ...introFlow } }
+    : buildProgressFromFlowData(mergedFlow);
+  const step = resolveOnboardingResumeStep(progress);
+  return { step, progress, flowData: progress.flowData ?? mergedFlow };
 }
 
 function buildInitialMessages(step: OnboardingStep, t: (k: string) => string): OnboardingMessage[] {
@@ -58,13 +79,12 @@ function buildInitialMessages(step: OnboardingStep, t: (k: string) => string): O
 
 export function OnboardingScreen({ fetchProposal, onQuestionnaireDone, onDeferToHome }: Props) {
   const { t } = useTranslation();
-  const savedProgress = loadOnboardingProgress();
-  const initialStep = resolveOnboardingResumeStep(savedProgress);
-  const initialProgress = savedProgress ?? buildProgressFromFlowData({});
+  const initialState = buildInitialFlowState();
+  const initialStep = initialState.step;
 
   const [step, setStep] = useState<OnboardingStep>(initialStep);
-  const [flowData, setFlowData] = useState<OnboardingFlowData>(initialProgress.flowData ?? {});
-  const [progress, setProgress] = useState<OnboardingProgress>(initialProgress);
+  const [flowData, setFlowData] = useState<OnboardingFlowData>(initialState.flowData);
+  const [progress, setProgress] = useState<OnboardingProgress>(initialState.progress);
   const [messages, setMessages] = useState<OnboardingMessage[]>(() => buildInitialMessages(initialStep, t));
   const [input, setInput] = useState("");
   const [isComposing, setIsComposing] = useState(false);
@@ -95,6 +115,7 @@ export function OnboardingScreen({ fetchProposal, onQuestionnaireDone, onDeferTo
   useEffect(() => {
     const saved = loadOnboardingProgress();
     if (saved) saveOnboardingProgress(saved);
+    else if (loadIntroDraft()) saveOnboardingProgress(initialState.progress);
   }, []);
 
   useEffect(() => {
@@ -375,8 +396,8 @@ export function OnboardingScreen({ fetchProposal, onQuestionnaireDone, onDeferTo
         {messages.map((msg, i) => (
           <div key={i}>
             <div style={{ display: "flex", justifyContent: msg.type === "user" ? "flex-end" : "flex-start" }}>
-              <div style={{ maxWidth: "88%", padding: "12px 14px", borderRadius: 18, fontSize: 14, lineHeight: 1.75, background: msg.type === "user" ? "#1a1410" : "white", color: msg.type === "user" ? "#f5f0e8" : "#1a1410", border: msg.type === "ai" ? "1px solid rgba(60,40,20,0.1)" : "none", whiteSpace: "pre-line" }}>
-                {msg.text}
+              <div style={{ maxWidth: "88%", padding: "12px 14px", borderRadius: 18, fontSize: 14, lineHeight: 1.75, background: msg.type === "user" ? "#1a1410" : "white", color: msg.type === "user" ? "#f5f0e8" : "#1a1410", border: msg.type === "ai" ? "1px solid rgba(60,40,20,0.1)" : "none" }}>
+                {msg.type === "ai" ? <ChatMarkdown text={msg.text} variant="ai" /> : msg.text}
               </div>
             </div>
             {msg.scheduleReflection && (
