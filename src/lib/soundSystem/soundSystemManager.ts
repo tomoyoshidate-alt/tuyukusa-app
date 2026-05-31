@@ -7,6 +7,12 @@ import {
 import { binauralPlaybackManager } from "@/src/lib/binauralPlaybackManager";
 import { getDemoBuffer } from "@/src/lib/soundSystem/demoSources";
 import { GranularEngine } from "@/src/lib/soundSystem/granularEngine";
+import {
+  closeSharedAudioContext,
+  getSharedAudioContext,
+  resumeSharedAudioContext,
+  suspendSharedAudioContext,
+} from "@/src/lib/soundSystem/sharedAudioContext";
 import { normalizeGranularParams } from "@/src/lib/soundSystem/types";
 import {
   readBinauralPlayerSettings,
@@ -211,15 +217,7 @@ class SoundSystemManager {
     this.emit();
   }
 
-  private async ensureContext(): Promise<AudioContext> {
-    if (this.ctx) {
-      await this.ctx.resume();
-      return this.ctx;
-    }
-    binauralPlaybackManager.stop({ silent: true });
-    const ctx = new AudioContext();
-    await ctx.resume();
-    this.ctx = ctx;
+  private setupAudioGraph(ctx: AudioContext): void {
     this.masterGain = ctx.createGain();
     this.masterGain.gain.value = this.masterVolume;
     this.analyser = ctx.createAnalyser();
@@ -233,6 +231,21 @@ class SoundSystemManager {
       g.connect(this.masterGain);
       this.channelGains[i] = g;
     }
+  }
+
+  private async ensureContext(): Promise<AudioContext> {
+    binauralPlaybackManager.stop({ silent: true });
+    const ctx = getSharedAudioContext();
+    this.ctx = ctx;
+
+    if (!this.masterGain || this.masterGain.context !== ctx) {
+      this.masterGain = null;
+      this.analyser = null;
+      this.channelGains = [null, null, null];
+      this.setupAudioGraph(ctx);
+    }
+
+    await resumeSharedAudioContext();
     configurePlaybackAudioSession();
     await sharedBackgroundAudioSession.acquire(this.bgResumeHandler);
     this.ctxUnregister?.();
@@ -435,14 +448,18 @@ class SoundSystemManager {
     this.ctxUnregister?.();
     this.ctxUnregister = null;
     sharedBackgroundAudioSession.release(this.bgResumeHandler);
-    if (this.ctx) {
-      void this.ctx.close();
-    }
+    suspendSharedAudioContext();
+    this.emit();
+  }
+
+  /** Close the shared AudioContext — call only on panel unmount. */
+  dispose(): void {
+    this.stop();
+    closeSharedAudioContext();
     this.ctx = null;
     this.masterGain = null;
     this.analyser = null;
     this.channelGains = [null, null, null];
-    this.emit();
   }
 
   async startPlaylist(): Promise<void> {

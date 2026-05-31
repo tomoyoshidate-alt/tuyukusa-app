@@ -121,10 +121,14 @@ export default function SoundSystemPanel({
   useEffect(() => {
     setPresets(readPresets());
     setPlaylist(readPlaylistSettings());
-    return soundSystemManager.subscribe(s => {
+    const unsub = soundSystemManager.subscribe(s => {
       setSnapshot(s);
       setAnalyser(soundSystemManager.getAnalyser());
     });
+    return () => {
+      unsub();
+      soundSystemManager.dispose();
+    };
   }, []);
 
   useEffect(() => {
