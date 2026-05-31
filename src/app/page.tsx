@@ -4875,12 +4875,12 @@ ${buildHealthSummary(healthForm)}`;
       {/* ボトムナビ（モバイル） */}
       <div className="app-bottom-nav" style={themeNavStyle}>
         {[
-          { key: "home", icon: "", labelKey: "tabs.home" },
-          { key: "chat", icon: "", labelKey: "tabs.chat" },
-          { key: "sound", icon: "", labelKey: "tabs.sound" },
-          { key: "history", icon: "", labelKey: "tabs.history" },
+          { key: "home", icon: "🏠", labelKey: "tabs.home" },
+          { key: "chat", icon: "💬", labelKey: "tabs.chat" },
+          { key: "sound", icon: "🎵", labelKey: "tabs.sound" },
+          { key: "history", icon: "📋", labelKey: "tabs.history" },
           { key: "display", icon: "", labelKey: "tabs.display" },
-          { key: "settings", icon: "", labelKey: "tabs.settings" },
+          { key: "settings", icon: "⚙️", labelKey: "tabs.settings" },
         ].map(item => (
           <button key={item.key} onClick={() => setTab(item.key as Tab)} style={{
             flex: 1, display: "flex", flexDirection: "column", alignItems: "center", padding: "10px 0 12px", gap: 4, cursor: "pointer", border: "none", background: "none",
