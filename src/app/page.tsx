@@ -2381,23 +2381,24 @@ export default function TuyukusaApp() {
   }, [userProfileHydrated, userProfile.onboardingComplete]);
 
   useEffect(() => {
-    if (!storageReady || showIntroReplay) return;
+    if (!storageReady) return;
+    if (showIntroReplay) {
+      setIntroActive(true);
+      return;
+    }
     setIntroActive(!isIntroCompleted());
   }, [storageReady, showIntroReplay]);
 
   const handleIntroComplete = useCallback(() => {
-    try {
-      markIntroCompleted();
-      const draft = loadIntroDraft();
-      if (draft) {
-        saveOnboardingProgress(buildProgressFromFlowData(introDraftToFlowData(draft)));
-      }
-      setOnboardingPhase("questionnaire");
-      setPendingOnboarding(null);
-    } finally {
-      setShowIntroReplay(false);
-      setIntroActive(false);
+    markIntroCompleted();
+    const draft = loadIntroDraft();
+    if (draft) {
+      saveOnboardingProgress(buildProgressFromFlowData(introDraftToFlowData(draft)));
     }
+    setOnboardingPhase("questionnaire");
+    setPendingOnboarding(null);
+    setShowIntroReplay(false);
+    setIntroActive(false);
   }, []);
 
   useEffect(() => {

@@ -5,6 +5,7 @@ import { useTranslation } from "react-i18next";
 import {
   formatIntroBirthDate,
   loadIntroDraft,
+  markIntroCompleted,
   saveIntroDraft,
   type IntroDraft,
 } from "@/src/lib/introStorage";
@@ -50,20 +51,32 @@ function buildDraftFromState(state: {
 
 export function OnboardingIntroScreen({ onComplete }: Props) {
   const { t } = useTranslation();
-  const saved = loadIntroDraft();
   const currentYear = new Date().getFullYear();
 
   const [page, setPage] = useState(0);
-  const [selectedInterests, setSelectedInterests] = useState<string[]>(saved?.featureInterests ?? []);
-  const [featureOther, setFeatureOther] = useState(saved?.featureOther ?? "");
-  const [nickname, setNickname] = useState(saved?.nickname ?? "");
-  const [skipNickname, setSkipNickname] = useState(saved?.skipNickname ?? false);
-  const [birthYear, setBirthYear] = useState<number | "">(saved?.birthYear ?? "");
-  const [birthMonth, setBirthMonth] = useState<number | "">(saved?.birthMonth ?? "");
-  const [birthDay, setBirthDay] = useState<number | "">(saved?.birthDay ?? "");
-  const [gender, setGender] = useState(saved?.gender ?? "");
+  const [selectedInterests, setSelectedInterests] = useState<string[]>([]);
+  const [featureOther, setFeatureOther] = useState("");
+  const [nickname, setNickname] = useState("");
+  const [skipNickname, setSkipNickname] = useState(false);
+  const [birthYear, setBirthYear] = useState<number | "">("");
+  const [birthMonth, setBirthMonth] = useState<number | "">("");
+  const [birthDay, setBirthDay] = useState<number | "">("");
+  const [gender, setGender] = useState("");
 
   const touchStartX = useRef<number | null>(null);
+
+  useEffect(() => {
+    const saved = loadIntroDraft();
+    if (!saved) return;
+    setSelectedInterests(saved.featureInterests ?? []);
+    setFeatureOther(saved.featureOther ?? "");
+    setNickname(saved.nickname ?? "");
+    setSkipNickname(saved.skipNickname ?? false);
+    setBirthYear(saved.birthYear ?? "");
+    setBirthMonth(saved.birthMonth ?? "");
+    setBirthDay(saved.birthDay ?? "");
+    setGender(saved.gender ?? "");
+  }, []);
 
   const yearOptions = useMemo(
     () => Array.from({ length: 100 }, (_, i) => currentYear - i),
@@ -104,6 +117,7 @@ export function OnboardingIntroScreen({ onComplete }: Props) {
 
   const handleStart = useCallback(() => {
     persistDraft();
+    markIntroCompleted();
     onComplete();
   }, [onComplete, persistDraft]);
 
