@@ -2286,6 +2286,10 @@ export default function TuyukusaApp() {
   const [reflectMessageIndex, setReflectMessageIndex] = useState<number | null>(null);
   const [onboardingPhase, setOnboardingPhase] = useState<"questionnaire" | "integrations">("questionnaire");
   const [introReplayActive, setIntroReplayActive] = useState(false);
+  const [introDismissed, setIntroDismissed] = useState(() => {
+    if (typeof window === "undefined") return false;
+    return isIntroCompleted();
+  });
   const [pendingOnboarding, setPendingOnboarding] = useState<{
     data: OnboardingFlowData;
     reflection: ScheduleReflection | null;
@@ -2381,6 +2385,7 @@ export default function TuyukusaApp() {
 
   const handleIntroComplete = useCallback(() => {
     markIntroCompleted();
+    setIntroDismissed(true);
     setIntroReplayActive(false);
 
     const draft = loadIntroDraft();
@@ -3406,6 +3411,7 @@ ${buildHealthSummary(healthForm)}`;
   const resetOnboardingFlow = () => {
     clearOnboardingProgress();
     clearIntroCompleted();
+    setIntroDismissed(false);
     setIntroReplayActive(false);
     setUserProfile(prev => ({
       ...prev,
@@ -3950,7 +3956,7 @@ ${buildHealthSummary(healthForm)}`;
     setTab("home");
   };
 
-  if (storageReady && (introReplayActive || !isIntroCompleted())) {
+  if (storageReady && (introReplayActive || !introDismissed)) {
     return (
       <OnboardingIntroScreen
         key={introReplayActive ? "intro-replay" : "intro-first"}
@@ -4144,7 +4150,10 @@ ${buildHealthSummary(healthForm)}`;
           <div style={{ padding: isDesktop ? "8px 16px 24px" : 16 }}>
             <button
               type="button"
-              onClick={() => setIntroReplayActive(true)}
+              onClick={() => {
+                setIntroReplayActive(true);
+                setIntroDismissed(false);
+              }}
               style={{
                 width: "100%",
                 padding: "12px 16px",
