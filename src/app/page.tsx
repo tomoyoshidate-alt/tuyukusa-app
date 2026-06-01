@@ -2286,10 +2286,8 @@ export default function TuyukusaApp() {
   const [reflectMessageIndex, setReflectMessageIndex] = useState<number | null>(null);
   const [onboardingPhase, setOnboardingPhase] = useState<"questionnaire" | "integrations">("questionnaire");
   const [introReplayActive, setIntroReplayActive] = useState(false);
-  const [introDismissed, setIntroDismissed] = useState(() => {
-    if (typeof window === "undefined") return false;
-    return isIntroCompleted();
-  });
+  const [showIntro, setShowIntro] = useState(false);
+  const [introGateReady, setIntroGateReady] = useState(false);
   const [pendingOnboarding, setPendingOnboarding] = useState<{
     data: OnboardingFlowData;
     reflection: ScheduleReflection | null;
@@ -2383,10 +2381,19 @@ export default function TuyukusaApp() {
     }
   }, [userProfileHydrated, userProfile.onboardingComplete]);
 
+  useEffect(() => {
+    if (introReplayActive) {
+      setShowIntro(true);
+    } else {
+      setShowIntro(!isIntroCompleted());
+    }
+    setIntroGateReady(true);
+  }, [introReplayActive]);
+
   const handleIntroComplete = useCallback(() => {
     markIntroCompleted();
-    setIntroDismissed(true);
     setIntroReplayActive(false);
+    setShowIntro(false);
 
     const draft = loadIntroDraft();
     if (!userProfile.onboardingComplete) {
@@ -3411,7 +3418,8 @@ ${buildHealthSummary(healthForm)}`;
   const resetOnboardingFlow = () => {
     clearOnboardingProgress();
     clearIntroCompleted();
-    setIntroDismissed(false);
+    setShowIntro(true);
+    setIntroGateReady(true);
     setIntroReplayActive(false);
     setUserProfile(prev => ({
       ...prev,
@@ -3956,7 +3964,7 @@ ${buildHealthSummary(healthForm)}`;
     setTab("home");
   };
 
-  if (storageReady && (introReplayActive || !introDismissed)) {
+  if (storageReady && introGateReady && showIntro) {
     return (
       <OnboardingIntroScreen
         key={introReplayActive ? "intro-replay" : "intro-first"}
@@ -4151,8 +4159,9 @@ ${buildHealthSummary(healthForm)}`;
             <button
               type="button"
               onClick={() => {
+                clearIntroCompleted();
                 setIntroReplayActive(true);
-                setIntroDismissed(false);
+                setShowIntro(true);
               }}
               style={{
                 width: "100%",
