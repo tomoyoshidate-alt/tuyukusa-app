@@ -5,7 +5,6 @@ import { useTranslation } from "react-i18next";
 import {
   formatIntroBirthDate,
   loadIntroDraft,
-  markIntroCompleted,
   saveIntroDraft,
   type IntroDraft,
 } from "@/src/lib/introStorage";
@@ -117,7 +116,6 @@ export function OnboardingIntroScreen({ onComplete }: Props) {
 
   const handleStart = useCallback(() => {
     persistDraft();
-    markIntroCompleted();
     onComplete();
   }, [onComplete, persistDraft]);
 
@@ -409,7 +407,7 @@ export function OnboardingIntroScreen({ onComplete }: Props) {
       ) : (
         <button
           type="button"
-          onClick={() => handleStart()}
+          onClick={handleStart}
           style={{
             padding: "16px 24px",
             borderRadius: 12,
