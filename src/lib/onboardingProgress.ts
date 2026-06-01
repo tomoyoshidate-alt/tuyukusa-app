@@ -1,14 +1,18 @@
 import type { OnboardingFlowData, OnboardingStep } from "./onboarding";
 import { introDraftToFlowData, loadIntroDraft } from "./introStorage";
+import { getEffectiveCourse, getQuestionOrder, getNextStepInCourse, isStructuredOnboardingStep, loadQuestionnaireCourse } from "./onboardingCourse";
 
 export const ONBOARDING_PROGRESS_KEY = "tuyukusa-onboarding-progress";
 export const ONBOARDING_PROFILE_STEPS: OnboardingStep[] = ["birthdate", "gender", "name"];
 export const ONBOARDING_QUESTION_ORDER: OnboardingStep[] = [
-  "goal", "birthdate", "gender", "name", "bedtime", "wake", "bath", "sleep_duration",
+  "goal", "birthdate", "gender", "course", "name", "bedtime", "wake", "bath", "sleep_duration",
 ];
 
 const VALID_ONBOARDING_STEPS = new Set<OnboardingStep>([
-  "goal", "birthdate", "gender", "name", "bedtime", "wake", "bath", "sleep_duration", "proposal",
+  "goal", "birthdate", "gender", "course", "name", "bedtime", "wake",
+  "weekday_wake", "weekday_bedtime", "weekend_wake", "weekend_bedtime",
+  "bath", "sleep_duration", "hobbies", "time_balance", "alcohol",
+  "meal_breakfast", "meal_lunch", "meal_dinner", "meal_values", "proposal",
 ]);
 
 /** Legacy steps from before hourly time-choice refactor */
@@ -98,7 +102,12 @@ export function loadStoredOnboardingProfile(): Partial<OnboardingFlowData> {
 }
 
 export function applyStoredProfileToProgress(progress: OnboardingProgress): OnboardingProgress {
-  const mergedFlow = { ...progress.flowData, ...loadStoredOnboardingProfile() };
+  const storedCourse = loadQuestionnaireCourse();
+  const mergedFlow = {
+    ...progress.flowData,
+    ...loadStoredOnboardingProfile(),
+    ...(storedCourse && !progress.flowData.questionnaireCourse ? { questionnaireCourse: storedCourse } : {}),
+  };
   return buildProgressFromFlowData(mergedFlow);
 }
 
@@ -120,18 +129,16 @@ export function buildOnboardingProfileSystemContext(data: Partial<OnboardingFlow
 }
 
 export function resolveNextStepAfter(fromStep: OnboardingStep, progress: OnboardingProgress): OnboardingStep {
-  const startIdx = fromStep === "goal" ? 1 : ONBOARDING_QUESTION_ORDER.indexOf(fromStep) + 1;
-  if (startIdx <= 0) return "proposal";
-  for (let i = startIdx; i < ONBOARDING_QUESTION_ORDER.length; i++) {
-    const step = ONBOARDING_QUESTION_ORDER[i];
-    if (ONBOARDING_PROFILE_STEPS.includes(step) && isQuestionAnswered(progress, step)) continue;
-    return step;
+  const next = getNextStepInCourse(fromStep, progress.flowData);
+  if (next === "proposal") return "proposal";
+  if (ONBOARDING_PROFILE_STEPS.includes(next) && isQuestionAnswered(progress, next)) {
+    return resolveNextStepAfter(next, progress);
   }
-  return "proposal";
+  return next;
 }
 
-export function isLifestyleStep(step: OnboardingStep): step is "bedtime" | "wake" | "bath" | "sleep_duration" {
-  return step === "bedtime" || step === "wake" || step === "bath" || step === "sleep_duration";
+export function isLifestyleStep(step: OnboardingStep): boolean {
+  return isStructuredOnboardingStep(step);
 }
 
 export function loadOnboardingProgress(): OnboardingProgress | null {
@@ -167,11 +174,23 @@ function fieldAnswered(data: OnboardingFlowData, step: OnboardingStep): boolean 
     case "goal": return !!data.goal?.trim();
     case "birthdate": return !!data.birthDate?.trim();
     case "gender": return !!data.gender?.trim();
+    case "course": return !!data.questionnaireCourse;
     case "name": return !!(data.nickname?.trim() || data.name?.trim());
     case "bedtime": return !!data.bedtime?.trim();
     case "wake": return !!data.wake?.trim();
+    case "weekday_wake": return !!data.weekdayWake?.trim();
+    case "weekday_bedtime": return !!data.weekdayBedtime?.trim();
+    case "weekend_wake": return !!data.weekendWake?.trim();
+    case "weekend_bedtime": return !!data.weekendBedtime?.trim();
     case "bath": return !!data.bath?.trim();
     case "sleep_duration": return !!data.sleepDuration?.trim();
+    case "hobbies": return !!data.hobbies?.trim();
+    case "time_balance": return !!data.timeBalance?.trim();
+    case "alcohol": return !!data.alcohol?.trim();
+    case "meal_breakfast": return !!data.mealBreakfast?.trim();
+    case "meal_lunch": return !!data.mealLunch?.trim();
+    case "meal_dinner": return !!data.mealDinner?.trim();
+    case "meal_values": return !!data.mealValues?.trim();
     default: return false;
   }
 }
@@ -185,7 +204,8 @@ export function shouldSuppressQuestion(progress: OnboardingProgress, step: Onboa
 }
 
 export function getPendingQuestions(progress: OnboardingProgress): OnboardingStep[] {
-  return ONBOARDING_QUESTION_ORDER.filter(s => !isQuestionAnswered(progress, s) && !shouldSuppressQuestion(progress, s));
+  const order = getQuestionOrder(getEffectiveCourse(progress.flowData));
+  return order.filter(s => !isQuestionAnswered(progress, s) && !shouldSuppressQuestion(progress, s));
 }
 
 export function getNextUnansweredStep(progress: OnboardingProgress): OnboardingStep | null {
@@ -206,7 +226,8 @@ export function recordSkipToHome(progress: OnboardingProgress, step: OnboardingS
 
 export function buildProgressFromFlowData(data: OnboardingFlowData): OnboardingProgress {
   const progress: OnboardingProgress = { ...INITIAL_ONBOARDING_PROGRESS, flowData: { ...data } };
-  for (const step of ONBOARDING_QUESTION_ORDER) {
+  const order = getQuestionOrder(getEffectiveCourse(data));
+  for (const step of order) {
     if (fieldAnswered(data, step)) progress.answered[step] = true;
   }
   return progress;

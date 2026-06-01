@@ -274,6 +274,7 @@ const ja = {
     empathyGoalCustom: "「{{goal}}」を実現したいのですね。\nあなたに合った生活リズムを一緒に考えましょう。",
     empathyBirthdate: "ありがとうございます。\n生年月日から体質の傾向を読み取ることができます。",
     empathyGender: "承知しました。\n体質に合わせた養生のご提案に活かします。",
+    empathyCourse: "承知しました。\nそれでは生活リズムを一緒に考えていきましょう。",
     empathyName: "{{name}}さん、はじめまして。\nこれから生活リズムを一緒に整えていきましょう。",
     empathyNameSkipped: "承知しました。\nこれから生活リズムを一緒に整えていきましょう。",
     empathyLifestyleAnswer: "「{{answer}}」ですね。",

@@ -7,11 +7,17 @@ import { handleAiChatEnterSendKeyDown } from "@/src/lib/chatSubmitKeyboard";
 import {
   buildOnboardingProposalPrompt,
   ONBOARDING_GOAL_FREE_LABEL,
-  ONBOARDING_LIFESTYLE_STEPS,
   parseOnboardingGoalChoice,
   type OnboardingFlowData,
   type OnboardingStep,
 } from "@/src/lib/onboarding";
+import {
+  getNextStepInCourse,
+  getStructuredStepConfig,
+  isStructuredOnboardingStep,
+  parseCourseChoice,
+  saveQuestionnaireCourse,
+} from "@/src/lib/onboardingCourse";
 import {
   buildOnboardingTransition,
   buildWelcomeMessage,
@@ -198,19 +204,22 @@ export function OnboardingScreen({ fetchProposal, onQuestionnaireDone, onDeferTo
     [goToLifestyle, pushAi, t],
   );
 
-  const handleLifestyleAnswer = useCallback(
-    async (answer: string, currentStep: keyof typeof ONBOARDING_LIFESTYLE_STEPS) => {
-      const config = ONBOARDING_LIFESTYLE_STEPS[currentStep];
+  const handleStructuredStepAnswer = useCallback(
+    async (answer: string, currentStep: OnboardingStep) => {
+      const config = getStructuredStepConfig(currentStep);
+      if (!config) return;
       const currentProgress = progressRef.current;
       const currentFlow = flowDataRef.current;
-      const nextProgress = recordAnswer(currentProgress, currentStep, { [config.field]: answer });
-      const updated = { ...currentFlow, [config.field]: answer };
+      const patch = { [config.field]: answer } as Partial<OnboardingFlowData>;
+      const nextProgress = recordAnswer(currentProgress, currentStep, patch);
+      const updated = { ...currentFlow, ...patch };
       setFlowData(updated);
       flowDataRef.current = updated;
       persist(nextProgress, currentStep, updated);
       pushUser(answer);
 
-      if (config.next === "proposal") {
+      const nextStep = getNextStepInCourse(currentStep, updated);
+      if (nextStep === "proposal") {
         setStep("proposal");
         stepRef.current = "proposal";
         const empathy = t("onboarding.empathyLifestyleAnswer", { answer });
@@ -256,9 +265,9 @@ export function OnboardingScreen({ fetchProposal, onQuestionnaireDone, onDeferTo
         return;
       }
 
-      setStep(config.next);
-      stepRef.current = config.next;
-      pushTransition(currentStep, answer, config.next, updated);
+      setStep(nextStep);
+      stepRef.current = nextStep;
+      pushTransition(currentStep, answer, nextStep, updated);
     },
     [fetchProposal, persist, pushAi, pushTransition, pushUser, t],
   );
@@ -330,6 +339,17 @@ export function OnboardingScreen({ fetchProposal, onQuestionnaireDone, onDeferTo
           advanceAfterAnswer("birthdate", text, nextProgress, updated);
           return;
         }
+        if (currentStep === "course") {
+          const course = parseCourseChoice(text);
+          if (!course) return;
+          saveQuestionnaireCourse(course);
+          const updated = { ...currentFlow, questionnaireCourse: course };
+          const nextProgress = recordAnswer(currentProgress, "course", { questionnaireCourse: course });
+          setFlowData(updated);
+          flowDataRef.current = updated;
+          advanceAfterAnswer("course", text, nextProgress, updated);
+          return;
+        }
         if (currentStep === "name") {
           if (text === t("onboarding.defaultNicknameChoice")) {
             const nickname = "あなた";
@@ -337,34 +357,23 @@ export function OnboardingScreen({ fetchProposal, onQuestionnaireDone, onDeferTo
             const nextProgress = recordAnswer(currentProgress, "name", { nickname, name: nickname });
             setFlowData(updated);
             flowDataRef.current = updated;
-            persist(nextProgress, "bedtime", updated);
-            pushUser(text);
-            goToLifestyle("bedtime", "name", text, updated);
+            advanceAfterAnswer("name", text, nextProgress, updated);
             return;
           }
           if (text === t("onboarding.skip")) {
             const nextProgress = recordAnswer(currentProgress, "name", currentFlow);
-            persist(nextProgress, "bedtime", currentFlow);
-            pushUser(text);
-            goToLifestyle("bedtime", "name", text, currentFlow);
+            advanceAfterAnswer("name", text, nextProgress, currentFlow);
             return;
           }
           const updated = { ...currentFlow, nickname: text, name: text };
           const nextProgress = recordAnswer(currentProgress, "name", { nickname: text, name: text });
           setFlowData(updated);
           flowDataRef.current = updated;
-          persist(nextProgress, "bedtime", updated);
-          pushUser(text);
-          goToLifestyle("bedtime", "name", text, updated);
+          advanceAfterAnswer("name", text, nextProgress, updated);
           return;
         }
-        if (
-          currentStep === "bedtime" ||
-          currentStep === "wake" ||
-          currentStep === "bath" ||
-          currentStep === "sleep_duration"
-        ) {
-          await handleLifestyleAnswer(text, currentStep);
+        if (isStructuredOnboardingStep(currentStep)) {
+          await handleStructuredStepAnswer(text, currentStep);
           return;
         }
 
@@ -393,7 +402,7 @@ export function OnboardingScreen({ fetchProposal, onQuestionnaireDone, onDeferTo
         processingRef.current = false;
       }
     },
-    [advanceAfterAnswer, fetchProposal, goToLifestyle, handleLifestyleAnswer, onDeferToHome, onQuestionnaireDone, persist, pushAi, pushTransition, pushUser, skipAnsweredProfileStep, t],
+    [advanceAfterAnswer, fetchProposal, goToLifestyle, handleStructuredStepAnswer, onDeferToHome, onQuestionnaireDone, persist, pushAi, pushTransition, pushUser, skipAnsweredProfileStep, t],
   );
 
   const handleChoice = useCallback(
@@ -457,7 +466,7 @@ export function OnboardingScreen({ fetchProposal, onQuestionnaireDone, onDeferTo
                     type="button"
                     disabled={isLoading}
                     onClick={() => handleChoice(c)}
-                    style={{ background: "#ede5d4", border: "1.5px solid rgba(60,40,20,0.12)", borderRadius: 20, padding: "8px 16px", fontSize: 13, cursor: isLoading ? "default" : "pointer", color: "#3d3228", opacity: isLoading ? 0.6 : 1 }}
+                    style={{ background: "#ede5d4", border: "1.5px solid rgba(60,40,20,0.12)", borderRadius: 20, padding: "8px 16px", fontSize: 13, cursor: isLoading ? "default" : "pointer", color: "#3d3228", opacity: isLoading ? 0.6 : 1, whiteSpace: "pre-line", textAlign: "left", maxWidth: "100%" }}
                   >
                     {c}
                   </button>

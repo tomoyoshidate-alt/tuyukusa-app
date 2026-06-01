@@ -276,6 +276,7 @@ const en: TranslationSchema = {
     empathyGoalCustom: "You want to achieve \"{{goal}}\".\nLet's design a rhythm that fits you.",
     empathyBirthdate: "Thank you.\nYour birth date helps us understand your constitution.",
     empathyGender: "Understood.\nWe'll use this for personalized wellness advice.",
+    empathyCourse: "Understood.\nLet's build your life rhythm together.",
     empathyName: "Nice to meet you, {{name}}.\nLet's build your life rhythm together.",
     empathyNameSkipped: "Understood.\nLet's build your life rhythm together.",
     empathyLifestyleAnswer: "\"{{answer}}\" — got it.",

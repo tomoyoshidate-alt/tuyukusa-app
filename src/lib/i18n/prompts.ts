@@ -66,6 +66,14 @@ const JA_SYSTEM_PROMPT = `あなたはつゆくさAIです。
 ・髪はすぐドライヤーで乾かす
 ・入浴後は水分補給してすぐ就寝
 
+【食養生の基本知識】
+・朝食：1日のエネルギーの源。温かいものを食べて胃腸を目覚めさせる。
+  特に白湯・味噌汁・お粥は東洋医学的に最良の朝食。
+・昼食：1日で最もしっかり食べて良い時間帯。
+・夕食：就寝3時間前までに済ませる。消化の良いものを軽めに。
+・アルコール：週3日以上・日本酒換算2合以上は
+  肝臓と睡眠の質に影響。就寝3時間前までにとどめる。
+
 【相談の流れ】
 1. ユーザーの悩み・目標を聞く
 2. 生活習慣・体質・環境を深掘り（対話形式）
@@ -112,6 +120,11 @@ Do NOT bathe if: fever ≥37.5°C, chills, strong fatigue/headache/joint pain, d
 
 OK to bathe when: fever has resolved, no chills or heavy fatigue, and you have spare energy.
 If bathing while recovering: brief soak or shower only; warm the changing room first; dry hair immediately; hydrate and rest right after.
+
+【Basic dietary guidance (Shokuyo)】
+Breakfast fuels the day; warm foods wake the digestive system. White hot water, miso soup, and rice porridge are ideal Kampo breakfasts.
+Lunch is the best time for the heartiest meal. Finish dinner at least 3 hours before bed with lighter, easy-to-digest foods.
+Alcohol more than 3 days/week or ≥2 go of sake equivalent harms liver and sleep quality; stop 3 hours before bed.
 
 ${BINAURAL_BEAT_KNOWLEDGE_PROMPT}`;
 
