@@ -6,7 +6,6 @@ import {
   formatIntroBirthDate,
   loadIntroDraft,
   saveIntroDraft,
-  markIntroCompleted,
   type IntroDraft,
 } from "@/src/lib/introStorage";
 
@@ -104,12 +103,8 @@ export function OnboardingIntroScreen({ onComplete }: Props) {
   };
 
   const handleStart = useCallback(() => {
-    try {
-      persistDraft();
-    } finally {
-      markIntroCompleted();
-      onComplete();
-    }
+    persistDraft();
+    onComplete();
   }, [onComplete, persistDraft]);
 
   const goNext = useCallback(() => {
@@ -400,12 +395,7 @@ export function OnboardingIntroScreen({ onComplete }: Props) {
       ) : (
         <button
           type="button"
-          onClick={e => {
-            e.stopPropagation();
-            handleStart();
-          }}
-          onTouchStart={e => e.stopPropagation()}
-          onTouchEnd={e => e.stopPropagation()}
+          onClick={handleStart}
           style={{
             padding: "16px 24px",
             borderRadius: 12,

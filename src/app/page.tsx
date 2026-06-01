@@ -2286,9 +2286,7 @@ export default function TuyukusaApp() {
   const [reflectMessageIndex, setReflectMessageIndex] = useState<number | null>(null);
   const [onboardingPhase, setOnboardingPhase] = useState<"questionnaire" | "integrations">("questionnaire");
   const [showIntroReplay, setShowIntroReplay] = useState(false);
-  const [introActive, setIntroActive] = useState(() =>
-    typeof window !== "undefined" ? !isIntroCompleted() : false,
-  );
+  const [introActive, setIntroActive] = useState(false);
   const [pendingOnboarding, setPendingOnboarding] = useState<{
     data: OnboardingFlowData;
     reflection: ScheduleReflection | null;
@@ -2384,21 +2382,22 @@ export default function TuyukusaApp() {
 
   useEffect(() => {
     if (!storageReady || showIntroReplay) return;
-    if (isIntroCompleted()) {
-      setIntroActive(false);
-    }
+    setIntroActive(!isIntroCompleted());
   }, [storageReady, showIntroReplay]);
 
   const handleIntroComplete = useCallback(() => {
-    markIntroCompleted();
-    const draft = loadIntroDraft();
-    if (draft) {
-      saveOnboardingProgress(buildProgressFromFlowData(introDraftToFlowData(draft)));
+    try {
+      markIntroCompleted();
+      const draft = loadIntroDraft();
+      if (draft) {
+        saveOnboardingProgress(buildProgressFromFlowData(introDraftToFlowData(draft)));
+      }
+      setOnboardingPhase("questionnaire");
+      setPendingOnboarding(null);
+    } finally {
+      setShowIntroReplay(false);
+      setIntroActive(false);
     }
-    setOnboardingPhase("questionnaire");
-    setPendingOnboarding(null);
-    setShowIntroReplay(false);
-    setIntroActive(false);
   }, []);
 
   useEffect(() => {
@@ -3960,7 +3959,10 @@ ${buildHealthSummary(healthForm)}`;
 
   if (storageReady && (showIntroReplay || introActive)) {
     return (
-      <OnboardingIntroScreen onComplete={handleIntroComplete} />
+      <OnboardingIntroScreen
+        key={showIntroReplay ? "intro-replay" : "intro-first"}
+        onComplete={handleIntroComplete}
+      />
     );
   }
 
@@ -4148,7 +4150,10 @@ ${buildHealthSummary(healthForm)}`;
           <div style={{ padding: isDesktop ? "8px 16px 24px" : 16 }}>
             <button
               type="button"
-              onClick={() => setShowIntroReplay(true)}
+              onClick={() => {
+                setShowIntroReplay(true);
+                setIntroActive(true);
+              }}
               style={{
                 width: "100%",
                 padding: "12px 16px",
