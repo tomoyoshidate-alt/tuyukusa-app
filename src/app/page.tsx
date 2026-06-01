@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useRef, useCallback, type CSSProperties, type ReactNode, type Dispatch, type SetStateAction } from "react";
+import { useState, useEffect, useRef, useCallback, useMemo, type CSSProperties, type ReactNode, type Dispatch, type SetStateAction } from "react";
 import { useTranslation } from "react-i18next";
 import dynamic from "next/dynamic";
 import { runTuyukusaStorageMigration } from "@/src/lib/tuyukusaStorage";
@@ -2286,8 +2286,9 @@ export default function TuyukusaApp() {
   const [reflectMessageIndex, setReflectMessageIndex] = useState<number | null>(null);
   const [onboardingPhase, setOnboardingPhase] = useState<"questionnaire" | "integrations">("questionnaire");
   const [introReplayActive, setIntroReplayActive] = useState(false);
-  const [showIntro, setShowIntro] = useState(false);
+  const [introRevision, setIntroRevision] = useState(0);
   const [introGateReady, setIntroGateReady] = useState(false);
+  const [introDismissed, setIntroDismissed] = useState(false);
   const [pendingOnboarding, setPendingOnboarding] = useState<{
     data: OnboardingFlowData;
     reflection: ScheduleReflection | null;
@@ -2382,24 +2383,34 @@ export default function TuyukusaApp() {
   }, [userProfileHydrated, userProfile.onboardingComplete]);
 
   useEffect(() => {
-    if (introReplayActive) {
-      setShowIntro(true);
-    } else {
-      setShowIntro(!isIntroCompleted());
-    }
     setIntroGateReady(true);
-  }, [introReplayActive]);
+    if (isIntroCompleted()) setIntroDismissed(true);
+  }, []);
+
+  const shouldShowIntro = useMemo(
+    () =>
+      introGateReady &&
+      !introDismissed &&
+      (introReplayActive || !isIntroCompleted()),
+    [introGateReady, introDismissed, introReplayActive, introRevision],
+  );
 
   const handleIntroComplete = useCallback(() => {
     markIntroCompleted();
+    setIntroDismissed(true);
     setIntroReplayActive(false);
-    setShowIntro(false);
+    setIntroRevision(r => r + 1);
 
-    const draft = loadIntroDraft();
-    if (!userProfile.onboardingComplete) {
-      saveOnboardingProgress(buildProgressFromFlowData(introDraftToFlowData(draft)));
-      setOnboardingPhase("questionnaire");
-      setPendingOnboarding(null);
+    try {
+      const draft = loadIntroDraft();
+      if (!userProfile.onboardingComplete) {
+        const progress = buildProgressFromFlowData(introDraftToFlowData(draft));
+        saveOnboardingProgress({ ...progress, integrationsPhase: false, pausedAtStep: undefined });
+        setOnboardingPhase("questionnaire");
+        setPendingOnboarding(null);
+      }
+    } catch (err) {
+      console.error("[handleIntroComplete]", err);
     }
   }, [userProfile.onboardingComplete]);
 
@@ -3418,9 +3429,10 @@ ${buildHealthSummary(healthForm)}`;
   const resetOnboardingFlow = () => {
     clearOnboardingProgress();
     clearIntroCompleted();
-    setShowIntro(true);
-    setIntroGateReady(true);
+    setIntroDismissed(false);
     setIntroReplayActive(false);
+    setIntroRevision(r => r + 1);
+    setIntroGateReady(true);
     setUserProfile(prev => ({
       ...prev,
       nameConfigured: false,
@@ -3964,7 +3976,7 @@ ${buildHealthSummary(healthForm)}`;
     setTab("home");
   };
 
-  if (storageReady && introGateReady && showIntro) {
+  if (storageReady && shouldShowIntro) {
     return (
       <OnboardingIntroScreen
         key={introReplayActive ? "intro-replay" : "intro-first"}
@@ -3992,7 +4004,7 @@ ${buildHealthSummary(healthForm)}`;
     }
     return (
       <OnboardingScreen
-        key="onboarding-after-intro"
+        key={`onboarding-after-intro-${introRevision}`}
         fetchProposal={fetchOnboardingProposal}
         onQuestionnaireDone={(data, reflection) => void handleQuestionnaireDone(data, reflection)}
         onDeferToHome={data => handleDeferOnboardingToHome(data)}
@@ -4160,8 +4172,9 @@ ${buildHealthSummary(healthForm)}`;
               type="button"
               onClick={() => {
                 clearIntroCompleted();
+                setIntroDismissed(false);
                 setIntroReplayActive(true);
-                setShowIntro(true);
+                setIntroRevision(r => r + 1);
               }}
               style={{
                 width: "100%",
