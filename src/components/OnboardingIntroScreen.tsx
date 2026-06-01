@@ -103,16 +103,18 @@ export function OnboardingIntroScreen({ onComplete }: Props) {
     );
   };
 
+  const handleStart = useCallback(() => {
+    persistDraft();
+    markIntroCompleted();
+    onComplete();
+  }, [onComplete, persistDraft]);
+
   const goNext = useCallback(() => {
     if (page === 1 || page === 2) persistDraft();
     if (page < PAGE_COUNT - 1) {
       setPage(p => p + 1);
-    } else {
-      persistDraft();
-      markIntroCompleted();
-      onComplete();
     }
-  }, [onComplete, page, persistDraft]);
+  }, [page, persistDraft]);
 
   const onTouchStart = useCallback((e: React.TouchEvent) => {
     touchStartX.current = e.touches[0]?.clientX ?? null;
@@ -180,10 +182,12 @@ export function OnboardingIntroScreen({ onComplete }: Props) {
         padding: "24px 20px 20px",
         overflow: "hidden",
       }}
-      onTouchStart={onTouchStart}
-      onTouchEnd={onTouchEnd}
     >
-      <div style={{ flex: 1, overflowY: "auto", paddingBottom: 12 }}>
+      <div
+        style={{ flex: 1, overflowY: "auto", paddingBottom: 12 }}
+        onTouchStart={onTouchStart}
+        onTouchEnd={onTouchEnd}
+      >
         {page === 0 && (
           <div>
             <h1 style={{ fontSize: 22, fontWeight: "bold", color: "#1a1410", textAlign: "center", margin: "0 0 16px", lineHeight: 1.5 }}>
@@ -393,7 +397,7 @@ export function OnboardingIntroScreen({ onComplete }: Props) {
       ) : (
         <button
           type="button"
-          onClick={goNext}
+          onClick={handleStart}
           style={{
             padding: "16px 24px",
             borderRadius: 12,
