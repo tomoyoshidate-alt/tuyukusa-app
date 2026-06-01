@@ -6,6 +6,8 @@ export type LfoShape = "sine" | "square" | "random";
 
 export type GranularParams = {
   grainSizeMs: number;
+  /** Percentage of grain size that actually emits audio (10–100). */
+  emitDurationPercent: number;
   overlap: number;
   position: number;
   randomness: number;
@@ -31,6 +33,10 @@ export function normalizeGranularParams(raw: Partial<GranularParams> | GranularP
       typeof raw.grainSizeMs === "number"
         ? Math.max(10, Math.min(500, raw.grainSizeMs))
         : DEFAULT_GRANULAR_PARAMS.grainSizeMs,
+    emitDurationPercent:
+      typeof raw.emitDurationPercent === "number"
+        ? Math.max(10, Math.min(100, raw.emitDurationPercent))
+        : DEFAULT_GRANULAR_PARAMS.emitDurationPercent,
     overlap:
       typeof raw.overlap === "number" ? Math.max(0, Math.min(100, raw.overlap)) : DEFAULT_GRANULAR_PARAMS.overlap,
     position:
@@ -139,6 +145,7 @@ export type SoundSystemSnapshot = {
 
 export const DEFAULT_GRANULAR_PARAMS: GranularParams = {
   grainSizeMs: 120,
+  emitDurationPercent: 75,
   overlap: 50,
   position: 0,
   randomness: 20,

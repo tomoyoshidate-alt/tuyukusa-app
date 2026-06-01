@@ -2,7 +2,7 @@ import { audioCtx, resumeAudioCtx } from "@/src/lib/audioContext";
 import {
   applySourcePitch,
   randomGrainPhaseOffset,
-  scheduleHanningGrainEnvelope,
+  scheduleEmitDurationEnvelope,
 } from "@/src/lib/audioQuality";
 import { normalizeGranularParams, type GranularParams, type LfoShape } from "@/src/lib/soundSystem/types";
 
@@ -145,11 +145,12 @@ export class GranularEngine {
     if (!audioCtx || !this.buffer || !this.running || this.params.volume <= 0) return;
     if (this.buffer.duration < 0.05) return;
 
-    const dur = Math.max(0.01, Math.min(0.5, this.params.grainSizeMs / 1000));
+    const grainSize = Math.max(0.01, Math.min(0.5, this.params.grainSizeMs / 1000));
+    const emitDuration = grainSize * (this.params.emitDurationPercent / 100);
     const src = audioCtx.createBufferSource();
     src.buffer = this.buffer;
 
-    const maxOffset = Math.max(0, this.buffer.duration - dur);
+    const maxOffset = Math.max(0, this.buffer.duration - grainSize);
     const base = (this.params.position / 100) * maxOffset;
     const randSpan = (this.params.randomness / 100) * maxOffset * 0.5;
     const offset = Math.max(
@@ -163,12 +164,12 @@ export class GranularEngine {
     const env = audioCtx.createGain();
     const t = audioCtx.currentTime;
     const vol = this.params.volume / 100;
-    scheduleHanningGrainEnvelope(env, t, dur, vol);
+    scheduleEmitDurationEnvelope(env, t, emitDuration, vol);
 
     src.connect(env);
     env.connect(this.output);
-    src.start(t, offset, dur);
-    src.stop(t + dur + 0.01);
+    src.start(t, offset);
+    src.stop(t + emitDuration + 0.01);
     this.activeSources.push(src);
     src.onended = () => {
       this.activeSources = this.activeSources.filter(s => s !== src);

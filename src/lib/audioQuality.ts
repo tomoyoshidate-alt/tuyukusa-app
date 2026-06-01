@@ -81,3 +81,63 @@ export function scheduleHanningGrainEnvelope(
 export function randomGrainPhaseOffset(): number {
   return (Math.random() - 0.5) * 0.01;
 }
+
+/** Target RMS approximating -14 LUFS (Spotify / YouTube standard). */
+export const LUFS_TARGET_RMS = 0.2;
+
+export function scheduleEmitDurationEnvelope(
+  gain: GainNode,
+  startTime: number,
+  emitDuration: number,
+  peak: number
+): void {
+  const attack = emitDuration * 0.2;
+  const fadeOutStart = startTime + emitDuration * 0.8;
+  const endTime = startTime + emitDuration;
+  gain.gain.setValueAtTime(0, startTime);
+  gain.gain.linearRampToValueAtTime(peak, startTime + attack);
+  gain.gain.setValueAtTime(peak, fadeOutStart);
+  gain.gain.linearRampToValueAtTime(0, endTime);
+}
+
+export class LoudnessNormalizer {
+  readonly analyser: AnalyserNode;
+  readonly gain: GainNode;
+  private timer: ReturnType<typeof setInterval> | null = null;
+  private readonly dataArray: Float32Array;
+
+  constructor(ctx: AudioContext) {
+    this.analyser = ctx.createAnalyser();
+    this.analyser.fftSize = 2048;
+    this.gain = ctx.createGain();
+    this.gain.gain.value = 1;
+    this.dataArray = new Float32Array(this.analyser.fftSize);
+  }
+
+  start(ctx: AudioContext): void {
+    this.stop();
+    this.timer = setInterval(() => this.normalize(ctx), 100);
+  }
+
+  stop(): void {
+    if (this.timer) {
+      clearInterval(this.timer);
+      this.timer = null;
+    }
+    this.gain.gain.value = 1;
+  }
+
+  private normalize(ctx: AudioContext): void {
+    this.analyser.getFloatTimeDomainData(this.dataArray as Float32Array<ArrayBuffer>);
+    let sum = 0;
+    for (let i = 0; i < this.dataArray.length; i++) {
+      const val = this.dataArray[i]!;
+      sum += val * val;
+    }
+    const rms = Math.sqrt(sum / this.dataArray.length);
+    if (rms > 0.001) {
+      const targetGain = Math.min(Math.max(LUFS_TARGET_RMS / rms, 0.1), 3.0);
+      this.gain.gain.setTargetAtTime(targetGain, ctx.currentTime, 0.1);
+    }
+  }
+}

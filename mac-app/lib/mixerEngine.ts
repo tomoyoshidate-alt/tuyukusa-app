@@ -3,6 +3,7 @@ import {
   createChannelHighPass,
   createMasterCompressor,
   createMasterLimiter,
+  LoudnessNormalizer,
 } from "@/src/lib/audioQuality";
 import { BBEngine } from "./bbEngine";
 import { GranularEngine } from "./granularEngine";
@@ -16,6 +17,7 @@ export type MixerSlot =
 export class MixerEngine {
   private master: GainNode | null = null;
   private compressor: DynamicsCompressorNode | null = null;
+  private loudnessNormalizer: LoudnessNormalizer | null = null;
   private limiter: WaveShaperNode | null = null;
   private channelHpfs: [BiquadFilterNode, BiquadFilterNode, BiquadFilterNode] | null = null;
   private analyser: AnalyserNode | null = null;
@@ -38,6 +40,7 @@ export class MixerEngine {
     if (this.master) return;
 
     this.compressor = createMasterCompressor(audioCtx);
+    this.loudnessNormalizer = new LoudnessNormalizer(audioCtx);
     this.master = audioCtx.createGain();
     this.limiter = createMasterLimiter(audioCtx);
     this.analyser = audioCtx.createAnalyser();
@@ -51,7 +54,9 @@ export class MixerEngine {
       if (this.compressor) hpf.connect(this.compressor);
     });
 
-    this.compressor.connect(this.master);
+    this.compressor.connect(this.loudnessNormalizer.analyser);
+    this.loudnessNormalizer.analyser.connect(this.loudnessNormalizer.gain);
+    this.loudnessNormalizer.gain.connect(this.master);
     this.master.connect(this.limiter);
     this.limiter.connect(this.analyser);
     this.analyser.connect(audioCtx.destination);
@@ -81,6 +86,7 @@ export class MixerEngine {
     if (s3?.kind === "granular" && ch2)
       tasks.push(this.granular3.start(s3.preset, ch2, s3.volume, this.audioBaseUrl));
     await Promise.all(tasks);
+    this.loudnessNormalizer?.start(audioCtx);
     this.playing = true;
   }
 
@@ -101,6 +107,7 @@ export class MixerEngine {
 
   async stop(): Promise<void> {
     this.playing = false;
+    this.loudnessNormalizer?.stop();
     await this.stopEngines();
   }
 }

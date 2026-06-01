@@ -10,6 +10,7 @@ import {
   createChannelHighPass,
   createMasterCompressor,
   createMasterLimiter,
+  LoudnessNormalizer,
 } from "@/src/lib/audioQuality";
 import { getDemoBuffer } from "@/src/lib/soundSystem/demoSources";
 import { GranularEngine } from "@/src/lib/soundSystem/granularEngine";
@@ -69,6 +70,7 @@ function cloneChannels(ch: [ChannelConfig, ChannelConfig, ChannelConfig]) {
 class SoundSystemManager {
   private masterGain: GainNode | null = null;
   private compressor: DynamicsCompressorNode | null = null;
+  private loudnessNormalizer: LoudnessNormalizer | null = null;
   private limiter: WaveShaperNode | null = null;
   private analyser: AnalyserNode | null = null;
   private channelHpfs: [BiquadFilterNode | null, BiquadFilterNode | null, BiquadFilterNode | null] = [
@@ -228,6 +230,7 @@ class SoundSystemManager {
     if (!audioCtx) return;
 
     this.compressor = createMasterCompressor(audioCtx);
+    this.loudnessNormalizer = new LoudnessNormalizer(audioCtx);
     this.masterGain = audioCtx.createGain();
     this.masterGain.gain.value = this.masterVolume;
     this.limiter = createMasterLimiter(audioCtx);
@@ -245,7 +248,9 @@ class SoundSystemManager {
       this.channelGains[i] = g;
     }
 
-    this.compressor.connect(this.masterGain);
+    this.compressor.connect(this.loudnessNormalizer.analyser);
+    this.loudnessNormalizer.analyser.connect(this.loudnessNormalizer.gain);
+    this.loudnessNormalizer.gain.connect(this.masterGain);
     this.masterGain.connect(this.limiter);
     this.limiter.connect(this.analyser);
     this.analyser.connect(audioCtx.destination);
@@ -436,6 +441,7 @@ class SoundSystemManager {
     if (!(await this.ensureAudio())) return;
     this.isPlaying = true;
     await this.rebuildAll();
+    if (audioCtx) this.loudnessNormalizer?.start(audioCtx);
     if (this.isPlaylistActive) {
       const list = this.resolvePlaylistPresets();
       if (list.length > 0) {
@@ -452,6 +458,7 @@ class SoundSystemManager {
 
   stop(): void {
     this.isPlaying = false;
+    this.loudnessNormalizer?.stop();
     this.clearPresetTimer();
     this.granularEngines.forEach(e => e?.stop());
     this.granularEngines = [null, null];

@@ -981,6 +981,15 @@ function GranularControls({
     <div style={{ marginBottom: 16 }}>
       <SectionTitle>グラニュライザー</SectionTitle>
       <SliderRow label="Grain Size" value={params.grainSizeMs} min={10} max={500} step={5} unit="ms" onChange={v => set({ grainSizeMs: v })} />
+      <SliderRow
+        label="Emit Duration"
+        value={params.emitDurationPercent}
+        min={10}
+        max={100}
+        step={1}
+        unit="%"
+        onChange={v => set({ emitDurationPercent: v })}
+      />
       <SliderRow label="Overlap" value={params.overlap} min={0} max={100} step={1} unit="%" onChange={v => set({ overlap: v })} />
       <SliderRow label="Position" value={params.position} min={0} max={100} step={1} unit="%" onChange={v => set({ position: v })} />
       <SliderRow label="Randomness" value={params.randomness} min={0} max={100} step={1} unit="%" onChange={v => set({ randomness: v })} />
