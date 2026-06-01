@@ -18,15 +18,20 @@ import {
   buildWelcomeMessageFromIntro,
   getOnboardingStepPrompt,
 } from "@/src/lib/onboardingResponses";
-import { introDraftToFlowData, loadIntroDraft } from "@/src/lib/introStorage";
+import { loadIntroDraft } from "@/src/lib/introStorage";
 import {
-  buildProgressFromFlowData,
+  applyStoredProfileToProgress,
   hasVoiceHintBeenShown,
+  INITIAL_ONBOARDING_PROGRESS,
+  isLifestyleStep,
+  isQuestionAnswered,
   loadOnboardingProgress,
   markVoiceHintShown,
+  ONBOARDING_PROFILE_STEPS,
   recordAnswer,
   recordDefer,
   recordSkipToHome,
+  resolveNextStepAfter,
   resolveOnboardingResumeStep,
   saveOnboardingProgress,
   type OnboardingProgress,
@@ -61,13 +66,9 @@ function buildInitialFlowState(): {
   flowData: OnboardingFlowData;
 } {
   const savedProgress = loadOnboardingProgress();
-  const introFlow = introDraftToFlowData(loadIntroDraft());
-  const mergedFlow: OnboardingFlowData = { ...(savedProgress?.flowData ?? {}), ...introFlow };
-  const progress = savedProgress
-    ? { ...savedProgress, flowData: { ...savedProgress.flowData, ...introFlow } }
-    : buildProgressFromFlowData(mergedFlow);
+  const progress = applyStoredProfileToProgress(savedProgress ?? INITIAL_ONBOARDING_PROGRESS);
   const step = resolveOnboardingResumeStep(progress);
-  return { step, progress, flowData: progress.flowData ?? mergedFlow };
+  return { step, progress, flowData: progress.flowData };
 }
 
 function buildInitialMessages(step: OnboardingStep, t: (k: string) => string): OnboardingMessage[] {
@@ -113,9 +114,12 @@ export function OnboardingScreen({ fetchProposal, onQuestionnaireDone, onDeferTo
   }, []);
 
   useEffect(() => {
-    const saved = loadOnboardingProgress();
-    if (saved) saveOnboardingProgress(saved);
-    else if (loadIntroDraft()) saveOnboardingProgress(initialState.progress);
+    const synced = applyStoredProfileToProgress(progressRef.current);
+    saveOnboardingProgress(synced);
+    setProgress(synced);
+    progressRef.current = synced;
+    setFlowData(synced.flowData);
+    flowDataRef.current = synced.flowData;
   }, []);
 
   useEffect(() => {
@@ -157,6 +161,41 @@ export function OnboardingScreen({ fetchProposal, onQuestionnaireDone, onDeferTo
       pushTransition(fromStep, answer, nextStep, data);
     },
     [pushTransition],
+  );
+
+  const advanceAfterAnswer = useCallback(
+    (fromStep: OnboardingStep, answer: string, nextProgress: OnboardingProgress, updated: OnboardingFlowData) => {
+      const nextStep = resolveNextStepAfter(fromStep, nextProgress);
+      persist(nextProgress, nextStep, updated);
+      pushUser(answer);
+      setStep(nextStep);
+      stepRef.current = nextStep;
+      if (isLifestyleStep(nextStep)) {
+        goToLifestyle(nextStep, fromStep, answer, updated);
+      } else {
+        pushTransition(fromStep, answer, nextStep, updated);
+      }
+    },
+    [goToLifestyle, persist, pushTransition, pushUser],
+  );
+
+  const skipAnsweredProfileStep = useCallback(
+    (currentStep: OnboardingStep, currentProgress: OnboardingProgress, currentFlow: OnboardingFlowData) => {
+      if (!ONBOARDING_PROFILE_STEPS.includes(currentStep)) return false;
+      if (!isQuestionAnswered(currentProgress, currentStep)) return false;
+      const nextStep = resolveNextStepAfter(currentStep, currentProgress);
+      if (nextStep === currentStep) return false;
+      setStep(nextStep);
+      stepRef.current = nextStep;
+      if (isLifestyleStep(nextStep)) {
+        goToLifestyle(nextStep, currentStep, "", currentFlow);
+      } else {
+        const prompt = getOnboardingStepPrompt(nextStep, t);
+        if (prompt.question) pushAi(prompt.question, prompt.choices);
+      }
+      return true;
+    },
+    [goToLifestyle, pushAi, t],
   );
 
   const handleLifestyleAnswer = useCallback(
@@ -259,16 +298,13 @@ export function OnboardingScreen({ fetchProposal, onQuestionnaireDone, onDeferTo
           window.setTimeout(() => onDeferToHome(flowDataRef.current), 1200);
           return;
         }
+        if (skipAnsweredProfileStep(currentStep, currentProgress, currentFlow)) return;
         if (currentStep === "gender") {
           const updated = { ...currentFlow, gender: text };
           const nextProgress = recordAnswer(currentProgress, "gender", { gender: text });
           setFlowData(updated);
           flowDataRef.current = updated;
-          persist(nextProgress, "name", updated);
-          pushUser(text);
-          setStep("name");
-          stepRef.current = "name";
-          pushTransition("gender", text, "name", updated);
+          advanceAfterAnswer("gender", text, nextProgress, updated);
           return;
         }
         if (currentStep === "goal") {
@@ -283,11 +319,7 @@ export function OnboardingScreen({ fetchProposal, onQuestionnaireDone, onDeferTo
           const nextProgress = recordAnswer(currentProgress, "goal", { goal });
           setFlowData(updated);
           flowDataRef.current = updated;
-          persist(nextProgress, "birthdate", updated);
-          pushUser(text);
-          setStep("birthdate");
-          stepRef.current = "birthdate";
-          pushTransition("goal", text, "birthdate", updated);
+          advanceAfterAnswer("goal", text, nextProgress, updated);
           return;
         }
         if (currentStep === "birthdate") {
@@ -295,11 +327,7 @@ export function OnboardingScreen({ fetchProposal, onQuestionnaireDone, onDeferTo
           const nextProgress = recordAnswer(currentProgress, "birthdate", { birthDate: text });
           setFlowData(updated);
           flowDataRef.current = updated;
-          persist(nextProgress, "gender", updated);
-          pushUser(text);
-          setStep("gender");
-          stepRef.current = "gender";
-          pushTransition("birthdate", text, "gender", updated);
+          advanceAfterAnswer("birthdate", text, nextProgress, updated);
           return;
         }
         if (currentStep === "name") {
@@ -365,7 +393,7 @@ export function OnboardingScreen({ fetchProposal, onQuestionnaireDone, onDeferTo
         processingRef.current = false;
       }
     },
-    [fetchProposal, goToLifestyle, handleLifestyleAnswer, onDeferToHome, onQuestionnaireDone, persist, pushAi, pushTransition, pushUser, t],
+    [advanceAfterAnswer, fetchProposal, goToLifestyle, handleLifestyleAnswer, onDeferToHome, onQuestionnaireDone, persist, pushAi, pushTransition, pushUser, skipAnsweredProfileStep, t],
   );
 
   const handleChoice = useCallback(

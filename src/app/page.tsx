@@ -59,8 +59,11 @@ import { OnboardingIntegrationsScreen, type IntegrationFinishOptions } from "@/s
 import { AiChatPanel } from "@/src/components/AiChatPanel";
 import type { OnboardingFlowData } from "@/src/lib/onboarding";
 import {
+  applyStoredProfileToProgress,
+  buildOnboardingProfileSystemContext,
   clearOnboardingProgress,
   getPendingQuestions,
+  INITIAL_ONBOARDING_PROGRESS,
   isOnboardingResetIntent,
   loadOnboardingProgress,
   saveOnboardingProgress,
@@ -2437,10 +2440,13 @@ export default function TuyukusaApp() {
   };
 
   const fetchOnboardingProposal = async (prompt: string): Promise<ChatReply> => {
+    const progress = applyStoredProfileToProgress(loadOnboardingProgress() ?? INITIAL_ONBOARDING_PROGRESS);
+    const profileContext = buildOnboardingProfileSystemContext(progress.flowData);
+    const combinedKnowledge = [profileContext, userKnowledgeContext].filter(Boolean).join("\n\n");
     return fetchChatReply(
       [{ type: "user", text: prompt }],
       envContext,
-      userKnowledgeContext,
+      combinedKnowledge,
       healthContext,
       appLocale
     );

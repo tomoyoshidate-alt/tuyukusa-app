@@ -1,6 +1,8 @@
 import type { OnboardingFlowData, OnboardingStep } from "./onboarding";
+import { introDraftToFlowData, loadIntroDraft } from "./introStorage";
 
 export const ONBOARDING_PROGRESS_KEY = "tuyukusa-onboarding-progress";
+export const ONBOARDING_PROFILE_STEPS: OnboardingStep[] = ["birthdate", "gender", "name"];
 export const ONBOARDING_QUESTION_ORDER: OnboardingStep[] = [
   "goal", "birthdate", "gender", "name", "bedtime", "wake", "bath", "sleep_duration",
 ];
@@ -65,6 +67,71 @@ export function normalizeOnboardingProgress(data: unknown): OnboardingProgress |
     currentStep: typeof d.currentStep === "string" ? normalizeOnboardingStep(d.currentStep) : undefined,
   };
   return migrateOnboardingProgress(base);
+}
+
+export function loadStoredOnboardingProfile(): Partial<OnboardingFlowData> {
+  if (typeof window === "undefined") return {};
+  const fromIntro = introDraftToFlowData(loadIntroDraft());
+  const fromProfile: Partial<OnboardingFlowData> = {};
+  try {
+    const raw = localStorage.getItem("tuyukusa-user-profile");
+    if (raw) {
+      const profile = JSON.parse(raw) as {
+        birthDate?: string;
+        gender?: string;
+        nickname?: string;
+        name?: string;
+      };
+      if (profile.birthDate?.trim()) fromProfile.birthDate = profile.birthDate.trim();
+      if (profile.gender?.trim()) fromProfile.gender = profile.gender.trim();
+      if (profile.nickname?.trim()) {
+        fromProfile.nickname = profile.nickname.trim();
+        fromProfile.name = profile.nickname.trim();
+      } else if (profile.name?.trim()) {
+        fromProfile.name = profile.name.trim();
+      }
+    }
+  } catch {
+    /* ignore */
+  }
+  return { ...fromIntro, ...fromProfile };
+}
+
+export function applyStoredProfileToProgress(progress: OnboardingProgress): OnboardingProgress {
+  const mergedFlow = { ...progress.flowData, ...loadStoredOnboardingProfile() };
+  return buildProgressFromFlowData(mergedFlow);
+}
+
+export function buildOnboardingProfileSystemContext(data: Partial<OnboardingFlowData> = {}): string {
+  const merged = { ...loadStoredOnboardingProfile(), ...data };
+  const lines: string[] = [];
+  if (merged.birthDate?.trim()) lines.push(`生年月日: ${merged.birthDate.trim()}`);
+  if (merged.gender?.trim()) lines.push(`性別: ${merged.gender.trim()}`);
+  const nickname = merged.nickname?.trim() || merged.name?.trim();
+  if (nickname) lines.push(`ニックネーム: ${nickname}`);
+  if (!lines.length) return "";
+  return [
+    "【初回問診：取得済みプロフィール】",
+    ...lines,
+    "",
+    "この情報はすでに取得済みです。絶対に再度聞かないでください。",
+    "生年月日・性別・ニックネームについて同じ質問をしないでください。",
+  ].join("\n");
+}
+
+export function resolveNextStepAfter(fromStep: OnboardingStep, progress: OnboardingProgress): OnboardingStep {
+  const startIdx = fromStep === "goal" ? 1 : ONBOARDING_QUESTION_ORDER.indexOf(fromStep) + 1;
+  if (startIdx <= 0) return "proposal";
+  for (let i = startIdx; i < ONBOARDING_QUESTION_ORDER.length; i++) {
+    const step = ONBOARDING_QUESTION_ORDER[i];
+    if (ONBOARDING_PROFILE_STEPS.includes(step) && isQuestionAnswered(progress, step)) continue;
+    return step;
+  }
+  return "proposal";
+}
+
+export function isLifestyleStep(step: OnboardingStep): step is "bedtime" | "wake" | "bath" | "sleep_duration" {
+  return step === "bedtime" || step === "wake" || step === "bath" || step === "sleep_duration";
 }
 
 export function loadOnboardingProgress(): OnboardingProgress | null {
