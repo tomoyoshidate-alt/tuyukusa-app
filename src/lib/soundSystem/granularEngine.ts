@@ -64,6 +64,10 @@ export class GranularEngine {
     if (prev.pitchShift !== next.pitchShift) {
       this.applyPlaybackRateToActiveGrains();
     }
+
+    if (prev.grainSizeMs !== next.grainSizeMs || prev.overlap !== next.overlap) {
+      this.configureGrainTimer();
+    }
   }
 
   private startDepthFade(target: number, durSec: number): void {
@@ -168,6 +172,19 @@ export class GranularEngine {
     };
   }
 
+  private configureGrainTimer(): void {
+    if (this.grainTimer) {
+      clearInterval(this.grainTimer);
+      this.grainTimer = null;
+    }
+    if (!this.running) return;
+
+    const dur = Math.max(0.01, this.params.grainSizeMs / 1000);
+    const overlapFactor = 1 - Math.max(0, Math.min(100, this.params.overlap)) / 100;
+    const ms = Math.max(20, dur * overlapFactor * 1000 * 0.5);
+    this.grainTimer = setInterval(() => this.spawnGrain(), ms);
+  }
+
   async start(): Promise<void> {
     if (this.running) return;
     await resumeAudioCtx();
@@ -178,12 +195,8 @@ export class GranularEngine {
     this.randomTargetSemis = 0;
     this.effectiveLfoDepth = this.params.lfoEnabled ? this.params.lfoDepth : 0;
 
-    const dur = Math.max(0.01, this.params.grainSizeMs / 1000);
-    const overlapFactor = 1 - Math.max(0, Math.min(100, this.params.overlap)) / 100;
-    const ms = Math.max(20, dur * overlapFactor * 1000 * 0.5);
-
     this.spawnGrain();
-    this.grainTimer = setInterval(() => this.spawnGrain(), ms);
+    this.configureGrainTimer();
     this.lfoTickTimer = setInterval(() => this.tickLfo(), LFO_TICK_MS);
     this.configureRandomTimer();
   }

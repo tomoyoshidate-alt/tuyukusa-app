@@ -14,6 +14,10 @@ import { audioFilesMatch } from "@mac/lib/audioStorage";
 import { studioGranularToParams } from "@/src/lib/studioPresets";
 import { readPresets, readPlaylistSettings } from "@/src/lib/soundSystem/presetStorage";
 import { soundSystemManager } from "@/src/lib/soundSystem/soundSystemManager";
+import {
+  granularPreviewManager,
+  type GranularPreviewConfig,
+} from "@/src/lib/soundSystem/granularPreviewManager";
 import type {
   BinauralChannelConfig,
   ChannelConfig,
@@ -157,6 +161,8 @@ export default function SoundSystemPanel({
   const [beatPresets, setBeatPresets] = useState(() => getAllBeatPresets());
   const [studioGranularPresets, setStudioGranularPresets] = useState(() => getStudioGranularPresets());
   const [audioCatalog, setAudioCatalog] = useState<StudioAudioEntry[]>([]);
+  const [previewPlaying, setPreviewPlaying] = useState(false);
+  const [previewVolume, setPreviewVolume] = useState(0.7);
 
   const updatePlaylist = (next: PlaylistSettings) => {
     soundSystemManager.setPlaylistSettings(next);
@@ -174,9 +180,12 @@ export default function SoundSystemPanel({
       setSnapshot(s);
       setAnalyser(soundSystemManager.getAnalyser());
     });
+    const unsubPreview = granularPreviewManager.subscribe(setPreviewPlaying);
     return () => {
       unsub();
+      unsubPreview();
       soundSystemManager.dispose();
+      granularPreviewManager.dispose();
     };
   }, []);
 
@@ -230,6 +239,37 @@ export default function SoundSystemPanel({
   const slotLabels = ["Ch1 BB", "Ch2", "Ch3"];
   const ch0 = channels[0] as BinauralChannelConfig;
   const chActive = channels[activeSlot];
+
+  const granularPreviewConfig: GranularPreviewConfig | null =
+    activeSlot !== 0 && chActive.type === "granular"
+      ? {
+          sourceId: chActive.sourceId,
+          audioFile: chActive.audioFile,
+          granular: chActive.granular,
+        }
+      : null;
+
+  useEffect(() => {
+    if (activeSlot === 0 || chActive.type !== "granular") {
+      granularPreviewManager.stop();
+    }
+  }, [activeSlot, chActive.type]);
+
+  useEffect(() => {
+    if (!previewPlaying || activeSlot === 0 || chActive.type !== "granular") return;
+    void granularPreviewManager.update({
+      sourceId: chActive.sourceId,
+      audioFile: chActive.audioFile,
+      granular: chActive.granular,
+    });
+  }, [
+    previewPlaying,
+    activeSlot,
+    chActive.type,
+    chActive.type === "granular" ? chActive.sourceId : "",
+    chActive.type === "granular" ? chActive.audioFile : "",
+    chActive.type === "granular" ? JSON.stringify(chActive.granular) : "",
+  ]);
 
   const pomodoroAmbient = ch0.type === "binaural" ? ch0.binauralAmbientId : "rain";
 
@@ -565,6 +605,17 @@ export default function SoundSystemPanel({
                   );
                 })}
               </div>
+              {granularPreviewConfig && (
+                <GranularPreviewBar
+                  config={granularPreviewConfig}
+                  playing={previewPlaying}
+                  volume={previewVolume}
+                  onVolumeChange={v => {
+                    setPreviewVolume(v);
+                    granularPreviewManager.setVolume(v);
+                  }}
+                />
+              )}
               <GranularControls
                 params={chActive.granular}
                 onChange={g => updateChannel(activeSlot, { ...chActive, granular: g })}
@@ -829,6 +880,89 @@ export default function SoundSystemPanel({
           )}
         </>
       )}
+    </div>
+  );
+}
+
+function GranularPreviewBar({
+  config,
+  playing,
+  volume,
+  onVolumeChange,
+}: {
+  config: GranularPreviewConfig;
+  playing: boolean;
+  volume: number;
+  onVolumeChange: (v: number) => void;
+}) {
+  const hasSource = granularPreviewManager.hasSource(config);
+
+  return (
+    <div
+      style={{
+        marginBottom: 14,
+        padding: "10px 12px",
+        borderRadius: 10,
+        border: "1px solid rgba(232,168,106,0.25)",
+        background: "rgba(232,168,106,0.06)",
+      }}
+    >
+      {!hasSource && (
+        <div style={{ fontSize: 11, color: "#e8a86a", marginBottom: 8 }}>
+          音源を選択してください
+        </div>
+      )}
+      <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+        <button
+          type="button"
+          disabled={!hasSource}
+          onClick={() => void granularPreviewManager.start(config)}
+          style={{
+            padding: "8px 14px",
+            borderRadius: 8,
+            border: "none",
+            background: hasSource ? "#4a6741" : "rgba(255,255,255,0.08)",
+            color: hasSource ? "white" : "#9a8b7a",
+            fontSize: 12,
+            fontWeight: "bold",
+            cursor: hasSource ? "pointer" : "default",
+            opacity: hasSource ? 1 : 0.6,
+          }}
+        >
+          ▶ プレビュー再生
+        </button>
+        <button
+          type="button"
+          disabled={!playing}
+          onClick={() => granularPreviewManager.stop()}
+          style={{
+            padding: "8px 14px",
+            borderRadius: 8,
+            border: "1px solid rgba(255,255,255,0.15)",
+            background: playing ? "#8b4545" : "rgba(255,255,255,0.05)",
+            color: playing ? "white" : "#9a8b7a",
+            fontSize: 12,
+            fontWeight: "bold",
+            cursor: playing ? "pointer" : "default",
+            opacity: playing ? 1 : 0.6,
+          }}
+        >
+          ■ 停止
+        </button>
+        <span style={{ fontSize: 11, color: "#9a8b7a", marginLeft: 4 }}>音量:</span>
+        <input
+          type="range"
+          min={0}
+          max={100}
+          step={1}
+          value={Math.round(volume * 100)}
+          onChange={e => onVolumeChange(Number(e.target.value) / 100)}
+          style={{ flex: 1, minWidth: 80, maxWidth: 140, accentColor: "#e8a86a" }}
+        />
+        <span style={{ fontSize: 11, color: "#f5f0e8", minWidth: 36 }}>
+          {Math.round(volume * 100)}%
+        </span>
+      </div>
     </div>
   );
 }

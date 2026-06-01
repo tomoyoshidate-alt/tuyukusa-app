@@ -5,6 +5,11 @@ export const audioCtx =
         (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext)()
     : null;
 
+/** Returns the shared AudioContext singleton (null during SSR). */
+export function getAudioContext(): AudioContext | null {
+  return audioCtx;
+}
+
 export async function resumeAudioCtx(): Promise<void> {
   if (audioCtx && audioCtx.state === "suspended") {
     await audioCtx.resume();
