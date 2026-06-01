@@ -5,7 +5,6 @@ import { useTranslation } from "react-i18next";
 import {
   formatIntroBirthDate,
   loadIntroDraft,
-  markIntroCompleted,
   saveIntroDraft,
   type IntroDraft,
 } from "@/src/lib/introStorage";
@@ -62,8 +61,19 @@ export function OnboardingIntroScreen({ onComplete }: Props) {
   const [birthMonth, setBirthMonth] = useState<number | "">("");
   const [birthDay, setBirthDay] = useState<number | "">("");
   const [gender, setGender] = useState("");
+  const [pendingComplete, setPendingComplete] = useState(false);
 
   const touchStartX = useRef<number | null>(null);
+
+  useEffect(() => {
+    if (!pendingComplete) return;
+    try {
+      localStorage.setItem("introCompleted", "true");
+    } catch {
+      /* ignore quota / private mode */
+    }
+    onComplete();
+  }, [pendingComplete, onComplete]);
 
   useEffect(() => {
     const saved = loadIntroDraft();
@@ -121,9 +131,8 @@ export function OnboardingIntroScreen({ onComplete }: Props) {
     } catch {
       /* ignore draft save errors */
     }
-    markIntroCompleted();
-    onComplete();
-  }, [onComplete, persistDraft]);
+    setPendingComplete(true);
+  }, [persistDraft]);
 
   const goNext = useCallback(() => {
     if (page === 1 || page === 2 || page === 3) persistDraft();
