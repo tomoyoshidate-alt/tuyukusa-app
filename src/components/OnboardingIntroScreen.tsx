@@ -6,6 +6,7 @@ import {
   formatIntroBirthDate,
   loadIntroDraft,
   saveIntroDraft,
+  markIntroCompleted,
   type IntroDraft,
 } from "@/src/lib/introStorage";
 type Props = {
@@ -107,6 +108,7 @@ export function OnboardingIntroScreen({ onComplete }: Props) {
       setPage(p => p + 1);
     } else {
       persistDraft();
+      markIntroCompleted();
       onComplete();
     }
   }, [onComplete, page, persistDraft]);

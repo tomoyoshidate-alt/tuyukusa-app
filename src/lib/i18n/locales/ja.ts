@@ -401,7 +401,7 @@ const ja = {
     genderMale: "男性",
     genderFemale: "女性",
     genderOther: "その他・答えたくない",
-    page4Message: "さあ、あなただけのリズムをつくりましょう。",
+    page4Message: "さあ、あなたの理想のリズムを実現しましょう。",
     next: "次へ",
     start: "はじめる",
     replay: "はじめにを見る",
