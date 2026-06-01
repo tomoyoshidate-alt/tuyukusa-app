@@ -2285,9 +2285,7 @@ export default function TuyukusaApp() {
   const [reflectNotice, setReflectNotice] = useState("");
   const [reflectMessageIndex, setReflectMessageIndex] = useState<number | null>(null);
   const [onboardingPhase, setOnboardingPhase] = useState<"questionnaire" | "integrations">("questionnaire");
-  const [showIntroReplay, setShowIntroReplay] = useState(false);
-  const [introFinished, setIntroFinished] = useState(false);
-  const introDismissedRef = useRef(false);
+  const [introReplayActive, setIntroReplayActive] = useState(false);
   const [pendingOnboarding, setPendingOnboarding] = useState<{
     data: OnboardingFlowData;
     reflection: ScheduleReflection | null;
@@ -2381,22 +2379,9 @@ export default function TuyukusaApp() {
     }
   }, [userProfileHydrated, userProfile.onboardingComplete]);
 
-  useEffect(() => {
-    if (!storageReady) return;
-    if (showIntroReplay) {
-      introDismissedRef.current = false;
-      setIntroFinished(false);
-      return;
-    }
-    if (introDismissedRef.current) return;
-    setIntroFinished(prev => prev || isIntroCompleted());
-  }, [storageReady, showIntroReplay]);
-
   const handleIntroComplete = useCallback(() => {
     markIntroCompleted();
-    introDismissedRef.current = true;
-    setIntroFinished(true);
-    setShowIntroReplay(false);
+    setIntroReplayActive(false);
 
     const draft = loadIntroDraft();
     if (!userProfile.onboardingComplete) {
@@ -3421,9 +3406,7 @@ ${buildHealthSummary(healthForm)}`;
   const resetOnboardingFlow = () => {
     clearOnboardingProgress();
     clearIntroCompleted();
-    introDismissedRef.current = false;
-    setShowIntroReplay(false);
-    setIntroFinished(false);
+    setIntroReplayActive(false);
     setUserProfile(prev => ({
       ...prev,
       nameConfigured: false,
@@ -3967,10 +3950,10 @@ ${buildHealthSummary(healthForm)}`;
     setTab("home");
   };
 
-  if (storageReady && !introFinished) {
+  if (storageReady && (introReplayActive || !isIntroCompleted())) {
     return (
       <OnboardingIntroScreen
-        key={showIntroReplay ? "intro-replay" : "intro-first"}
+        key={introReplayActive ? "intro-replay" : "intro-first"}
         onComplete={handleIntroComplete}
       />
     );
@@ -4161,11 +4144,7 @@ ${buildHealthSummary(healthForm)}`;
           <div style={{ padding: isDesktop ? "8px 16px 24px" : 16 }}>
             <button
               type="button"
-              onClick={() => {
-                introDismissedRef.current = false;
-                setShowIntroReplay(true);
-                setIntroFinished(false);
-              }}
+              onClick={() => setIntroReplayActive(true)}
               style={{
                 width: "100%",
                 padding: "12px 16px",

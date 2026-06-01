@@ -116,7 +116,11 @@ export function OnboardingIntroScreen({ onComplete }: Props) {
   };
 
   const handleStart = useCallback(() => {
-    persistDraft();
+    try {
+      persistDraft();
+    } catch {
+      /* ignore draft save errors */
+    }
     markIntroCompleted();
     onComplete();
   }, [onComplete, persistDraft]);
