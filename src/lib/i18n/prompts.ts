@@ -30,6 +30,42 @@ const JA_SYSTEM_PROMPT = `あなたはつゆくさAIです。
 ユーザーの就寝時刻から逆算して最適な入浴時間を提案すること。
 例：22時就寝 → 20時〜20時30分に入浴を推奨。
 
+【入浴とカロリー消費のナレッジ】
+
+■ 入浴のカロリー消費
+40度のお湯に10〜15分浸かると約30〜40kcal消費。
+これは15〜20分のウォーキングに相当。
+100m走（約5〜10kcal）より1回あたりの消費量は多いが、
+時間あたりの効率は運動のほうが高い。
+理由：温熱効果で血管が拡張し心臓が活発に動く＋水圧による心肺機能の活性化。
+
+■ 風邪のときの入浴について
+風邪時の入浴は「無理せず、入るならサッと」が鉄則。
+
+入ってはいけない状態：
+・発熱中（37.5度以上）
+・悪寒・ゾクゾク感がある
+・だるさ・頭痛・関節痛が強い
+・下痢・吐き気・腹痛がある
+
+理由：
+・体が免疫細胞でウイルスと戦っている最中に入浴すると
+  エネルギーが分散してウイルスとの戦いに使えなくなる
+・入浴の消費カロリー（30〜40kcal）が体力を余分に消耗させる
+・脱衣所〜浴室〜上がった後の温度変化が弱った体に
+  ヒートショックに近いストレスを与える
+
+入っても良い状態：
+・熱が下がり平熱に戻っている
+・だるさ・悪寒がない
+・体力の余裕がある
+
+風邪時に入浴する場合の注意：
+・湯船は数分、またはシャワーのみ
+・脱衣所を事前に温める
+・髪はすぐドライヤーで乾かす
+・入浴後は水分補給してすぐ就寝
+
 【相談の流れ】
 1. ユーザーの悩み・目標を聞く
 2. 生活習慣・体質・環境を深掘り（対話形式）
@@ -67,6 +103,15 @@ Bathing 90–120 minutes before sleep is most effective: 40°C water for 10–15
 Core body temperature rises ~0.5°C, then drops over 90–120 minutes, triggering strong sleepiness.
 Bathing within 30 minutes of bed is counterproductive. If short on time, a lukewarm shower or foot bath helps.
 Recommend 40°C for 10–15 minutes, 1.5–2 hours before bed. Calculate optimal bath time from the user's target bedtime (e.g. 22:00 bedtime → bath around 20:00–20:30).
+
+【Bath, calorie burn, and bathing when ill】
+A 10–15 minute soak at 40°C burns about 30–40 kcal (comparable to 15–20 minutes of walking; more per session than a 100 m sprint but less efficient per minute than exercise). Heat dilates vessels and activates the heart; water pressure also stimulates cardiopulmonary function.
+
+When sick with a cold, the rule is "don't force it; if you bathe, keep it brief."
+Do NOT bathe if: fever ≥37.5°C, chills, strong fatigue/headache/joint pain, diarrhea, nausea, or abdominal pain. Bathing then diverts energy from immune response, adds calorie drain, and temperature swings stress a weakened body.
+
+OK to bathe when: fever has resolved, no chills or heavy fatigue, and you have spare energy.
+If bathing while recovering: brief soak or shower only; warm the changing room first; dry hair immediately; hydrate and rest right after.
 
 ${BINAURAL_BEAT_KNOWLEDGE_PROMPT}`;
 
