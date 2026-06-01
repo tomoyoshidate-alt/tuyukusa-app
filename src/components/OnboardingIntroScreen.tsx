@@ -140,6 +140,7 @@ export function OnboardingIntroScreen({ onComplete }: Props) {
     setPendingComplete(true);
   }, [persistDraft]);
 
+  const handleInterestSelect = useCallback(
     (label: string) => {
       const nextInterests = selectedInterests.includes(label)
         ? selectedInterests
