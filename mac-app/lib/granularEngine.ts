@@ -1,5 +1,10 @@
 import { audioCtx, resumeAudioCtx } from "@/src/lib/audioContext";
-import { clampPitchSemis, playbackRateForSemis } from "@mac/lib/pitchFormat";
+import {
+  applySourcePitch,
+  randomGrainPhaseOffset,
+  scheduleHanningGrainEnvelope,
+} from "@/src/lib/audioQuality";
+import { clampPitchSemis } from "@mac/lib/pitchFormat";
 import type { GranularPreset } from "./types";
 import { resolveStudioAudioUrl } from "./audioStorage";
 
@@ -25,7 +30,7 @@ export class GranularEngine {
     this.buffer = await audioCtx.decodeAudioData(arr.slice(0));
   }
 
-  async start(preset: GranularPreset, outputGain: GainNode, volume01: number, audioBaseUrl?: string): Promise<void> {
+  async start(preset: GranularPreset, outputGain: AudioNode, volume01: number, audioBaseUrl?: string): Promise<void> {
     await this.stop();
     if (!preset.audioFile || !audioCtx) return;
     await resumeAudioCtx();
@@ -75,9 +80,9 @@ export class GranularEngine {
   }
 
   private applyPlaybackRateToActiveGrains(): void {
-    const rate = playbackRateForSemis(this.pitchSemitones());
+    const semitones = this.pitchSemitones();
     this.activeSources.forEach(src => {
-      src.playbackRate.value = rate;
+      applySourcePitch(src, semitones);
     });
   }
 
@@ -99,21 +104,19 @@ export class GranularEngine {
     const duration = preset.grainSizeMs / 1000;
     const rand = (preset.randomnessPct / 100) * (Math.random() - 0.5);
     const startNorm = Math.min(0.99, Math.max(0, preset.positionPct / 100 + rand * 0.1));
-    const startTime = startNorm * (this.buffer.duration - duration);
+    const startTime = Math.max(
+      0,
+      startNorm * (this.buffer.duration - duration) + randomGrainPhaseOffset()
+    );
 
     const src = audioCtx.createBufferSource();
     src.buffer = this.buffer;
     const jitter = (Math.random() - 0.5) * (preset.randomnessPct / 20);
-    src.playbackRate.value = playbackRateForSemis(this.pitchSemitones() + jitter);
+    applySourcePitch(src, this.pitchSemitones() + jitter);
 
     const grainGain = audioCtx.createGain();
-    const overlap = preset.overlapPct / 100;
-    const attack = duration * overlap * 0.5;
-    const release = duration * (1 - overlap * 0.5);
     const now = audioCtx.currentTime;
-    grainGain.gain.setValueAtTime(0, now);
-    grainGain.gain.linearRampToValueAtTime(0.4 * (preset.volume / 100), now + attack);
-    grainGain.gain.linearRampToValueAtTime(0, now + release);
+    scheduleHanningGrainEnvelope(grainGain, now, duration, 0.4 * (preset.volume / 100));
     src.connect(grainGain);
 
     if (preset.reverbPct > 0) {

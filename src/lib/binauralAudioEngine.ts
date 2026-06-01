@@ -1,4 +1,8 @@
 import { audioCtx, resumeAudioCtx } from "@/src/lib/audioContext";
+import {
+  configureWarmBinauralOscillator,
+  createBinauralPanners,
+} from "@/src/lib/audioQuality";
 import type { AmbientSoundId, BinauralBeatPreset } from "@/src/lib/binauralBeats";
 
 type EngineNodes = {
@@ -7,7 +11,8 @@ type EngineNodes = {
   ambientGain: GainNode;
   leftOsc: OscillatorNode;
   rightOsc: OscillatorNode;
-  merger: ChannelMergerNode;
+  leftPan: StereoPannerNode;
+  rightPan: StereoPannerNode;
   ambientCleanup: () => void;
   ambientTimers: ReturnType<typeof setInterval>[];
 };
@@ -316,24 +321,25 @@ export class BinauralAudioEngine {
 
     const binauralGain = ctx.createGain();
     binauralGain.gain.value = this.targetBinaural;
-    binauralGain.connect(master);
 
     const ambientGain = ctx.createGain();
     ambientGain.gain.value = this.targetAmbient;
     ambientGain.connect(master);
 
-    const merger = ctx.createChannelMerger(2);
-    merger.connect(binauralGain);
+    const { leftPan, rightPan } = createBinauralPanners(ctx);
+    leftPan.connect(binauralGain);
+    rightPan.connect(binauralGain);
+    binauralGain.connect(master);
 
     const leftOsc = ctx.createOscillator();
-    leftOsc.type = "sine";
+    configureWarmBinauralOscillator(leftOsc, ctx);
     leftOsc.frequency.value = preset.carrierHz;
-    leftOsc.connect(merger, 0, 0);
+    leftOsc.connect(leftPan);
 
     const rightOsc = ctx.createOscillator();
-    rightOsc.type = "sine";
+    configureWarmBinauralOscillator(rightOsc, ctx);
     rightOsc.frequency.value = preset.carrierHz + preset.beatHz;
-    rightOsc.connect(merger, 0, 1);
+    rightOsc.connect(rightPan);
 
     leftOsc.start();
     rightOsc.start();
@@ -351,7 +357,8 @@ export class BinauralAudioEngine {
       ambientGain,
       leftOsc,
       rightOsc,
-      merger,
+      leftPan,
+      rightPan,
       ambientCleanup,
       ambientTimers,
     };
@@ -364,7 +371,7 @@ export class BinauralAudioEngine {
     this.ctxStateCleanup?.();
     this.ctxStateCleanup = null;
     this.pausedByInterrupt = false;
-    const { leftOsc, rightOsc, merger, binauralGain, ambientGain, master, ambientCleanup, ambientTimers } =
+    const { leftOsc, rightOsc, leftPan, rightPan, binauralGain, ambientGain, master, ambientCleanup, ambientTimers } =
       this.nodes;
     ambientTimers.forEach(t => clearInterval(t));
     ambientCleanup();
@@ -377,7 +384,8 @@ export class BinauralAudioEngine {
     try {
       leftOsc.disconnect();
       rightOsc.disconnect();
-      merger.disconnect();
+      leftPan.disconnect();
+      rightPan.disconnect();
       binauralGain.disconnect();
       ambientGain.disconnect();
       master.disconnect();

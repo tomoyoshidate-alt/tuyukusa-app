@@ -6,6 +6,11 @@ import {
 } from "@/src/lib/backgroundAudioSession";
 import { binauralPlaybackManager } from "@/src/lib/binauralPlaybackManager";
 import { audioCtx, resumeAudioCtx } from "@/src/lib/audioContext";
+import {
+  createChannelHighPass,
+  createMasterCompressor,
+  createMasterLimiter,
+} from "@/src/lib/audioQuality";
 import { getDemoBuffer } from "@/src/lib/soundSystem/demoSources";
 import { GranularEngine } from "@/src/lib/soundSystem/granularEngine";
 import { normalizeGranularParams } from "@/src/lib/soundSystem/types";
@@ -63,7 +68,14 @@ function cloneChannels(ch: [ChannelConfig, ChannelConfig, ChannelConfig]) {
 
 class SoundSystemManager {
   private masterGain: GainNode | null = null;
+  private compressor: DynamicsCompressorNode | null = null;
+  private limiter: WaveShaperNode | null = null;
   private analyser: AnalyserNode | null = null;
+  private channelHpfs: [BiquadFilterNode | null, BiquadFilterNode | null, BiquadFilterNode | null] = [
+    null,
+    null,
+    null,
+  ];
   private channelGains: [GainNode | null, GainNode | null, GainNode | null] = [null, null, null];
   private binauralEngine: BinauralAudioEngine | null = null;
   private granularEngines: [GranularEngine | null, GranularEngine | null] = [null, null];
@@ -214,19 +226,33 @@ class SoundSystemManager {
 
   private setupAudioGraph(): void {
     if (!audioCtx) return;
+
+    this.compressor = createMasterCompressor(audioCtx);
     this.masterGain = audioCtx.createGain();
     this.masterGain.gain.value = this.masterVolume;
+    this.limiter = createMasterLimiter(audioCtx);
     this.analyser = audioCtx.createAnalyser();
     this.analyser.fftSize = 2048;
     this.analyser.smoothingTimeConstant = 0.82;
-    this.masterGain.connect(this.analyser);
-    this.analyser.connect(audioCtx.destination);
+
     for (let i = 0; i < 3; i++) {
+      const hpf = createChannelHighPass(audioCtx);
       const g = audioCtx.createGain();
       g.gain.value = this.channels[i].volume;
-      g.connect(this.masterGain);
+      hpf.connect(g);
+      g.connect(this.compressor);
+      this.channelHpfs[i] = hpf;
       this.channelGains[i] = g;
     }
+
+    this.compressor.connect(this.masterGain);
+    this.masterGain.connect(this.limiter);
+    this.limiter.connect(this.analyser);
+    this.analyser.connect(audioCtx.destination);
+  }
+
+  private getChannelInput(index: 0 | 1 | 2): AudioNode | null {
+    return this.channelHpfs[index];
   }
 
   private async ensureAudio(): Promise<boolean> {
@@ -246,7 +272,7 @@ class SoundSystemManager {
     const ch = this.channels[index];
     if (ch.type !== "binaural") return;
     if (!(await this.ensureAudio())) return;
-    const gain = this.channelGains[index];
+    const gain = this.getChannelInput(index);
     if (!gain) return;
 
     const settings = readBinauralPlayerSettings();
@@ -281,14 +307,15 @@ class SoundSystemManager {
     const ch = this.channels[index];
     if (ch.type !== "granular") return;
     if (!(await this.ensureAudio())) return;
-    const gain = this.channelGains[index];
-    if (!gain) return;
+    const input = this.getChannelInput(index);
+    const channelGain = this.channelGains[index];
+    if (!input || !channelGain) return;
 
     const slot = index - 1;
     this.granularEngines[slot]?.stop();
-    gain.gain.value = ch.volume;
+    channelGain.gain.value = ch.volume;
 
-    const engine = new GranularEngine(gain, normalizeGranularParams(ch.granular));
+    const engine = new GranularEngine(input, normalizeGranularParams(ch.granular));
     this.granularEngines[slot] = engine;
     const buffer = ch.audioFile ? await loadAudioFileBuffer(ch.audioFile) : getDemoBuffer(ch.sourceId);
     engine.setBuffer(buffer);

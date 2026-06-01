@@ -1,4 +1,9 @@
 import { audioCtx, resumeAudioCtx } from "@/src/lib/audioContext";
+import {
+  applySourcePitch,
+  randomGrainPhaseOffset,
+  scheduleHanningGrainEnvelope,
+} from "@/src/lib/audioQuality";
 import { normalizeGranularParams, type GranularParams, type LfoShape } from "@/src/lib/soundSystem/types";
 
 const LFO_DEPTH_FADE_SEC = 0.1;
@@ -14,7 +19,7 @@ function lfoWave(shape: LfoShape, phase: number): number {
 export class GranularEngine {
   private buffer: AudioBuffer | null = null;
   private params: GranularParams = normalizeGranularParams({});
-  private output: GainNode;
+  private output: AudioNode;
   private running = false;
   private grainTimer: ReturnType<typeof setInterval> | null = null;
   private lfoTickTimer: ReturnType<typeof setInterval> | null = null;
@@ -30,7 +35,7 @@ export class GranularEngine {
   private depthFadeStartMs = 0;
   private depthFadeDurMs = 0;
 
-  constructor(output: GainNode, params: GranularParams) {
+  constructor(output: AudioNode, params: GranularParams) {
     this.output = output;
     this.params = normalizeGranularParams(params);
     this.effectiveLfoDepth = this.params.lfoEnabled ? this.params.lfoDepth : 0;
@@ -130,9 +135,9 @@ export class GranularEngine {
   }
 
   private applyPlaybackRateToActiveGrains(): void {
-    const rate = Math.pow(2, this.currentPitchSemitones() / 12);
+    const semitones = this.currentPitchSemitones();
     this.activeSources.forEach(src => {
-      src.playbackRate.value = rate;
+      applySourcePitch(src, semitones);
     });
   }
 
@@ -147,18 +152,18 @@ export class GranularEngine {
     const maxOffset = Math.max(0, this.buffer.duration - dur);
     const base = (this.params.position / 100) * maxOffset;
     const randSpan = (this.params.randomness / 100) * maxOffset * 0.5;
-    const offset = Math.max(0, Math.min(maxOffset, base + (Math.random() * 2 - 1) * randSpan));
+    const offset = Math.max(
+      0,
+      Math.min(maxOffset, base + (Math.random() * 2 - 1) * randSpan + randomGrainPhaseOffset())
+    );
 
     const pitch = this.currentPitchSemitones();
-    src.playbackRate.value = Math.pow(2, pitch / 12);
+    applySourcePitch(src, pitch);
 
     const env = audioCtx.createGain();
     const t = audioCtx.currentTime;
     const vol = this.params.volume / 100;
-    env.gain.setValueAtTime(0, t);
-    env.gain.linearRampToValueAtTime(vol, t + dur * 0.15);
-    env.gain.linearRampToValueAtTime(vol * 0.6, t + dur * 0.7);
-    env.gain.linearRampToValueAtTime(0, t + dur);
+    scheduleHanningGrainEnvelope(env, t, dur, vol);
 
     src.connect(env);
     env.connect(this.output);

@@ -1,10 +1,15 @@
 import { audioCtx, resumeAudioCtx } from "@/src/lib/audioContext";
+import {
+  configureWarmBinauralOscillator,
+  createBinauralPanners,
+} from "@/src/lib/audioQuality";
 import type { BBPreset } from "./types";
 
 export class BBEngine {
   private leftOsc: OscillatorNode | null = null;
   private rightOsc: OscillatorNode | null = null;
-  private merger: ChannelMergerNode | null = null;
+  private leftPan: StereoPannerNode | null = null;
+  private rightPan: StereoPannerNode | null = null;
   private gain: GainNode | null = null;
   private analyser: AnalyserNode | null = null;
   private preset: BBPreset | null = null;
@@ -14,7 +19,7 @@ export class BBEngine {
     return this.analyser;
   }
 
-  async start(preset: BBPreset, outputGain: GainNode, volume01: number): Promise<void> {
+  async start(preset: BBPreset, outputGain: AudioNode, volume01: number): Promise<void> {
     await this.stop();
     if (!audioCtx) return;
     await resumeAudioCtx();
@@ -24,14 +29,19 @@ export class BBEngine {
 
     this.gain = audioCtx.createGain();
     this.gain.gain.value = 0;
-    this.merger = audioCtx.createChannelMerger(2);
     this.analyser = audioCtx.createAnalyser();
     this.analyser.fftSize = 2048;
 
+    const { leftPan, rightPan } = createBinauralPanners(audioCtx);
+    this.leftPan = leftPan;
+    this.rightPan = rightPan;
+    leftPan.connect(this.gain);
+    rightPan.connect(this.gain);
+
     this.leftOsc = audioCtx.createOscillator();
     this.rightOsc = audioCtx.createOscillator();
-    this.leftOsc.type = preset.waveform;
-    this.rightOsc.type = preset.waveform;
+    configureWarmBinauralOscillator(this.leftOsc, audioCtx);
+    configureWarmBinauralOscillator(this.rightOsc, audioCtx);
     this.leftOsc.frequency.value = preset.leftHz;
     this.rightOsc.frequency.value = preset.rightHz;
 
@@ -42,9 +52,8 @@ export class BBEngine {
 
     this.leftOsc.connect(leftGain);
     this.rightOsc.connect(rightGain);
-    leftGain.connect(this.merger, 0, 0);
-    rightGain.connect(this.merger, 0, 1);
-    this.merger.connect(this.gain);
+    leftGain.connect(leftPan);
+    rightGain.connect(rightPan);
     this.gain.connect(this.analyser);
     this.analyser.connect(outputGain);
 
@@ -86,12 +95,14 @@ export class BBEngine {
         /* ignore */
       }
     });
-    this.merger?.disconnect();
+    this.leftPan?.disconnect();
+    this.rightPan?.disconnect();
     this.gain?.disconnect();
     this.analyser?.disconnect();
     this.leftOsc = null;
     this.rightOsc = null;
-    this.merger = null;
+    this.leftPan = null;
+    this.rightPan = null;
     this.gain = null;
     this.analyser = null;
     this.preset = null;
