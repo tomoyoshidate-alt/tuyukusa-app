@@ -2287,8 +2287,7 @@ export default function TuyukusaApp() {
   const [onboardingPhase, setOnboardingPhase] = useState<"questionnaire" | "integrations">("questionnaire");
   const [introReplayActive, setIntroReplayActive] = useState(false);
   const [introRevision, setIntroRevision] = useState(0);
-  const [introGateReady, setIntroGateReady] = useState(false);
-  const [introDismissed, setIntroDismissed] = useState(false);
+  const [introVisible, setIntroVisible] = useState<boolean | null>(null);
   const [pendingOnboarding, setPendingOnboarding] = useState<{
     data: OnboardingFlowData;
     reflection: ScheduleReflection | null;
@@ -2383,21 +2382,12 @@ export default function TuyukusaApp() {
   }, [userProfileHydrated, userProfile.onboardingComplete]);
 
   useEffect(() => {
-    setIntroGateReady(true);
-    if (isIntroCompleted()) setIntroDismissed(true);
-  }, []);
-
-  const shouldShowIntro = useMemo(
-    () =>
-      introGateReady &&
-      !introDismissed &&
-      (introReplayActive || !isIntroCompleted()),
-    [introGateReady, introDismissed, introReplayActive, introRevision],
-  );
+    setIntroVisible(introReplayActive || !isIntroCompleted());
+  }, [introReplayActive, introRevision]);
 
   const handleIntroComplete = useCallback(() => {
     markIntroCompleted();
-    setIntroDismissed(true);
+    setIntroVisible(false);
     setIntroReplayActive(false);
     setIntroRevision(r => r + 1);
 
@@ -3429,10 +3419,9 @@ ${buildHealthSummary(healthForm)}`;
   const resetOnboardingFlow = () => {
     clearOnboardingProgress();
     clearIntroCompleted();
-    setIntroDismissed(false);
     setIntroReplayActive(false);
     setIntroRevision(r => r + 1);
-    setIntroGateReady(true);
+    setIntroVisible(true);
     setUserProfile(prev => ({
       ...prev,
       nameConfigured: false,
@@ -3944,7 +3933,7 @@ ${buildHealthSummary(healthForm)}`;
     }
   };
 
-  if (!storageReady) {
+  if (!storageReady || introVisible === null) {
     return (
       <div style={themeAppShellStyle}>
         <div style={themeHeaderStyle}>
@@ -3976,7 +3965,7 @@ ${buildHealthSummary(healthForm)}`;
     setTab("home");
   };
 
-  if (storageReady && shouldShowIntro) {
+  if (introVisible) {
     return (
       <OnboardingIntroScreen
         key={introReplayActive ? "intro-replay" : "intro-first"}
@@ -4172,9 +4161,9 @@ ${buildHealthSummary(healthForm)}`;
               type="button"
               onClick={() => {
                 clearIntroCompleted();
-                setIntroDismissed(false);
                 setIntroReplayActive(true);
                 setIntroRevision(r => r + 1);
+                setIntroVisible(true);
               }}
               style={{
                 width: "100%",
