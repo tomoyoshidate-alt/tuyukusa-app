@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useRef, type CSSProperties, type ReactNode, type Dispatch, type SetStateAction } from "react";
+import { useState, useEffect, useRef, useCallback, type CSSProperties, type ReactNode, type Dispatch, type SetStateAction } from "react";
 import { useTranslation } from "react-i18next";
 import dynamic from "next/dynamic";
 import { runTuyukusaStorageMigration } from "@/src/lib/tuyukusaStorage";
@@ -2286,8 +2286,9 @@ export default function TuyukusaApp() {
   const [reflectMessageIndex, setReflectMessageIndex] = useState<number | null>(null);
   const [onboardingPhase, setOnboardingPhase] = useState<"questionnaire" | "integrations">("questionnaire");
   const [showIntroReplay, setShowIntroReplay] = useState(false);
-  const [introDismissed, setIntroDismissed] = useState(false);
-  const [introFinishedThisSession, setIntroFinishedThisSession] = useState(false);
+  const [introActive, setIntroActive] = useState(() =>
+    typeof window !== "undefined" ? !isIntroCompleted() : false,
+  );
   const [pendingOnboarding, setPendingOnboarding] = useState<{
     data: OnboardingFlowData;
     reflection: ScheduleReflection | null;
@@ -2382,16 +2383,23 @@ export default function TuyukusaApp() {
   }, [userProfileHydrated, userProfile.onboardingComplete]);
 
   useEffect(() => {
+    if (!storageReady || showIntroReplay) return;
     if (isIntroCompleted()) {
-      setIntroDismissed(true);
+      setIntroActive(false);
     }
-  }, []);
+  }, [storageReady, showIntroReplay]);
 
-  useEffect(() => {
-    if (storageReady && isIntroCompleted()) {
-      setIntroDismissed(true);
+  const handleIntroComplete = useCallback(() => {
+    markIntroCompleted();
+    const draft = loadIntroDraft();
+    if (draft) {
+      saveOnboardingProgress(buildProgressFromFlowData(introDraftToFlowData(draft)));
     }
-  }, [storageReady]);
+    setOnboardingPhase("questionnaire");
+    setPendingOnboarding(null);
+    setShowIntroReplay(false);
+    setIntroActive(false);
+  }, []);
 
   useEffect(() => {
     if (!storageReady || !userProfile.onboardingComplete) return;
@@ -3950,20 +3958,7 @@ ${buildHealthSummary(healthForm)}`;
     setTab("home");
   };
 
-  const handleIntroComplete = () => {
-    markIntroCompleted();
-    const draft = loadIntroDraft();
-    if (draft) {
-      saveOnboardingProgress(buildProgressFromFlowData(introDraftToFlowData(draft)));
-    }
-    setOnboardingPhase("questionnaire");
-    setPendingOnboarding(null);
-    setIntroDismissed(true);
-    setIntroFinishedThisSession(true);
-    setShowIntroReplay(false);
-  };
-
-  if (storageReady && (showIntroReplay || (!introDismissed && !introFinishedThisSession))) {
+  if (storageReady && (showIntroReplay || introActive)) {
     return (
       <OnboardingIntroScreen onComplete={handleIntroComplete} />
     );
