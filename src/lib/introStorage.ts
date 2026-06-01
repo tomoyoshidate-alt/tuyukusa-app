@@ -33,7 +33,11 @@ export function isIntroCompleted(): boolean {
 
 export function markIntroCompleted(): void {
   if (typeof window === "undefined") return;
-  localStorage.setItem(INTRO_COMPLETED_KEY, "true");
+  try {
+    localStorage.setItem(INTRO_COMPLETED_KEY, "true");
+  } catch {
+    /* ignore quota / private mode */
+  }
 }
 
 export function clearIntroCompleted(): void {

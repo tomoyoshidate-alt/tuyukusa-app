@@ -409,7 +409,7 @@ export function OnboardingIntroScreen({ onComplete }: Props) {
       ) : (
         <button
           type="button"
-          onClick={handleStart}
+          onClick={() => handleStart()}
           style={{
             padding: "16px 24px",
             borderRadius: 12,
