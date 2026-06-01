@@ -26,7 +26,12 @@ export function getOnboardingStepPrompt(step: OnboardingStep, t: Translate): { q
     case "name":
       return {
         question: t("onboarding.nameQuestion"),
-        choices: [t("onboarding.skip"), t("onboarding.deferQuestion"), t("onboarding.skipQuestionnaire")],
+        choices: [
+          t("onboarding.defaultNicknameChoice"),
+          t("onboarding.skip"),
+          t("onboarding.deferQuestion"),
+          t("onboarding.skipQuestionnaire"),
+        ],
       };
     case "bedtime":
     case "wake":

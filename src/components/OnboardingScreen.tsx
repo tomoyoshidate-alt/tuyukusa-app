@@ -303,6 +303,17 @@ export function OnboardingScreen({ fetchProposal, onQuestionnaireDone, onDeferTo
           return;
         }
         if (currentStep === "name") {
+          if (text === t("onboarding.defaultNicknameChoice")) {
+            const nickname = "あなた";
+            const updated = { ...currentFlow, nickname, name: nickname };
+            const nextProgress = recordAnswer(currentProgress, "name", { nickname, name: nickname });
+            setFlowData(updated);
+            flowDataRef.current = updated;
+            persist(nextProgress, "bedtime", updated);
+            pushUser(text);
+            goToLifestyle("bedtime", "name", text, updated);
+            return;
+          }
           if (text === t("onboarding.skip")) {
             const nextProgress = recordAnswer(currentProgress, "name", currentFlow);
             persist(nextProgress, "bedtime", currentFlow);

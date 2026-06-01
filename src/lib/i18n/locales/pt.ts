@@ -233,6 +233,7 @@ const pt: TranslationSchema = {
     nameQuestion: "What should we call you?",
     namePlaceholder: "e.g. Alex",
     skip: "Skip",
+    defaultNicknameChoice: "Me chame de \"você\" (sem nome)",
     next: "Next",
     generating: "Creating schedule…",
     applyPrompt: "Apply this schedule to today.",

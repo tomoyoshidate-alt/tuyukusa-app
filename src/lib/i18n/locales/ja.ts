@@ -253,6 +253,7 @@ const ja = {
     nameQuestion: "お名前（ニックネーム）を教えてください。",
     namePlaceholder: "例：太郎、たろうさん",
     skip: "スキップ",
+    defaultNicknameChoice: "「あなた」で良い（入力しない）",
     next: "次へ",
     generating: "あなたに合ったスケジュールを考えています…",
     applyPrompt: "このスケジュールを今日の生活リズムに反映できます。",

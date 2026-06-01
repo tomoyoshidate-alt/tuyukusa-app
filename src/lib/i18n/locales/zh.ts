@@ -233,6 +233,7 @@ const zh: TranslationSchema = {
     nameQuestion: "请告诉我您的名字（昵称）。",
     namePlaceholder: "例：小明",
     skip: "跳过",
+    defaultNicknameChoice: "用「你」就好（不输入）",
     next: "下一步",
     generating: "正在为您制定日程…",
     applyPrompt: "可以将此日程应用到今日。",
