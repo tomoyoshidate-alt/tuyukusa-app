@@ -403,7 +403,7 @@ const en: TranslationSchema = {
     genderMale: "Male",
     genderFemale: "Female",
     genderOther: "Other / prefer not to say",
-    page4Message: "Let's create your own rhythm.",
+    page4Message: "Let's bring your ideal rhythm to life.",
     next: "Next",
     start: "Get started",
     replay: "View intro again",

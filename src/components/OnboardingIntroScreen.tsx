@@ -122,7 +122,7 @@ export function OnboardingIntroScreen({ onComplete }: Props) {
   }, [onComplete, persistDraft]);
 
   const goNext = useCallback(() => {
-    if (page === 1 || page === 2) persistDraft();
+    if (page === 1 || page === 2 || page === 3) persistDraft();
     if (page < PAGE_COUNT - 1) {
       setPage(p => p + 1);
     }
@@ -140,7 +140,7 @@ export function OnboardingIntroScreen({ onComplete }: Props) {
       touchStartX.current = null;
       if (Math.abs(dx) < 48) return;
       if (dx < 0 && page < PAGE_COUNT - 1) {
-        if (page === 1 || page === 2) persistDraft();
+        if (page === 1 || page === 2 || page === 3) persistDraft();
         setPage(p => p + 1);
       }
       if (dx > 0 && page > 0) setPage(p => p - 1);

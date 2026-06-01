@@ -2287,7 +2287,7 @@ export default function TuyukusaApp() {
   const [onboardingPhase, setOnboardingPhase] = useState<"questionnaire" | "integrations">("questionnaire");
   const [showIntroReplay, setShowIntroReplay] = useState(false);
   const [introActive, setIntroActive] = useState(false);
-  const introDismissedRef = useRef(false);
+  const introCompletedRef = useRef(false);
   const [pendingOnboarding, setPendingOnboarding] = useState<{
     data: OnboardingFlowData;
     reflection: ScheduleReflection | null;
@@ -2384,25 +2384,29 @@ export default function TuyukusaApp() {
   useEffect(() => {
     if (!storageReady) return;
     if (showIntroReplay) {
-      introDismissedRef.current = false;
+      introCompletedRef.current = false;
       setIntroActive(true);
       return;
     }
-    if (introDismissedRef.current) return;
+    if (introCompletedRef.current) {
+      setIntroActive(false);
+      return;
+    }
     setIntroActive(!isIntroCompleted());
   }, [storageReady, showIntroReplay]);
 
   const handleIntroComplete = useCallback(() => {
-    introDismissedRef.current = true;
     markIntroCompleted();
+    introCompletedRef.current = true;
+    setShowIntroReplay(false);
+    setIntroActive(false);
+
     const draft = loadIntroDraft();
-    if (draft && !userProfile.onboardingComplete) {
+    if (!userProfile.onboardingComplete) {
       saveOnboardingProgress(buildProgressFromFlowData(introDraftToFlowData(draft)));
       setOnboardingPhase("questionnaire");
       setPendingOnboarding(null);
     }
-    setShowIntroReplay(false);
-    setIntroActive(false);
   }, [userProfile.onboardingComplete]);
 
   useEffect(() => {
@@ -3420,9 +3424,9 @@ ${buildHealthSummary(healthForm)}`;
   const resetOnboardingFlow = () => {
     clearOnboardingProgress();
     clearIntroCompleted();
-    introDismissedRef.current = false;
+    introCompletedRef.current = false;
     setShowIntroReplay(false);
-    setIntroActive(!isIntroCompleted());
+    setIntroActive(true);
     setUserProfile(prev => ({
       ...prev,
       nameConfigured: false,
@@ -3994,6 +3998,7 @@ ${buildHealthSummary(healthForm)}`;
     }
     return (
       <OnboardingScreen
+        key="onboarding-after-intro"
         fetchProposal={fetchOnboardingProposal}
         onQuestionnaireDone={(data, reflection) => void handleQuestionnaireDone(data, reflection)}
         onDeferToHome={data => handleDeferOnboardingToHome(data)}
@@ -4160,6 +4165,7 @@ ${buildHealthSummary(healthForm)}`;
             <button
               type="button"
               onClick={() => {
+                introCompletedRef.current = false;
                 setShowIntroReplay(true);
                 setIntroActive(true);
               }}
