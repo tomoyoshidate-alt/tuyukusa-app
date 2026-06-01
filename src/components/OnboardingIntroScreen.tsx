@@ -104,9 +104,12 @@ export function OnboardingIntroScreen({ onComplete }: Props) {
   };
 
   const handleStart = useCallback(() => {
-    persistDraft();
-    markIntroCompleted();
-    onComplete();
+    try {
+      persistDraft();
+    } finally {
+      markIntroCompleted();
+      onComplete();
+    }
   }, [onComplete, persistDraft]);
 
   const goNext = useCallback(() => {
@@ -397,7 +400,12 @@ export function OnboardingIntroScreen({ onComplete }: Props) {
       ) : (
         <button
           type="button"
-          onClick={handleStart}
+          onClick={e => {
+            e.stopPropagation();
+            handleStart();
+          }}
+          onTouchStart={e => e.stopPropagation()}
+          onTouchEnd={e => e.stopPropagation()}
           style={{
             padding: "16px 24px",
             borderRadius: 12,

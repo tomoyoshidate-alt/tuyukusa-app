@@ -54,7 +54,7 @@ import { HomeIntegrationCards } from "@/src/components/HomeIntegrationCards";
 import { OnboardingScreen } from "@/src/components/OnboardingScreen";
 import { OnboardingIntroScreen } from "@/src/components/OnboardingIntroScreen";
 import { IntegrationsTabPanel } from "@/src/components/IntegrationsTabPanel";
-import { isIntroCompleted, markIntroCompleted } from "@/src/lib/introStorage";
+import { isIntroCompleted, markIntroCompleted, introDraftToFlowData, loadIntroDraft } from "@/src/lib/introStorage";
 import { OnboardingIntegrationsScreen, type IntegrationFinishOptions } from "@/src/components/OnboardingIntegrationsScreen";
 import { AiChatPanel } from "@/src/components/AiChatPanel";
 import type { OnboardingFlowData } from "@/src/lib/onboarding";
@@ -2286,9 +2286,8 @@ export default function TuyukusaApp() {
   const [reflectMessageIndex, setReflectMessageIndex] = useState<number | null>(null);
   const [onboardingPhase, setOnboardingPhase] = useState<"questionnaire" | "integrations">("questionnaire");
   const [showIntroReplay, setShowIntroReplay] = useState(false);
-  const [introDismissed, setIntroDismissed] = useState(
-    () => typeof window !== "undefined" && isIntroCompleted(),
-  );
+  const [introDismissed, setIntroDismissed] = useState(false);
+  const [introFinishedThisSession, setIntroFinishedThisSession] = useState(false);
   const [pendingOnboarding, setPendingOnboarding] = useState<{
     data: OnboardingFlowData;
     reflection: ScheduleReflection | null;
@@ -2381,6 +2380,12 @@ export default function TuyukusaApp() {
       setPendingOnboarding({ data: progress.flowData, reflection: null });
     }
   }, [userProfileHydrated, userProfile.onboardingComplete]);
+
+  useEffect(() => {
+    if (isIntroCompleted()) {
+      setIntroDismissed(true);
+    }
+  }, []);
 
   useEffect(() => {
     if (storageReady && isIntroCompleted()) {
@@ -3947,11 +3952,18 @@ ${buildHealthSummary(healthForm)}`;
 
   const handleIntroComplete = () => {
     markIntroCompleted();
+    const draft = loadIntroDraft();
+    if (draft) {
+      saveOnboardingProgress(buildProgressFromFlowData(introDraftToFlowData(draft)));
+    }
+    setOnboardingPhase("questionnaire");
+    setPendingOnboarding(null);
     setIntroDismissed(true);
+    setIntroFinishedThisSession(true);
     setShowIntroReplay(false);
   };
 
-  if (storageReady && (showIntroReplay || !introDismissed)) {
+  if (storageReady && (showIntroReplay || (!introDismissed && !introFinishedThisSession))) {
     return (
       <OnboardingIntroScreen onComplete={handleIntroComplete} />
     );
