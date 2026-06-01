@@ -2287,6 +2287,7 @@ export default function TuyukusaApp() {
   const [onboardingPhase, setOnboardingPhase] = useState<"questionnaire" | "integrations">("questionnaire");
   const [showIntroReplay, setShowIntroReplay] = useState(false);
   const [introFinished, setIntroFinished] = useState(false);
+  const introDismissedRef = useRef(false);
   const [pendingOnboarding, setPendingOnboarding] = useState<{
     data: OnboardingFlowData;
     reflection: ScheduleReflection | null;
@@ -2383,14 +2384,17 @@ export default function TuyukusaApp() {
   useEffect(() => {
     if (!storageReady) return;
     if (showIntroReplay) {
+      introDismissedRef.current = false;
       setIntroFinished(false);
       return;
     }
-    setIntroFinished(isIntroCompleted());
+    if (introDismissedRef.current) return;
+    setIntroFinished(prev => prev || isIntroCompleted());
   }, [storageReady, showIntroReplay]);
 
   const handleIntroComplete = useCallback(() => {
     markIntroCompleted();
+    introDismissedRef.current = true;
     setIntroFinished(true);
     setShowIntroReplay(false);
 
@@ -3417,6 +3421,7 @@ ${buildHealthSummary(healthForm)}`;
   const resetOnboardingFlow = () => {
     clearOnboardingProgress();
     clearIntroCompleted();
+    introDismissedRef.current = false;
     setShowIntroReplay(false);
     setIntroFinished(false);
     setUserProfile(prev => ({
@@ -4157,7 +4162,9 @@ ${buildHealthSummary(healthForm)}`;
             <button
               type="button"
               onClick={() => {
+                introDismissedRef.current = false;
                 setShowIntroReplay(true);
+                setIntroFinished(false);
               }}
               style={{
                 width: "100%",
