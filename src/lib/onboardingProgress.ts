@@ -1,4 +1,9 @@
 import type { OnboardingFlowData, OnboardingStep } from "./onboarding";
+import {
+  getLifestyleChainNext,
+  isOnboardingLifestyleStep,
+  ONBOARDING_STEPS_AFTER_GOAL,
+} from "./onboarding";
 import { introDraftToFlowData, loadIntroDraft } from "./introStorage";
 import { getEffectiveCourse, getQuestionOrder, getNextStepInCourse, isStructuredOnboardingStep, loadQuestionnaireCourse } from "./onboardingCourse";
 
@@ -143,7 +148,26 @@ export function buildOnboardingProfileSystemContext(data: Partial<OnboardingFlow
   ].join("\n");
 }
 
+function resolveNextProfileStepAfterGoal(progress: OnboardingProgress): OnboardingStep | null {
+  for (const step of ONBOARDING_STEPS_AFTER_GOAL) {
+    if (!isQuestionAnswered(progress, step)) return step;
+  }
+  return null;
+}
+
 export function resolveNextStepAfter(fromStep: OnboardingStep, progress: OnboardingProgress): OnboardingStep {
+  if (fromStep === "goal") {
+    const profileStep = resolveNextProfileStepAfterGoal(progress);
+    if (profileStep) return profileStep;
+    const lifestyleNext = getLifestyleChainNext("goal");
+    return lifestyleNext === "proposal" ? "proposal" : lifestyleNext;
+  }
+
+  if (isOnboardingLifestyleStep(fromStep)) {
+    const lifestyleNext = getLifestyleChainNext(fromStep);
+    return lifestyleNext === "proposal" ? "proposal" : lifestyleNext;
+  }
+
   const next = getNextStepInCourse(fromStep, progress.flowData);
   if (next === "proposal") return "proposal";
   if (ONBOARDING_PROFILE_STEPS.includes(next) && isQuestionAnswered(progress, next)) {

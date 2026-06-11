@@ -209,10 +209,20 @@ export function getOnboardingFreeInputHint(step: OnboardingStep): string {
   }
 }
 
+export type OnboardingLifestyleStep = "goal" | "bedtime" | "wake" | "bath" | "sleep_duration";
+
+export const ONBOARDING_STEPS_AFTER_GOAL: OnboardingStep[] = ["birthdate", "gender", "course", "name"];
+
 export const ONBOARDING_LIFESTYLE_STEPS: Record<
-  "bedtime" | "wake" | "bath" | "sleep_duration",
-  { question: string; choices: string[]; field: keyof OnboardingFlowData; next: OnboardingStep }
+  OnboardingLifestyleStep,
+  { question: string; choices: string[]; field: keyof OnboardingFlowData; next: OnboardingStep | "proposal" }
 > = {
+  goal: {
+    question: "",
+    choices: [...ONBOARDING_GOAL_CHOICES],
+    field: "goal",
+    next: "bedtime",
+  },
   bedtime: {
     question: "就寝時間はいつ頃が理想ですか？",
     choices: [...ONBOARDING_BEDTIME_CHOICES],
@@ -238,6 +248,14 @@ export const ONBOARDING_LIFESTYLE_STEPS: Record<
     next: "proposal",
   },
 };
+
+export function isOnboardingLifestyleStep(step: OnboardingStep): step is OnboardingLifestyleStep {
+  return step in ONBOARDING_LIFESTYLE_STEPS;
+}
+
+export function getLifestyleChainNext(fromStep: OnboardingLifestyleStep): OnboardingStep | "proposal" {
+  return ONBOARDING_LIFESTYLE_STEPS[fromStep].next;
+}
 
 export function buildOnboardingProposalPrompt(data: OnboardingFlowData): string {
   const lines = [

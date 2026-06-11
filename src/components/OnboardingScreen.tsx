@@ -12,7 +12,6 @@ import {
   type OnboardingStep,
 } from "@/src/lib/onboarding";
 import {
-  getNextStepInCourse,
   getStructuredStepConfig,
   isStructuredOnboardingStep,
   parseCourseChoice,
@@ -284,7 +283,7 @@ export function OnboardingScreen({ fetchProposal, onQuestionnaireDone, onDeferTo
       persist(nextProgress, currentStep, updated);
       pushUser(answer);
 
-      const nextStep = getNextStepInCourse(currentStep, updated);
+      const nextStep = resolveNextStepAfter(currentStep, nextProgress);
       if (nextStep === "proposal") {
         await startProposalGeneration(answer, updated);
         return;

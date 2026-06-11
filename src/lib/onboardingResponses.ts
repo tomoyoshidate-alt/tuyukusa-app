@@ -26,7 +26,7 @@ function getGoalEmpathy(goal: string, t: Translate): string {
 export function getOnboardingStepPrompt(step: OnboardingStep, t: Translate): { question: string; choices: string[] } {
   switch (step) {
     case "goal":
-      return { question: t("onboarding.goalQuestionShort"), choices: [...ONBOARDING_GOAL_CHOICES] };
+      return { question: t("onboarding.goalQuestionShort"), choices: [...ONBOARDING_LIFESTYLE_STEPS.goal.choices] };
     case "birthdate":
       return { question: t("onboarding.birthdateQuestion"), choices: [...ONBOARDING_BIRTHDATE_CHOICES] };
     case "gender":
