@@ -1,5 +1,6 @@
 import {
   GENDER_CHOICES,
+  ONBOARDING_BIRTHDATE_CHOICES,
   ONBOARDING_GOAL_CHOICES,
   ONBOARDING_LIFESTYLE_STEPS,
   type OnboardingFlowData,
@@ -26,7 +27,7 @@ function getGoalEmpathy(goal: string, t: Translate): string {
 export function getOnboardingStepPrompt(step: OnboardingStep, t: Translate): { question: string; choices?: string[] } {
   switch (step) {
     case "birthdate":
-      return { question: t("onboarding.birthdateQuestion") };
+      return { question: t("onboarding.birthdateQuestion"), choices: [...ONBOARDING_BIRTHDATE_CHOICES] };
     case "gender":
       return { question: t("onboarding.genderQuestion"), choices: [...GENDER_CHOICES] };
     case "course":
@@ -102,9 +103,6 @@ export function buildOnboardingTransition(
       parts.push(t("onboarding.empathyLifestyleAnswer", { answer }));
       const tip = getOnboardingKnowledgeTip(fromStep);
       if (tip) parts.push(tip);
-      if (fromStep === "bedtime" || fromStep === "wake" || fromStep === "bath" || fromStep === "sleep_duration") {
-        parts.push(t("onboarding.timeDetailLater"));
-      }
       break;
     }
     default:

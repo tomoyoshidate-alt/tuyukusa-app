@@ -3,7 +3,9 @@ import {
   ONBOARDING_ALCOHOL_CHOICES,
   ONBOARDING_BATH_CHOICES,
   ONBOARDING_BEDTIME_CHOICES,
+  ONBOARDING_HOBBIES_CHOICES,
   ONBOARDING_MEAL_PORTION_CHOICES,
+  ONBOARDING_MEAL_VALUES_CHOICES,
   ONBOARDING_SLEEP_DURATION_CHOICES,
   ONBOARDING_TIME_BALANCE_CHOICES,
   ONBOARDING_WAKE_CHOICES,
@@ -88,22 +90,18 @@ export function getNextStepInCourse(fromStep: OnboardingStep, flowData: Onboardi
 
 export const ONBOARDING_KNOWLEDGE_TIPS: Partial<Record<OnboardingStep, string>> = {
   sleep_duration:
-    "🌿 つゆくさAIより\n理想の睡眠時間は年齢や体質によって異なります。東洋医学では「陰の時間」とも呼ばれる22時〜2時の間にしっかり眠ることが特に大切とされています。",
-  bath:
-    "🌿 つゆくさAIより\n就寝90〜120分前に40度のお湯に10〜15分浸かると、深部体温が下がるタイミングで自然な眠気が訪れます。",
-  meal_dinner:
-    "🌿 つゆくさAIより\n東洋医学では朝食をしっかり、夕食は軽めにする「朝主夕従」が基本の食養生です。",
-  meal_values:
-    "🌿 つゆくさAIより\n東洋医学では朝食をしっかり、夕食は軽めにする「朝主夕従」が基本の食養生です。",
-  alcohol:
-    "🌿 つゆくさAIより\nアルコールは入眠を早めますが、睡眠後半の眠りを浅くします。就寝3時間前までが理想です。",
+    "理想の睡眠時間は年齢や体質によって異なります。22時〜2時は深い眠りにつきやすい時間帯です。",
+  bath: "就寝90〜120分前の入浴は、深部体温が下がるタイミングで自然な眠気を促します。",
+  meal_dinner: "東洋医学では朝食をしっかり、夕食は軽めにする「朝主夕従」が基本です。",
+  meal_values: "食事のこだわりは、続けやすい生活リズムづくりの大切なヒントになります。",
+  alcohol: "アルコールは入眠を早めますが、睡眠後半を浅くしやすいです。就寝3時間前までが理想です。",
 };
 
 export function getOnboardingKnowledgeTip(step: OnboardingStep): string | null {
   return ONBOARDING_KNOWLEDGE_TIPS[step] ?? null;
 }
 
-type StepConfig = { question: string; choices?: string[]; field: keyof OnboardingFlowData; freeText?: boolean };
+type StepConfig = { question: string; choices: string[]; field: keyof OnboardingFlowData };
 
 export function getStructuredStepConfig(step: OnboardingStep): StepConfig | null {
   switch (step) {
@@ -124,7 +122,7 @@ export function getStructuredStepConfig(step: OnboardingStep): StepConfig | null
     case "sleep_duration":
       return { question: "睡眠時間はどのくらい取りたいですか？", choices: [...ONBOARDING_SLEEP_DURATION_CHOICES], field: "sleepDuration" };
     case "hobbies":
-      return { question: "趣味や、好きな時間の過ごし方を教えてください。", field: "hobbies", freeText: true };
+      return { question: "趣味や、好きな時間の過ごし方を教えてください。", choices: [...ONBOARDING_HOBBIES_CHOICES], field: "hobbies" };
     case "time_balance":
       return { question: "一人の時間と人と過ごす時間、どちらを大切にしたいですか？", choices: [...ONBOARDING_TIME_BALANCE_CHOICES], field: "timeBalance" };
     case "alcohol":
@@ -136,7 +134,7 @@ export function getStructuredStepConfig(step: OnboardingStep): StepConfig | null
     case "meal_dinner":
       return { question: "夕食はどのくらい食べたいですか？", choices: [...ONBOARDING_MEAL_PORTION_CHOICES], field: "mealDinner" };
     case "meal_values":
-      return { question: "食事で大切にしていることを教えてください。", field: "mealValues", freeText: true };
+      return { question: "食事で大切にしていることを教えてください。", choices: [...ONBOARDING_MEAL_VALUES_CHOICES], field: "mealValues" };
     default:
       return null;
   }

@@ -6,7 +6,8 @@ import { ChatMarkdown } from "@/src/components/ChatMarkdown";
 import { handleAiChatEnterSendKeyDown } from "@/src/lib/chatSubmitKeyboard";
 import {
   buildOnboardingProposalPrompt,
-  ONBOARDING_GOAL_FREE_LABEL,
+  getOnboardingFreeInputHint,
+  isOnboardingFreeInputChoice,
   parseOnboardingGoalChoice,
   type OnboardingFlowData,
   type OnboardingStep,
@@ -208,6 +209,11 @@ export function OnboardingScreen({ fetchProposal, onQuestionnaireDone, onDeferTo
     async (answer: string, currentStep: OnboardingStep) => {
       const config = getStructuredStepConfig(currentStep);
       if (!config) return;
+      if (isOnboardingFreeInputChoice(answer)) {
+        pushUser(answer);
+        pushAi(getOnboardingFreeInputHint(currentStep));
+        return;
+      }
       const currentProgress = progressRef.current;
       const currentFlow = flowDataRef.current;
       const patch = { [config.field]: answer } as Partial<OnboardingFlowData>;
@@ -223,7 +229,7 @@ export function OnboardingScreen({ fetchProposal, onQuestionnaireDone, onDeferTo
         setStep("proposal");
         stepRef.current = "proposal";
         const empathy = t("onboarding.empathyLifestyleAnswer", { answer });
-        pushAi(`${empathy}\n\n${t("onboarding.timeDetailLater")}\n\n${t("onboarding.generating")}`);
+        pushAi(`${empathy}\n\n${t("onboarding.generating")}`);
         setIsLoading(true);
         isLoadingRef.current = true;
         try {
@@ -317,13 +323,12 @@ export function OnboardingScreen({ fetchProposal, onQuestionnaireDone, onDeferTo
           return;
         }
         if (currentStep === "goal") {
-          if (text === ONBOARDING_GOAL_FREE_LABEL) {
+          if (isOnboardingFreeInputChoice(text)) {
             pushUser(text);
-            pushAi(t("onboarding.goalFreeHint"));
+            pushAi(getOnboardingFreeInputHint("goal"));
             return;
           }
           const goal = parseOnboardingGoalChoice(text) ?? text;
-          if (!goal) return;
           const updated = { ...currentFlow, goal };
           const nextProgress = recordAnswer(currentProgress, "goal", { goal });
           setFlowData(updated);
@@ -332,6 +337,11 @@ export function OnboardingScreen({ fetchProposal, onQuestionnaireDone, onDeferTo
           return;
         }
         if (currentStep === "birthdate") {
+          if (isOnboardingFreeInputChoice(text)) {
+            pushUser(text);
+            pushAi(getOnboardingFreeInputHint("birthdate"));
+            return;
+          }
           const updated = { ...currentFlow, birthDate: text };
           const nextProgress = recordAnswer(currentProgress, "birthdate", { birthDate: text });
           setFlowData(updated);
@@ -340,8 +350,7 @@ export function OnboardingScreen({ fetchProposal, onQuestionnaireDone, onDeferTo
           return;
         }
         if (currentStep === "course") {
-          const course = parseCourseChoice(text);
-          if (!course) return;
+          const course = parseCourseChoice(text) ?? "standard";
           saveQuestionnaireCourse(course);
           const updated = { ...currentFlow, questionnaireCourse: course };
           const nextProgress = recordAnswer(currentProgress, "course", { questionnaireCourse: course });
@@ -395,6 +404,10 @@ export function OnboardingScreen({ fetchProposal, onQuestionnaireDone, onDeferTo
           return;
         }
 
+        if (isStructuredOnboardingStep(currentStep)) {
+          await handleStructuredStepAnswer(text, currentStep);
+          return;
+        }
         console.warn("[Onboarding] Unhandled step:", currentStep, "answer:", text);
       } catch (err) {
         console.error("[Onboarding] processAnswer failed:", err);

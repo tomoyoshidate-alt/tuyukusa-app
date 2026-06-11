@@ -9,6 +9,31 @@ export const ONBOARDING_WELCOME_MESSAGE = `こんにちは。
 
 export const ONBOARDING_GOAL_FREE_LABEL = "自由に入力する";
 
+export const ONBOARDING_BIRTHDATE_CHOICES = [
+  "1960年以前",
+  "1960〜1979年",
+  "1980〜1999年",
+  "2000年以降",
+  ONBOARDING_GOAL_FREE_LABEL,
+] as const;
+
+export const ONBOARDING_HOBBIES_CHOICES = [
+  "運動",
+  "音楽・映画",
+  "読書",
+  "創作",
+  "自然・散歩",
+  ONBOARDING_GOAL_FREE_LABEL,
+] as const;
+
+export const ONBOARDING_MEAL_VALUES_CHOICES = [
+  "栄養バランス",
+  "量を控えめに",
+  "旬のもの",
+  "特にない",
+  ONBOARDING_GOAL_FREE_LABEL,
+] as const;
+
 export const ONBOARDING_GOAL_CHOICES = [
   "睡眠の質を上げたい",
   "集中力を高めたい",
@@ -125,11 +150,28 @@ export const ONBOARDING_TIME_BALANCE_CHOICES = [
   "バランスよく両方ほしい",
 ] as const;
 
-export const ONBOARDING_TIME_DETAIL_LATER = "詳細な時刻は後ほど一緒に決めていきましょう。";
+export function isOnboardingFreeInputChoice(choice: string): boolean {
+  return choice === ONBOARDING_GOAL_FREE_LABEL || choice.includes("自由に入力");
+}
 
 export function parseOnboardingGoalChoice(choice: string): string | null {
-  if (choice === ONBOARDING_GOAL_FREE_LABEL || choice.includes("自由に入力")) return null;
+  if (isOnboardingFreeInputChoice(choice)) return null;
   return choice.trim() || null;
+}
+
+export function getOnboardingFreeInputHint(step: OnboardingStep): string {
+  switch (step) {
+    case "goal":
+      return "実現したい生活を自由にお書きください。";
+    case "birthdate":
+      return "生年月日を教えてください。（例：1980年5月15日）";
+    case "hobbies":
+      return "趣味や、好きな時間の過ごし方を自由にお書きください。";
+    case "meal_values":
+      return "食事で大切にしていることを自由にお書きください。";
+    default:
+      return "自由にお書きください。";
+  }
 }
 
 export const ONBOARDING_LIFESTYLE_STEPS: Record<
