@@ -82,8 +82,8 @@ export function getQuestionOrder(course: QuestionnaireCourse | null | undefined)
 
 export function getNextStepInCourse(fromStep: OnboardingStep, flowData: OnboardingFlowData): OnboardingStep | "proposal" {
   const order = getQuestionOrder(getEffectiveCourse(flowData));
-  const idx = fromStep === "goal" ? -1 : order.indexOf(fromStep);
-  if (idx < 0 && fromStep !== "goal") return "proposal";
+  const idx = order.indexOf(fromStep);
+  if (idx < 0) return "proposal";
   for (let i = idx + 1; i < order.length; i++) return order[i];
   return "proposal";
 }

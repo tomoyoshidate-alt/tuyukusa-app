@@ -3530,7 +3530,19 @@ ${buildHealthSummary(healthForm)}`;
     if (reflection) {
       await applyScheduleReflection(reflection);
     }
-    await finishOnboarding(data, { openTab: "home", allDeferred: true });
+    setUserProfile(prev => ({
+      ...prev,
+      name: data.name?.trim() || data.nickname?.trim() || prev.name,
+      nickname: data.nickname?.trim() || prev.nickname,
+      birthDate: data.birthDate ?? prev.birthDate,
+      gender: data.gender ?? prev.gender,
+      nameConfigured: prev.nameConfigured || !!(data.nickname?.trim() || data.name?.trim()),
+    }));
+    setChatKnowledge(prev => updateChatKnowledgeFromFlow(prev, data));
+    const progress = loadOnboardingProgress() ?? { ...INITIAL_ONBOARDING_PROGRESS, flowData: data };
+    saveOnboardingProgress({ ...progress, flowData: data, integrationsPhase: true });
+    setPendingOnboarding({ data, reflection });
+    setOnboardingPhase("integrations");
   };
 
   const renderAiChatPanel = (compact: boolean) => (
@@ -3987,10 +3999,8 @@ ${buildHealthSummary(healthForm)}`;
       gender: data.gender ?? prev.gender,
       name: data.name?.trim() || data.nickname?.trim() || prev.name,
       nickname: data.nickname?.trim() || prev.nickname,
-      onboardingComplete: true,
       nameConfigured: prev.nameConfigured || !!(data.nickname?.trim() || data.name?.trim()),
     }));
-    markOnboardingCompleteInStorage();
     if (data.goal || data.bedtime || data.bath || data.wake || data.sleepDuration) {
       setChatKnowledge(prev => updateChatKnowledgeFromFlow(prev, data));
     }

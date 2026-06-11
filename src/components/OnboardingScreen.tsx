@@ -6,7 +6,6 @@ import { ChatMarkdown } from "@/src/components/ChatMarkdown";
 import { handleAiChatEnterSendKeyDown } from "@/src/lib/chatSubmitKeyboard";
 import {
   buildOnboardingProposalPrompt,
-  getOnboardingFreeInputHint,
   isOnboardingFreeInputChoice,
   parseOnboardingGoalChoice,
   type OnboardingFlowData,
@@ -36,8 +35,6 @@ import {
   markVoiceHintShown,
   ONBOARDING_PROFILE_STEPS,
   recordAnswer,
-  recordDefer,
-  recordSkipToHome,
   resolveActiveQuestionStep,
   resolveNextStepAfter,
   saveOnboardingProgress,
@@ -63,7 +60,10 @@ function buildWelcomeMessages(t: (k: string) => string): OnboardingMessage[] {
   const welcome = introDraft
     ? buildWelcomeMessageFromIntro(introDraft, t)
     : buildWelcomeMessage(t);
-  return [{ type: "ai", text: welcome.text }];
+  return [
+    { type: "ai", text: welcome.intro },
+    { type: "ai", text: welcome.question },
+  ];
 }
 
 function buildInitialFlowState(): {
@@ -97,9 +97,9 @@ export function OnboardingScreen({ fetchProposal, onQuestionnaireDone, onDeferTo
   const [isComposing, setIsComposing] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [proposalReady, setProposalReady] = useState(false);
-  const [hasScheduleReflection, setHasScheduleReflection] = useState(false);
   const [showVoiceHint, setShowVoiceHint] = useState(() => !hasVoiceHintBeenShown());
   const endRef = useRef<HTMLDivElement>(null);
+  const inputRef = useRef<HTMLTextAreaElement>(null);
   const processingRef = useRef(false);
   const awaitingFreeInputRef = useRef<OnboardingStep | null>(null);
 
@@ -224,16 +224,13 @@ export function OnboardingScreen({ fetchProposal, onQuestionnaireDone, onDeferTo
       setStep("proposal");
       stepRef.current = "proposal";
       setProposalReady(false);
-      setHasScheduleReflection(false);
-      const empathy = t("onboarding.empathyLifestyleAnswer", { answer });
-      pushAi(`${empathy}\n\n${t("onboarding.generating")}`);
+      pushAi(t("onboarding.generating"));
       setIsLoading(true);
       isLoadingRef.current = true;
       try {
         const reply = await fetchProposal(buildOnboardingProposalPrompt(updated));
         const aiMsg = createAiChatMessageFromReply(reply.content, reply);
         const reflection = aiMsg.scheduleReflection ?? null;
-        setHasScheduleReflection(!!reflection);
         setMessages(prev => {
           const next: OnboardingMessage[] = [
             ...prev.slice(0, -1),
@@ -274,14 +271,7 @@ export function OnboardingScreen({ fetchProposal, onQuestionnaireDone, onDeferTo
     async (answer: string, currentStep: OnboardingStep) => {
       const config = getStructuredStepConfig(currentStep);
       if (!config) return;
-
-      const awaitingFreeInput = awaitingFreeInputRef.current === currentStep;
-      if (!awaitingFreeInput && isOnboardingFreeInputChoice(answer)) {
-        awaitingFreeInputRef.current = currentStep;
-        pushUser(answer);
-        pushAi(getOnboardingFreeInputHint(currentStep));
-        return;
-      }
+      if (isOnboardingFreeInputChoice(answer) && awaitingFreeInputRef.current !== currentStep) return;
 
       awaitingFreeInputRef.current = null;
       const currentProgress = progressRef.current;
@@ -317,31 +307,6 @@ export function OnboardingScreen({ fetchProposal, onQuestionnaireDone, onDeferTo
         const currentStep = stepRef.current;
         const currentProgress = progressRef.current;
         const currentFlow = flowDataRef.current;
-        const currentMessages = messagesRef.current;
-
-        if (text === t("onboarding.applyAndContinue") || text === t("onboarding.continueToIntegrations")) {
-          onQuestionnaireDone(
-            currentFlow,
-            [...currentMessages].reverse().find(m => m.scheduleReflection)?.scheduleReflection ?? null,
-          );
-          return;
-        }
-        if (text === t("onboarding.deferQuestion")) {
-          const nextProgress = recordDefer(currentProgress, currentStep);
-          persist(nextProgress, currentStep, currentFlow);
-          pushUser(text);
-          pushAi(t("onboarding.deferredAck"));
-          window.setTimeout(() => onDeferToHome(flowDataRef.current), 1800);
-          return;
-        }
-        if (text === t("onboarding.skipQuestionnaire")) {
-          const nextProgress = recordSkipToHome(currentProgress, currentStep);
-          persist(nextProgress, currentStep, currentFlow);
-          pushUser(text);
-          pushAi(t("onboarding.skippedAck"));
-          window.setTimeout(() => onDeferToHome(flowDataRef.current), 1200);
-          return;
-        }
         if (skipAnsweredProfileStep(currentStep, currentProgress, currentFlow)) return;
         if (currentStep === "gender") {
           const updated = { ...currentFlow, gender: text };
@@ -352,13 +317,7 @@ export function OnboardingScreen({ fetchProposal, onQuestionnaireDone, onDeferTo
           return;
         }
         if (currentStep === "goal") {
-          const awaitingFreeInput = awaitingFreeInputRef.current === "goal";
-          if (!awaitingFreeInput && isOnboardingFreeInputChoice(text)) {
-            awaitingFreeInputRef.current = "goal";
-            pushUser(text);
-            pushAi(getOnboardingFreeInputHint("goal"));
-            return;
-          }
+          if (isOnboardingFreeInputChoice(text) && awaitingFreeInputRef.current !== "goal") return;
           awaitingFreeInputRef.current = null;
           const goal = parseOnboardingGoalChoice(text) ?? text;
           const updated = { ...currentFlow, goal };
@@ -369,13 +328,7 @@ export function OnboardingScreen({ fetchProposal, onQuestionnaireDone, onDeferTo
           return;
         }
         if (currentStep === "birthdate") {
-          const awaitingFreeInput = awaitingFreeInputRef.current === "birthdate";
-          if (!awaitingFreeInput && isOnboardingFreeInputChoice(text)) {
-            awaitingFreeInputRef.current = "birthdate";
-            pushUser(text);
-            pushAi(getOnboardingFreeInputHint("birthdate"));
-            return;
-          }
+          if (isOnboardingFreeInputChoice(text) && awaitingFreeInputRef.current !== "birthdate") return;
           awaitingFreeInputRef.current = null;
           const updated = { ...currentFlow, birthDate: text };
           const nextProgress = recordAnswer(currentProgress, "birthdate", { birthDate: text });
@@ -430,7 +383,6 @@ export function OnboardingScreen({ fetchProposal, onQuestionnaireDone, onDeferTo
             const reply = await fetchProposal(text);
             const aiMsg = createAiChatMessageFromReply(reply.content, reply);
             pushAi(aiMsg.text, { scheduleReflection: aiMsg.scheduleReflection });
-            setHasScheduleReflection(!!aiMsg.scheduleReflection);
             setProposalReady(true);
           } catch {
             pushAi(t("onboarding.proposalFailed"));
@@ -458,6 +410,11 @@ export function OnboardingScreen({ fetchProposal, onQuestionnaireDone, onDeferTo
 
   const handleChoice = useCallback(
     (choice: string) => {
+      if (isOnboardingFreeInputChoice(choice)) {
+        awaitingFreeInputRef.current = stepRef.current;
+        window.setTimeout(() => inputRef.current?.focus(), 0);
+        return;
+      }
       void processAnswer(choice);
     },
     [processAnswer],
@@ -470,9 +427,26 @@ export function OnboardingScreen({ fetchProposal, onQuestionnaireDone, onDeferTo
     void processAnswer(text);
   }, [input, processAnswer]);
 
-  const handleDeferQuestion = useCallback(() => {
-    void processAnswer(t("onboarding.deferQuestion"));
-  }, [processAnswer, t]);
+  const handleSaveAndDefer = useCallback(() => {
+    const currentStep = stepRef.current;
+    const currentProgress = progressRef.current;
+    const currentFlow = flowDataRef.current;
+    const merged: OnboardingProgress = {
+      ...currentProgress,
+      flowData: currentFlow,
+      pausedAtStep: currentStep,
+      currentStep,
+    };
+    saveOnboardingProgress(merged);
+    onDeferToHome(currentFlow);
+  }, [onDeferToHome]);
+
+  const handleGoToIntegrations = useCallback(() => {
+    const currentFlow = flowDataRef.current;
+    const reflection =
+      [...messagesRef.current].reverse().find(m => m.scheduleReflection)?.scheduleReflection ?? null;
+    onQuestionnaireDone(currentFlow, reflection);
+  }, [onQuestionnaireDone]);
 
   const currentStepPrompt = getOnboardingStepPrompt(step, t);
   const lastMessage = messages[messages.length - 1];
@@ -562,32 +536,25 @@ export function OnboardingScreen({ fetchProposal, onQuestionnaireDone, onDeferTo
       >
         <button
           type="button"
-          onClick={() => void processAnswer(t("onboarding.applyAndContinue"))}
-          disabled={isLoading || !proposalReady || !hasScheduleReflection}
-          style={footerButtonStyle(proposalReady && hasScheduleReflection)}
-        >
-          {t("onboarding.applyAndContinue")}
-        </button>
-        <button
-          type="button"
-          onClick={() => void processAnswer(t("onboarding.continueToIntegrations"))}
-          disabled={isLoading || !proposalReady}
-          style={footerButtonStyle(proposalReady)}
-        >
-          {t("onboarding.continueToIntegrations")}
-        </button>
-        <button
-          type="button"
-          onClick={handleDeferQuestion}
+          onClick={handleSaveAndDefer}
           disabled={isLoading}
           style={footerButtonStyle(true)}
         >
-          {t("onboarding.deferQuestion")}
+          {t("onboarding.saveAndDefer")}
+        </button>
+        <button
+          type="button"
+          onClick={handleGoToIntegrations}
+          disabled={isLoading}
+          style={footerButtonStyle(true)}
+        >
+          {t("onboarding.goToIntegrations")}
         </button>
       </div>
 
       <div style={{ padding: "12px 16px 24px", background: "white", borderTop: "1px solid rgba(60,40,20,0.1)", display: "flex", gap: 8, alignItems: "flex-end" }}>
         <textarea
+          ref={inputRef}
           value={input}
           onChange={e => setInput(e.target.value)}
           placeholder={t("onboarding.messagePlaceholder")}

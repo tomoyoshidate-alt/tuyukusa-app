@@ -9,7 +9,6 @@ import {
 import {
   COURSE_SELECTION_MESSAGE,
   getCourseChoiceLabels,
-  getOnboardingKnowledgeTip,
   getStructuredStepConfig,
 } from "./onboardingCourse";
 import type { IntroDraft } from "./introStorage";
@@ -37,12 +36,7 @@ export function getOnboardingStepPrompt(step: OnboardingStep, t: Translate): { q
     case "name":
       return {
         question: t("onboarding.nameQuestion"),
-        choices: [
-          t("onboarding.defaultNicknameChoice"),
-          t("onboarding.skip"),
-          t("onboarding.deferQuestion"),
-          t("onboarding.skipQuestionnaire"),
-        ],
+        choices: [t("onboarding.defaultNicknameChoice"), t("onboarding.skip")],
       };
     case "bedtime":
     case "wake":
@@ -101,12 +95,9 @@ export function buildOnboardingTransition(
     case "meal_breakfast":
     case "meal_lunch":
     case "meal_dinner":
-    case "meal_values": {
+    case "meal_values":
       parts.push(t("onboarding.empathyLifestyleAnswer", { answer }));
-      const tip = getOnboardingKnowledgeTip(fromStep);
-      if (tip) parts.push(tip);
       break;
-    }
     default:
       break;
   }
@@ -118,9 +109,10 @@ export function buildOnboardingTransition(
   };
 }
 
-export function buildWelcomeMessage(t: Translate): { text: string; choices: string[] } {
+export function buildWelcomeMessage(t: Translate): { intro: string; question: string; choices: string[] } {
   return {
-    text: `${t("onboarding.welcomeBody")}\n\n${t("onboarding.goalQuestionShort")}`,
+    intro: t("onboarding.welcomeBody"),
+    question: t("onboarding.goalQuestionShort"),
     choices: [...ONBOARDING_GOAL_CHOICES],
   };
 }
@@ -128,37 +120,16 @@ export function buildWelcomeMessage(t: Translate): { text: string; choices: stri
 export function buildWelcomeMessageFromIntro(
   draft: IntroDraft,
   t: Translate,
-): { text: string; choices: string[] } {
-  const parts: string[] = [];
+): { intro: string; question: string; choices: string[] } {
+  const introParts: string[] = [t("onboarding.welcomeBody")];
 
-  if (draft.skipNickname || !draft.nickname?.trim()) {
-    parts.push("はじめまして。");
-  } else {
-    parts.push(`${draft.nickname.trim()}さん、はじめまして。`);
+  if (!draft.skipNickname && draft.nickname?.trim()) {
+    introParts.push(`${draft.nickname.trim()}さん、はじめまして。`);
   }
-
-  const interests = draft.featureInterests.filter(Boolean);
-  if (interests.length === 1) {
-    parts.push(`「${interests[0]}」に興味があるとのこと、承知しました。`);
-  } else if (interests.length > 1) {
-    parts.push(`次の機能に興味があるとのこと、承知しました。\n${interests.map(i => `・${i}`).join("\n")}`);
-  }
-
-  if (draft.featureOther?.trim()) {
-    parts.push(`その他のご希望：「${draft.featureOther.trim()}」`);
-  }
-
-  const profileBits: string[] = [];
-  if (draft.birthDate?.trim()) profileBits.push(`生年月日：${draft.birthDate.trim()}`);
-  if (draft.gender?.trim()) profileBits.push(`身体的な性別：${draft.gender.trim()}`);
-  if (profileBits.length) {
-    parts.push(`いただいたプロフィール（${profileBits.join(" / ")}）をもとに、あなたに合ったサポートをします。`);
-  }
-
-  parts.push(t("onboarding.goalQuestionShort"));
 
   return {
-    text: parts.join("\n\n"),
+    intro: introParts.join("\n\n"),
+    question: t("onboarding.goalQuestionShort"),
     choices: [...ONBOARDING_GOAL_CHOICES],
   };
 }
