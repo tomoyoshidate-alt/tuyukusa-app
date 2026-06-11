@@ -89,35 +89,38 @@ export type OnboardingFlowData = LifestyleKnowledge & {
 export const GENDER_CHOICES = ["男性", "女性", "回答しない"] as const;
 
 export const ONBOARDING_BEDTIME_CHOICES = [
-  "21時",
-  "22時",
-  "23時",
-  "24時",
-  "1時",
-  "2時以降",
-  "不規則",
+  "21:00",
+  "21:30",
+  "22:00",
+  "22:30",
+  "23:00",
+  "23:30",
+  "24:00",
+  "それ以降",
 ] as const;
 
 export const ONBOARDING_WAKE_CHOICES = [
-  "4時",
-  "5時",
-  "6時",
-  "7時",
-  "8時",
-  "9時",
-  "10時以降",
-  "不規則",
+  "5:00",
+  "5:30",
+  "6:00",
+  "6:30",
+  "7:00",
+  "7:30",
+  "8:00",
+  "それ以降",
 ] as const;
 
 export const ONBOARDING_BATH_CHOICES = [
-  "17時",
-  "18時",
-  "19時",
-  "20時",
-  "21時",
-  "22時以降",
+  "17:00",
+  "17:30",
+  "18:00",
+  "18:30",
+  "19:00",
+  "19:30",
+  "20:00",
+  "20:30",
+  "21:00",
   "朝シャワー派",
-  "入浴しない",
 ] as const;
 
 export const ONBOARDING_SLEEP_DURATION_CHOICES = [
