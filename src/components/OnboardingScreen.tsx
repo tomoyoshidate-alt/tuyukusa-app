@@ -38,8 +38,8 @@ import {
   recordAnswer,
   recordDefer,
   recordSkipToHome,
+  resolveActiveQuestionStep,
   resolveNextStepAfter,
-  resolveOnboardingResumeStep,
   saveOnboardingProgress,
   type OnboardingProgress,
 } from "@/src/lib/onboardingProgress";
@@ -49,7 +49,6 @@ import { createAiChatMessageFromReply, type ChatReply } from "@/src/lib/chatRepl
 type OnboardingMessage = {
   type: "ai" | "user";
   text: string;
-  choices?: string[];
   scheduleReflection?: ScheduleReflection;
 };
 
@@ -64,7 +63,7 @@ function buildWelcomeMessages(t: (k: string) => string): OnboardingMessage[] {
   const welcome = introDraft
     ? buildWelcomeMessageFromIntro(introDraft, t)
     : buildWelcomeMessage(t);
-  return [{ type: "ai", text: welcome.text, choices: welcome.choices }];
+  return [{ type: "ai", text: welcome.text }];
 }
 
 function buildInitialFlowState(): {
@@ -74,15 +73,15 @@ function buildInitialFlowState(): {
 } {
   const savedProgress = loadOnboardingProgress();
   const progress = applyStoredProfileToProgress(savedProgress ?? INITIAL_ONBOARDING_PROGRESS);
-  const step = resolveOnboardingResumeStep(progress);
+  const step = resolveActiveQuestionStep(progress);
   return { step, progress, flowData: progress.flowData };
 }
 
 function buildInitialMessages(step: OnboardingStep, t: (k: string) => string): OnboardingMessage[] {
-  if (step === "goal" || step === "proposal") return buildWelcomeMessages(t);
+  if (step === "goal") return buildWelcomeMessages(t);
   const prompt = getOnboardingStepPrompt(step, t);
   if (!prompt.question) return buildWelcomeMessages(t);
-  return [{ type: "ai", text: prompt.question, choices: prompt.choices }];
+  return [{ type: "ai", text: prompt.question }];
 }
 
 export function OnboardingScreen({ fetchProposal, onQuestionnaireDone, onDeferToHome }: Props) {
@@ -97,6 +96,8 @@ export function OnboardingScreen({ fetchProposal, onQuestionnaireDone, onDeferTo
   const [input, setInput] = useState("");
   const [isComposing, setIsComposing] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+  const [proposalReady, setProposalReady] = useState(false);
+  const [hasScheduleReflection, setHasScheduleReflection] = useState(false);
   const [showVoiceHint, setShowVoiceHint] = useState(() => !hasVoiceHintBeenShown());
   const endRef = useRef<HTMLDivElement>(null);
   const processingRef = useRef(false);
@@ -146,9 +147,9 @@ export function OnboardingScreen({ fetchProposal, onQuestionnaireDone, onDeferTo
     });
   }, []);
 
-  const pushAi = useCallback((text: string, choices?: string[]) => {
+  const pushAi = useCallback((text: string, extra?: Partial<Pick<OnboardingMessage, "scheduleReflection">>) => {
     setMessages(prev => {
-      const next = [...prev, { type: "ai" as const, text, choices }];
+      const next = [...prev, { type: "ai" as const, text, ...extra }];
       messagesRef.current = next;
       return next;
     });
@@ -158,16 +159,16 @@ export function OnboardingScreen({ fetchProposal, onQuestionnaireDone, onDeferTo
     (targetStep: OnboardingStep) => {
       const prompt = getOnboardingStepPrompt(targetStep, t);
       if (!prompt.question) return;
-      pushAi(prompt.question, prompt.choices);
+      pushAi(prompt.question);
     },
     [pushAi, t],
   );
 
   const pushTransition = useCallback(
     (fromStep: OnboardingStep, answer: string, toStep: OnboardingStep, data: OnboardingFlowData) => {
-      const { empathyText, questionText, choices } = buildOnboardingTransition(fromStep, answer, toStep, data, t);
+      const { empathyText, questionText } = buildOnboardingTransition(fromStep, answer, toStep, data, t);
       if (empathyText) pushAi(empathyText);
-      if (questionText) pushAi(questionText, choices);
+      if (questionText) pushAi(questionText);
       else pushStepQuestion(toStep);
     },
     [pushAi, pushStepQuestion, t],
@@ -210,7 +211,7 @@ export function OnboardingScreen({ fetchProposal, onQuestionnaireDone, onDeferTo
         goToLifestyle(nextStep, currentStep, "", currentFlow);
       } else {
         const prompt = getOnboardingStepPrompt(nextStep, t);
-        if (prompt.question) pushAi(prompt.question, prompt.choices);
+        if (prompt.question) pushAi(prompt.question);
       }
       return true;
     },
@@ -218,10 +219,12 @@ export function OnboardingScreen({ fetchProposal, onQuestionnaireDone, onDeferTo
   );
 
   const startProposalGeneration = useCallback(
-    async (answer: string, fromStep: OnboardingStep, updated: OnboardingFlowData) => {
+    async (answer: string, updated: OnboardingFlowData) => {
       awaitingFreeInputRef.current = null;
       setStep("proposal");
       stepRef.current = "proposal";
+      setProposalReady(false);
+      setHasScheduleReflection(false);
       const empathy = t("onboarding.empathyLifestyleAnswer", { answer });
       pushAi(`${empathy}\n\n${t("onboarding.generating")}`);
       setIsLoading(true);
@@ -229,35 +232,36 @@ export function OnboardingScreen({ fetchProposal, onQuestionnaireDone, onDeferTo
       try {
         const reply = await fetchProposal(buildOnboardingProposalPrompt(updated));
         const aiMsg = createAiChatMessageFromReply(reply.content, reply);
-        setMessages(prev => {
-          const next = [...prev.slice(0, -1), { type: "ai" as const, text: aiMsg.text, scheduleReflection: aiMsg.scheduleReflection }];
-          messagesRef.current = next;
-          return next;
-        });
+        const reflection = aiMsg.scheduleReflection ?? null;
+        setHasScheduleReflection(!!reflection);
         setMessages(prev => {
           const next: OnboardingMessage[] = [
-            ...prev,
+            ...prev.slice(0, -1),
             {
               type: "ai",
-              text: aiMsg.scheduleReflection ? t("onboarding.applyPrompt") : t("onboarding.completeFallback"),
-              choices: aiMsg.scheduleReflection
-                ? [t("onboarding.applyAndContinue"), t("onboarding.continueToIntegrations"), t("onboarding.deferQuestion")]
-                : [t("onboarding.continueToIntegrations"), t("onboarding.deferQuestion"), t("onboarding.skipQuestionnaire")],
+              text: aiMsg.text,
+              scheduleReflection: reflection ?? undefined,
+            },
+            {
+              type: "ai",
+              text: reflection ? t("onboarding.applyPrompt") : t("onboarding.completeFallback"),
             },
           ];
           messagesRef.current = next;
           return next;
         });
+        setProposalReady(true);
       } catch (err) {
         console.error("[Onboarding] proposal fetch failed:", err);
         setMessages(prev => {
           const next: OnboardingMessage[] = [
             ...prev.slice(0, -1),
-            { type: "ai", text: t("onboarding.proposalFailed"), choices: [t("onboarding.continueToIntegrations"), t("onboarding.deferQuestion"), t("onboarding.skipQuestionnaire")] },
+            { type: "ai", text: t("onboarding.proposalFailed") },
           ];
           messagesRef.current = next;
           return next;
         });
+        setProposalReady(true);
       } finally {
         setIsLoading(false);
         isLoadingRef.current = false;
@@ -275,8 +279,7 @@ export function OnboardingScreen({ fetchProposal, onQuestionnaireDone, onDeferTo
       if (!awaitingFreeInput && isOnboardingFreeInputChoice(answer)) {
         awaitingFreeInputRef.current = currentStep;
         pushUser(answer);
-        const prompt = getOnboardingStepPrompt(currentStep, t);
-        pushAi(getOnboardingFreeInputHint(currentStep), prompt.choices);
+        pushAi(getOnboardingFreeInputHint(currentStep));
         return;
       }
 
@@ -293,7 +296,7 @@ export function OnboardingScreen({ fetchProposal, onQuestionnaireDone, onDeferTo
 
       const nextStep = getNextStepInCourse(currentStep, updated);
       if (nextStep === "proposal") {
-        await startProposalGeneration(answer, currentStep, updated);
+        await startProposalGeneration(answer, updated);
         return;
       }
 
@@ -353,7 +356,7 @@ export function OnboardingScreen({ fetchProposal, onQuestionnaireDone, onDeferTo
           if (!awaitingFreeInput && isOnboardingFreeInputChoice(text)) {
             awaitingFreeInputRef.current = "goal";
             pushUser(text);
-            pushAi(getOnboardingFreeInputHint("goal"), [...getOnboardingStepPrompt("goal", t).choices]);
+            pushAi(getOnboardingFreeInputHint("goal"));
             return;
           }
           awaitingFreeInputRef.current = null;
@@ -370,7 +373,7 @@ export function OnboardingScreen({ fetchProposal, onQuestionnaireDone, onDeferTo
           if (!awaitingFreeInput && isOnboardingFreeInputChoice(text)) {
             awaitingFreeInputRef.current = "birthdate";
             pushUser(text);
-            pushAi(getOnboardingFreeInputHint("birthdate"), [...getOnboardingStepPrompt("birthdate", t).choices]);
+            pushAi(getOnboardingFreeInputHint("birthdate"));
             return;
           }
           awaitingFreeInputRef.current = null;
@@ -426,9 +429,12 @@ export function OnboardingScreen({ fetchProposal, onQuestionnaireDone, onDeferTo
           try {
             const reply = await fetchProposal(text);
             const aiMsg = createAiChatMessageFromReply(reply.content, reply);
-            pushAi(aiMsg.text, [t("onboarding.continueToIntegrations"), t("onboarding.applyAndContinue"), t("onboarding.deferQuestion")]);
+            pushAi(aiMsg.text, { scheduleReflection: aiMsg.scheduleReflection });
+            setHasScheduleReflection(!!aiMsg.scheduleReflection);
+            setProposalReady(true);
           } catch {
-            pushAi(t("onboarding.proposalFailed"), [t("onboarding.continueToIntegrations"), t("onboarding.deferQuestion"), t("onboarding.skipQuestionnaire")]);
+            pushAi(t("onboarding.proposalFailed"));
+            setProposalReady(true);
           } finally {
             setIsLoading(false);
             isLoadingRef.current = false;
@@ -468,19 +474,31 @@ export function OnboardingScreen({ fetchProposal, onQuestionnaireDone, onDeferTo
     void processAnswer(t("onboarding.deferQuestion"));
   }, [processAnswer, t]);
 
-  const handleSkipQuestionnaire = useCallback(() => {
-    void processAnswer(t("onboarding.skipQuestionnaire"));
-  }, [processAnswer, t]);
-
   const currentStepPrompt = getOnboardingStepPrompt(step, t);
   const lastMessage = messages[messages.length - 1];
-  const lastMessageHasChoices = lastMessage?.type === "ai" && (lastMessage.choices?.length ?? 0) > 0;
-  const showCurrentStepChoices =
+  const showStepChoices =
     !isLoading &&
+    !proposalReady &&
     step !== "proposal" &&
     currentStepPrompt.choices.length > 0 &&
-    lastMessage?.type !== "user" &&
-    !lastMessageHasChoices;
+    lastMessage?.type !== "user";
+
+  const footerButtonStyle = (enabled: boolean) => ({
+    flex: 1,
+    minWidth: 0,
+    padding: "10px 8px",
+    borderRadius: 10,
+    border: "1.5px solid rgba(60,40,20,0.12)",
+    background: enabled ? "#ede5d4" : "#f0ebe3",
+    color: "#3d3228",
+    fontSize: 11,
+    fontWeight: "bold",
+    cursor: enabled && !isLoading ? "pointer" : "default",
+    opacity: enabled && !isLoading ? 1 : 0.45,
+    lineHeight: 1.35,
+    whiteSpace: "pre-line",
+    textAlign: "center",
+  });
 
   return (
     <div style={{ position: "fixed", inset: 0, zIndex: 20000, background: "#f5f0e8", display: "flex", flexDirection: "column" }}>
@@ -505,24 +523,9 @@ export function OnboardingScreen({ fetchProposal, onQuestionnaireDone, onDeferTo
                 ))}
               </div>
             )}
-            {msg.choices && !isLoading && i === messages.length - 1 && (
-              <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginTop: 10 }}>
-                {msg.choices.map((c, j) => (
-                  <button
-                    key={j}
-                    type="button"
-                    disabled={isLoading}
-                    onClick={() => handleChoice(c)}
-                    style={{ background: "#ede5d4", border: "1.5px solid rgba(60,40,20,0.12)", borderRadius: 20, padding: "8px 16px", fontSize: 13, cursor: isLoading ? "default" : "pointer", color: "#3d3228", opacity: isLoading ? 0.6 : 1, whiteSpace: "pre-line", textAlign: "left", maxWidth: "100%" }}
-                  >
-                    {c}
-                  </button>
-                ))}
-              </div>
-            )}
           </div>
         ))}
-        {showCurrentStepChoices && (
+        {showStepChoices && (
           <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginTop: 4 }}>
             {currentStepPrompt.choices.map((c, j) => (
               <button
@@ -550,44 +553,36 @@ export function OnboardingScreen({ fetchProposal, onQuestionnaireDone, onDeferTo
       <div
         style={{
           display: "flex",
-          justifyContent: "center",
-          gap: 16,
-          padding: "8px 20px 10px",
+          gap: 8,
+          padding: "10px 16px",
           background: "#f5f0e8",
-          borderTop: "1px solid rgba(60,40,20,0.08)",
+          borderTop: "1px solid rgba(60,40,20,0.1)",
+          flexShrink: 0,
         }}
       >
         <button
           type="button"
-          onClick={handleDeferQuestion}
-          disabled={isLoading}
-          style={{
-            background: "none",
-            border: "none",
-            color: "#8b7355",
-            fontSize: 12,
-            cursor: isLoading ? "default" : "pointer",
-            textDecoration: "underline",
-            opacity: isLoading ? 0.5 : 1,
-          }}
+          onClick={() => void processAnswer(t("onboarding.applyAndContinue"))}
+          disabled={isLoading || !proposalReady || !hasScheduleReflection}
+          style={footerButtonStyle(proposalReady && hasScheduleReflection)}
         >
-          {t("onboarding.deferQuestion")}
+          {t("onboarding.applyAndContinue")}
         </button>
         <button
           type="button"
-          onClick={handleSkipQuestionnaire}
-          disabled={isLoading}
-          style={{
-            background: "none",
-            border: "none",
-            color: "#8b7355",
-            fontSize: 12,
-            cursor: isLoading ? "default" : "pointer",
-            textDecoration: "underline",
-            opacity: isLoading ? 0.5 : 1,
-          }}
+          onClick={() => void processAnswer(t("onboarding.continueToIntegrations"))}
+          disabled={isLoading || !proposalReady}
+          style={footerButtonStyle(proposalReady)}
         >
-          {t("onboarding.skipQuestionnaire")}
+          {t("onboarding.continueToIntegrations")}
+        </button>
+        <button
+          type="button"
+          onClick={handleDeferQuestion}
+          disabled={isLoading}
+          style={footerButtonStyle(true)}
+        >
+          {t("onboarding.deferQuestion")}
         </button>
       </div>
 

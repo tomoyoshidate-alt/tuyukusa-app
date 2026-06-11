@@ -19,6 +19,7 @@ const DEV_RESET_KEYS = [
   "tuyukusa-chat-knowledge",
   "tuyukusa-local-tasks",
   "tuyukusa-onboarding-progress",
+  "tuyukusa-onboarding-course",
   "tuyukusa-intro-draft",
   "tuyukusa-health-data",
   "tuyukusa-voice-hint-shown",
@@ -29,6 +30,8 @@ const DEV_RESET_KEYS = [
   "skipped_sound",
 ] as const;
 
+export const FORCE_ONBOARDING_SESSION_KEY = "tuyukusa-force-onboarding";
+
 export function runDevReset(): void {
   if (typeof window === "undefined") return;
   for (const key of DEV_RESET_KEYS) {
@@ -37,6 +40,11 @@ export function runDevReset(): void {
     } catch {
       /* ignore */
     }
+  }
+  try {
+    sessionStorage.setItem(FORCE_ONBOARDING_SESSION_KEY, "1");
+  } catch {
+    /* ignore */
   }
 }
 

@@ -71,6 +71,7 @@ import {
 } from "@/src/lib/onboardingProgress";
 import {
   DEV_RESET_MESSAGE,
+  FORCE_ONBOARDING_SESSION_KEY,
   isDevResetIntent,
   runDevReset,
   scheduleDevResetReload,
@@ -2350,6 +2351,31 @@ export default function TuyukusaApp() {
     healthHydrated &&
     localTasksHydrated &&
     supabaseHydrated;
+
+  useEffect(() => {
+    try {
+      if (sessionStorage.getItem(FORCE_ONBOARDING_SESSION_KEY) === "1") {
+        sessionStorage.removeItem(FORCE_ONBOARDING_SESSION_KEY);
+        clearOnboardingProgress();
+        setUserProfile(prev => ({
+          ...prev,
+          onboardingComplete: false,
+          nameConfigured: false,
+          birthDate: undefined,
+          gender: undefined,
+        }));
+        setOnboardingPhase("questionnaire");
+        setPendingOnboarding(null);
+        setIntroVisible(true);
+        setIntroReplayActive(false);
+        setIntroRevision(r => r + 1);
+        setChatMessages([]);
+        setChatFlowStep("intro");
+      }
+    } catch {
+      /* ignore */
+    }
+  }, []);
 
   useEffect(() => {
     runTuyukusaStorageMigration();

@@ -36,6 +36,21 @@ export function resolveOnboardingResumeStep(progress: OnboardingProgress | null)
   return getNextUnansweredStep(progress) ?? "goal";
 }
 
+/** Active question step for UI (never returns proposal — that is a post-questionnaire phase). */
+export function resolveActiveQuestionStep(progress: OnboardingProgress | null): OnboardingStep {
+  if (!progress) return "goal";
+  const pending = getNextUnansweredStep(progress);
+  if (pending) return pending;
+  const resumed = resolveOnboardingResumeStep(progress);
+  if (resumed === "proposal") return "goal";
+  if (isQuestionAnswered(progress, resumed)) {
+    const next = resolveNextStepAfter(resumed, progress);
+    if (next === "proposal") return "goal";
+    return next;
+  }
+  return resumed;
+}
+
 function migrateOnboardingProgress(progress: OnboardingProgress): OnboardingProgress {
   const answered: Partial<Record<OnboardingStep, boolean>> & Record<string, boolean> = {
     ...progress.answered,
