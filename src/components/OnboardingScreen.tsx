@@ -78,7 +78,7 @@ function buildInitialFlowState(): {
 function buildInitialMessages(step: OnboardingStep, t: (k: string) => string): OnboardingMessage[] {
   if (step === "goal") return buildWelcomeMessages(t);
   const prompt = getOnboardingStepPrompt(step, t);
-  if (!prompt.question) return buildWelcomeMessages(t);
+  if (!prompt.question) return [];
   return [{ type: "ai", text: prompt.question }];
 }
 
@@ -130,7 +130,11 @@ export function OnboardingScreen({ fetchProposal, onQuestionnaireDone, onDeferTo
     flowDataRef.current = synced.flowData;
     setStep(syncedStep);
     stepRef.current = syncedStep;
-  }, []);
+    if (syncedStep !== initialStep) {
+      setMessages(buildInitialMessages(syncedStep, t));
+      messagesRef.current = buildInitialMessages(syncedStep, t);
+    }
+  }, [initialStep, t]);
 
   useEffect(() => {
     endRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -307,27 +311,37 @@ export function OnboardingScreen({ fetchProposal, onQuestionnaireDone, onDeferTo
 
       processingRef.current = true;
       try {
-        const currentStep = stepRef.current;
         const currentProgress = progressRef.current;
         const currentFlow = flowDataRef.current;
-        if (skipAnsweredProfileStep(currentStep, currentProgress, currentFlow)) return;
-        if (currentStep === "gender") {
-          const updated = { ...currentFlow, gender: text };
-          const nextProgress = recordAnswer(currentProgress, "gender", { gender: text });
-          setFlowData(updated);
-          flowDataRef.current = updated;
-          advanceAfterAnswer("gender", text, nextProgress, updated);
-          return;
+        let currentStep = stepRef.current;
+        if (!isQuestionAnswered(currentProgress, "goal")) {
+          const activeStep = resolveActiveQuestionStep(currentProgress);
+          if (activeStep === "goal") currentStep = "goal";
         }
+        if (skipAnsweredProfileStep(currentStep, currentProgress, currentFlow)) return;
         if (currentStep === "goal") {
           if (isOnboardingFreeInputChoice(text) && awaitingFreeInputRef.current !== "goal") return;
           awaitingFreeInputRef.current = null;
           const goal = parseOnboardingGoalChoice(text) ?? text;
           const updated = { ...currentFlow, goal };
           const nextProgress = recordAnswer(currentProgress, "goal", { goal });
+          const nextStep = resolveNextStepAfter("goal", nextProgress);
+          if (nextStep === "goal" || nextStep === "proposal") {
+            console.error("[Onboarding] Goal answer did not advance:", nextStep);
+            return;
+          }
           setFlowData(updated);
           flowDataRef.current = updated;
+          persist(nextProgress, nextStep, updated);
           advanceAfterAnswer("goal", text, nextProgress, updated);
+          return;
+        }
+        if (currentStep === "gender") {
+          const updated = { ...currentFlow, gender: text };
+          const nextProgress = recordAnswer(currentProgress, "gender", { gender: text });
+          setFlowData(updated);
+          flowDataRef.current = updated;
+          advanceAfterAnswer("gender", text, nextProgress, updated);
           return;
         }
         if (currentStep === "birthdate") {
