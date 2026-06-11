@@ -159,6 +159,41 @@ export function parseOnboardingGoalChoice(choice: string): string | null {
   return choice.trim() || null;
 }
 
+export function getOnboardingStepChoices(step: OnboardingStep): string[] {
+  switch (step) {
+    case "goal":
+      return [...ONBOARDING_GOAL_CHOICES];
+    case "birthdate":
+      return [...ONBOARDING_BIRTHDATE_CHOICES];
+    case "gender":
+      return [...GENDER_CHOICES];
+    case "name":
+      return [];
+    case "bedtime":
+      return [...ONBOARDING_BEDTIME_CHOICES];
+    case "wake":
+      return [...ONBOARDING_WAKE_CHOICES];
+    case "bath":
+      return [...ONBOARDING_BATH_CHOICES];
+    case "sleep_duration":
+      return [...ONBOARDING_SLEEP_DURATION_CHOICES];
+    case "hobbies":
+      return [...ONBOARDING_HOBBIES_CHOICES];
+    case "time_balance":
+      return [...ONBOARDING_TIME_BALANCE_CHOICES];
+    case "alcohol":
+      return [...ONBOARDING_ALCOHOL_CHOICES];
+    case "meal_breakfast":
+    case "meal_lunch":
+    case "meal_dinner":
+      return [...ONBOARDING_MEAL_PORTION_CHOICES];
+    case "meal_values":
+      return [...ONBOARDING_MEAL_VALUES_CHOICES];
+    default:
+      return [];
+  }
+}
+
 export function getOnboardingFreeInputHint(step: OnboardingStep): string {
   switch (step) {
     case "goal":

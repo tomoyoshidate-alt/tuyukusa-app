@@ -24,8 +24,10 @@ function getGoalEmpathy(goal: string, t: Translate): string {
   return t("onboarding.empathyGoalCustom", { goal: trimmed });
 }
 
-export function getOnboardingStepPrompt(step: OnboardingStep, t: Translate): { question: string; choices?: string[] } {
+export function getOnboardingStepPrompt(step: OnboardingStep, t: Translate): { question: string; choices: string[] } {
   switch (step) {
+    case "goal":
+      return { question: t("onboarding.goalQuestionShort"), choices: [...ONBOARDING_GOAL_CHOICES] };
     case "birthdate":
       return { question: t("onboarding.birthdateQuestion"), choices: [...ONBOARDING_BIRTHDATE_CHOICES] };
     case "gender":
@@ -51,7 +53,7 @@ export function getOnboardingStepPrompt(step: OnboardingStep, t: Translate): { q
     }
     default: {
       const structured = getStructuredStepConfig(step);
-      if (!structured) return { question: "" };
+      if (!structured) return { question: "", choices: [] };
       return { question: structured.question, choices: structured.choices };
     }
   }
@@ -63,7 +65,7 @@ export function buildOnboardingTransition(
   toStep: OnboardingStep,
   data: OnboardingFlowData,
   t: Translate,
-): { text: string; choices?: string[] } {
+): { empathyText: string; questionText: string; choices: string[] } {
   const next = getOnboardingStepPrompt(toStep, t);
   const parts: string[] = [];
 
@@ -109,8 +111,11 @@ export function buildOnboardingTransition(
       break;
   }
 
-  if (next.question) parts.push(next.question);
-  return { text: parts.filter(Boolean).join("\n\n"), choices: next.choices };
+  return {
+    empathyText: parts.filter(Boolean).join("\n\n"),
+    questionText: next.question,
+    choices: next.choices,
+  };
 }
 
 export function buildWelcomeMessage(t: Translate): { text: string; choices: string[] } {
