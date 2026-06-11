@@ -142,7 +142,22 @@ export function applyStoredProfileToProgress(progress: OnboardingProgress): Onbo
     ...loadStoredOnboardingProfile(),
     ...(storedCourse && !progress.flowData.questionnaireCourse ? { questionnaireCourse: storedCourse } : {}),
   };
-  return buildProgressFromFlowData(mergedFlow);
+  const rebuilt = buildProgressFromFlowData(mergedFlow);
+  const mergedAnswered = { ...rebuilt.answered, ...progress.answered };
+  for (const step of getQuestionOrder(getEffectiveCourse(mergedFlow))) {
+    if (isQuestionAnswered({ ...rebuilt, answered: mergedAnswered }, step)) {
+      mergedAnswered[step] = true;
+    }
+  }
+  return {
+    ...rebuilt,
+    flowData: mergedFlow,
+    answered: mergedAnswered,
+    deferCounts: { ...rebuilt.deferCounts, ...progress.deferCounts },
+    pausedAtStep: progress.pausedAtStep,
+    integrationsPhase: progress.integrationsPhase,
+    currentStep: progress.currentStep,
+  };
 }
 
 export function buildOnboardingProfileSystemContext(data: Partial<OnboardingFlowData> = {}): string {

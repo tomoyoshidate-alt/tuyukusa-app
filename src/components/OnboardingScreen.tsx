@@ -75,8 +75,27 @@ function buildInitialFlowState(): {
   return { step, progress, flowData: progress.flowData };
 }
 
-function buildInitialMessages(step: OnboardingStep, t: (k: string) => string): OnboardingMessage[] {
-  if (step === "goal") return buildWelcomeMessages(t);
+function shouldShowGoalWelcome(
+  progress: OnboardingProgress,
+  existingMessages: OnboardingMessage[] = [],
+): boolean {
+  if (isQuestionAnswered(progress, "goal")) return false;
+  if (progress.flowData.goal?.trim()) return false;
+  if (existingMessages.some(message => message.type === "user")) return false;
+  return true;
+}
+
+function buildInitialMessages(
+  step: OnboardingStep,
+  t: (k: string) => string,
+  progress: OnboardingProgress,
+  existingMessages: OnboardingMessage[] = [],
+): OnboardingMessage[] {
+  if (step === "goal") {
+    if (shouldShowGoalWelcome(progress, existingMessages)) return buildWelcomeMessages(t);
+    const prompt = getOnboardingStepPrompt("goal", t);
+    return prompt.question ? [{ type: "ai", text: prompt.question }] : [];
+  }
   const prompt = getOnboardingStepPrompt(step, t);
   if (!prompt.question) return [];
   return [{ type: "ai", text: prompt.question }];
@@ -90,7 +109,9 @@ export function OnboardingScreen({ fetchProposal, onQuestionnaireDone, onDeferTo
   const [step, setStep] = useState<OnboardingStep>(initialStep);
   const [flowData, setFlowData] = useState<OnboardingFlowData>(initialState.flowData);
   const [progress, setProgress] = useState<OnboardingProgress>(initialState.progress);
-  const [messages, setMessages] = useState<OnboardingMessage[]>(() => buildInitialMessages(initialStep, t));
+  const [messages, setMessages] = useState<OnboardingMessage[]>(() =>
+    buildInitialMessages(initialStep, t, initialState.progress),
+  );
   const [input, setInput] = useState("");
   const [isComposing, setIsComposing] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
@@ -100,6 +121,7 @@ export function OnboardingScreen({ fetchProposal, onQuestionnaireDone, onDeferTo
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const processingRef = useRef(false);
   const awaitingFreeInputRef = useRef<OnboardingStep | null>(null);
+  const profileSyncedRef = useRef(false);
 
   const stepRef = useRef(step);
   const progressRef = useRef(progress);
@@ -121,19 +143,35 @@ export function OnboardingScreen({ fetchProposal, onQuestionnaireDone, onDeferTo
   }, []);
 
   useEffect(() => {
+    if (profileSyncedRef.current) return;
+    profileSyncedRef.current = true;
+
     const synced = applyStoredProfileToProgress(progressRef.current);
-    const syncedStep = resolveActiveQuestionStep(synced);
-    saveOnboardingProgress({ ...synced, currentStep: syncedStep });
+    const goalAnswered = isQuestionAnswered(synced, "goal");
+    const hasUserMessages = messagesRef.current.some(message => message.type === "user");
+
     setProgress(synced);
     progressRef.current = synced;
     setFlowData(synced.flowData);
     flowDataRef.current = synced.flowData;
-    setStep(syncedStep);
-    stepRef.current = syncedStep;
-    if (syncedStep !== initialStep) {
-      setMessages(buildInitialMessages(syncedStep, t));
-      messagesRef.current = buildInitialMessages(syncedStep, t);
+
+    if (!goalAnswered && !hasUserMessages) {
+      const syncedStep = resolveActiveQuestionStep(synced);
+      if (syncedStep !== "goal" || !shouldShowGoalWelcome(synced, messagesRef.current)) {
+        setStep(syncedStep);
+        stepRef.current = syncedStep;
+        if (syncedStep !== initialStep) {
+          const nextMessages = buildInitialMessages(syncedStep, t, synced, messagesRef.current);
+          setMessages(nextMessages);
+          messagesRef.current = nextMessages;
+        }
+      }
     }
+
+    saveOnboardingProgress({
+      ...synced,
+      currentStep: stepRef.current,
+    });
   }, [initialStep, t]);
 
   useEffect(() => {
@@ -314,9 +352,14 @@ export function OnboardingScreen({ fetchProposal, onQuestionnaireDone, onDeferTo
         const currentProgress = progressRef.current;
         const currentFlow = flowDataRef.current;
         let currentStep = stepRef.current;
-        if (!isQuestionAnswered(currentProgress, "goal")) {
-          const activeStep = resolveActiveQuestionStep(currentProgress);
-          if (activeStep === "goal") currentStep = "goal";
+        if (isQuestionAnswered(currentProgress, "goal")) {
+          if (currentStep === "goal") {
+            currentStep = resolveActiveQuestionStep(currentProgress);
+            setStep(currentStep);
+            stepRef.current = currentStep;
+          }
+        } else {
+          currentStep = "goal";
         }
         if (skipAnsweredProfileStep(currentStep, currentProgress, currentFlow)) return;
         if (currentStep === "goal") {
@@ -332,8 +375,11 @@ export function OnboardingScreen({ fetchProposal, onQuestionnaireDone, onDeferTo
           }
           setFlowData(updated);
           flowDataRef.current = updated;
+          progressRef.current = { ...nextProgress, flowData: updated, currentStep: nextStep };
+          setStep(nextStep);
+          stepRef.current = nextStep;
           persist(nextProgress, nextStep, updated);
-          advanceAfterAnswer("goal", text, nextProgress, updated);
+          appendTransitionMessages("goal", text, nextStep, updated, true);
           return;
         }
         if (currentStep === "gender") {
@@ -422,7 +468,7 @@ export function OnboardingScreen({ fetchProposal, onQuestionnaireDone, onDeferTo
         processingRef.current = false;
       }
     },
-    [advanceAfterAnswer, fetchProposal, handleStructuredStepAnswer, persist, pushAi, pushUser, skipAnsweredProfileStep, t],
+    [advanceAfterAnswer, appendTransitionMessages, fetchProposal, handleStructuredStepAnswer, persist, pushAi, pushUser, skipAnsweredProfileStep, t],
   );
 
   const handleChoice = useCallback(
