@@ -19,6 +19,8 @@ type GoogleCalendarProps = {
 };
 
 type Props = {
+  /** Settings 埋め込み時は外側の余白・見出しを省略 */
+  compact?: boolean;
   isDesktop: boolean;
   cardStyle: CSSProperties;
   fieldLabelStyle: CSSProperties;
@@ -38,6 +40,7 @@ type Props = {
 };
 
 export function IntegrationsTabPanel({
+  compact = false,
   isDesktop,
   cardStyle,
   fieldLabelStyle,
@@ -58,13 +61,17 @@ export function IntegrationsTabPanel({
   const { t } = useTranslation();
 
   return (
-    <div style={{ padding: isDesktop ? "8px 16px 24px" : 16 }}>
-      <div style={{ fontSize: 15, fontWeight: "bold", color: "#3d3228", marginBottom: 4 }}>
-        {t("tabs.integrations")}
-      </div>
-      <div style={{ fontSize: 11, color: "#9a8b7a", marginBottom: 16, lineHeight: 1.5 }}>
-        {t("integrations.hint")}
-      </div>
+    <div style={{ padding: compact ? 0 : isDesktop ? "8px 16px 24px" : 16 }}>
+      {!compact && (
+        <>
+          <div style={{ fontSize: 15, fontWeight: "bold", color: "#3d3228", marginBottom: 4 }}>
+            {t("tabs.integrations")}
+          </div>
+          <div style={{ fontSize: 11, color: "#9a8b7a", marginBottom: 16, lineHeight: 1.5 }}>
+            {t("integrations.hint")}
+          </div>
+        </>
+      )}
 
       <SupabaseSyncPanel
         settings={supabaseSettings}

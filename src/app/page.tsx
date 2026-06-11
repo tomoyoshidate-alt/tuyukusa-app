@@ -50,7 +50,6 @@ import { AiDailyInsightSection } from "@/src/components/AiDailyInsightSection";
 import { ScheduleReflectionModal } from "@/src/components/ScheduleReflectionModal";
 import { LocalTodayTasksSection } from "@/src/components/LocalTodayTasksSection";
 import { DataManagementPanel } from "@/src/components/DataManagementPanel";
-import { HomeIntegrationCards } from "@/src/components/HomeIntegrationCards";
 import { OnboardingScreen } from "@/src/components/OnboardingScreen";
 import { OnboardingIntroScreen } from "@/src/components/OnboardingIntroScreen";
 import { IntegrationsTabPanel } from "@/src/components/IntegrationsTabPanel";
@@ -4093,18 +4092,6 @@ ${buildHealthSummary(healthForm)}`;
                 {healthImportMessage}
               </div>
             )}
-            <HomeIntegrationCards
-              isHomeActive={tab === "home"}
-              supabaseSettings={supabaseSettings}
-              notionSettings={notionSettings}
-              googleCalendar={googleCalendar}
-              onOpenSettings={() => setTab("settings")}
-              onSupabaseComplete={(url, anonKey, syncKey) => {
-                const next = applySupabaseConnection(url, anonKey, syncKey);
-                setSupabaseSettings(next);
-                void syncWithSupabase(next, "merge").catch(() => {});
-              }}
-            />
             {homeDisplay.sectionOrder
               .filter(sectionId => isSectionVisible(homeDisplay, sectionId))
               .map(sectionId => (
@@ -4475,13 +4462,46 @@ ${buildHealthSummary(healthForm)}`;
                 : `${enabledFields.length}項目を体調チェックに表示中`}
             </div>
 
-            <div style={{ fontSize: 15, fontWeight: "bold", color: "#3d3228", marginBottom: 12, paddingTop: 8, borderTop: "1px solid rgba(60,40,20,0.12)" }}>通知・連携</div>
+            <div style={{ fontSize: 15, fontWeight: "bold", color: "#3d3228", marginBottom: 4, paddingTop: 8, borderTop: "1px solid rgba(60,40,20,0.12)" }}>{t("tabs.integrations")}</div>
+            <div style={{ fontSize: 11, color: "#9a8b7a", marginBottom: 16, lineHeight: 1.5 }}>
+              {t("integrations.hint")}
+            </div>
+            <IntegrationsTabPanel
+              compact
+              isDesktop={isDesktop}
+              cardStyle={cardStyle}
+              fieldLabelStyle={fieldLabelStyle}
+              inputStyle={inputStyle}
+              supabaseSettings={supabaseSettings}
+              onSupabaseChange={patch => setSupabaseSettings(prev => ({ ...prev, ...patch }))}
+              onSupabaseSynced={() => window.location.reload()}
+              googleCalendar={{
+                connected: googleCalendar.connected,
+                icalUrl: googleCalendar.icalUrl,
+                syncing: false,
+                message: calendarMessage,
+                onIcalUrlChange: url =>
+                  setGoogleCalendar(prev => ({ ...prev, icalUrl: url, connected: false })),
+                onConnect: () => void connectGoogleCalendar(),
+                onDisconnect: disconnectGoogleCalendar,
+                onSync: () => void syncGoogleCalendar(),
+              }}
+              notionSettings={notionSettings}
+              notionSyncing={notionSyncing}
+              notionMessage={notionMessage}
+              showNotionManual={showNotionManual}
+              onShowNotionManual={setShowNotionManual}
+              onNotionChange={patch => setNotionSettings(prev => ({ ...prev, ...patch }))}
+              onNotionSetup={() => void setupNotion()}
+              onNotionSync={() => void syncNotion()}
+            />
+
+            <div style={{ fontSize: 15, fontWeight: "bold", color: "#3d3228", marginBottom: 12, paddingTop: 8, borderTop: "1px solid rgba(60,40,20,0.12)" }}>通知</div>
             {[
               { icon: "", label: "起床アラート", val: MOCK_SCHEDULE.wakeTime },
               { icon: "", label: "食事アラート", val: `${MOCK_SCHEDULE.mealTime1} / ${MOCK_SCHEDULE.mealTime2}` },
               { icon: "", label: "入浴アラート", val: MOCK_SCHEDULE.bathTime },
               { icon: "", label: "就寝アラート", val: MOCK_SCHEDULE.sleepTime },
-              { icon: "", label: "Googleカレンダー連携", val: googleCalendar.connected ? "接続済み" : "未連携" },
               { icon: "", label: "PWA（ホーム画面追加）", val: "対応" },
             ].map((item, i) => (
               <div key={i} style={{ ...cardStyle, display: "flex", alignItems: "center", gap: 12 }}>
