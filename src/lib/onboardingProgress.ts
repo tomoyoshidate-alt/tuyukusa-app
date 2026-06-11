@@ -8,7 +8,7 @@ import { introDraftToFlowData, loadIntroDraft } from "./introStorage";
 import { getEffectiveCourse, getQuestionOrder, getNextStepInCourse, isStructuredOnboardingStep, loadQuestionnaireCourse } from "./onboardingCourse";
 
 export const ONBOARDING_PROGRESS_KEY = "tuyukusa-onboarding-progress";
-export const ONBOARDING_PROFILE_STEPS: OnboardingStep[] = ["birthdate", "gender", "name"];
+export const ONBOARDING_PROFILE_STEPS: OnboardingStep[] = ["birthdate", "gender", "course", "name"];
 export const ONBOARDING_QUESTION_ORDER: OnboardingStep[] = [
   "goal", "birthdate", "gender", "course", "name", "bedtime", "wake", "bath", "sleep_duration",
 ];
@@ -45,12 +45,26 @@ export function resolveOnboardingResumeStep(progress: OnboardingProgress | null)
 export function resolveActiveQuestionStep(progress: OnboardingProgress | null): OnboardingStep {
   if (!progress) return "goal";
   const pending = getNextUnansweredStep(progress);
-  if (pending) return pending;
+  if (pending) {
+    if (pending === "goal" && isQuestionAnswered(progress, "goal")) {
+      const afterGoal = resolveNextStepAfter("goal", progress);
+      return afterGoal === "proposal" ? "goal" : afterGoal;
+    }
+    return pending;
+  }
   const resumed = resolveOnboardingResumeStep(progress);
   if (resumed === "proposal") return "goal";
+  if (resumed === "goal" && isQuestionAnswered(progress, "goal")) {
+    const afterGoal = resolveNextStepAfter("goal", progress);
+    return afterGoal === "proposal" ? "goal" : afterGoal;
+  }
   if (isQuestionAnswered(progress, resumed)) {
     const next = resolveNextStepAfter(resumed, progress);
     if (next === "proposal") return "goal";
+    if (next === resumed) {
+      const fallback = getNextUnansweredStep(progress);
+      if (fallback && fallback !== resumed) return fallback;
+    }
     return next;
   }
   return resumed;
@@ -155,23 +169,43 @@ function resolveNextProfileStepAfterGoal(progress: OnboardingProgress): Onboardi
   return null;
 }
 
+function resolveForwardFromCourse(fromStep: OnboardingStep, progress: OnboardingProgress): OnboardingStep | "proposal" {
+  const order = getQuestionOrder(getEffectiveCourse(progress.flowData));
+  const startIdx = Math.max(0, order.indexOf(fromStep));
+  for (let i = startIdx + 1; i < order.length; i++) {
+    const candidate = order[i];
+    if (!isQuestionAnswered(progress, candidate)) return candidate;
+  }
+  return "proposal";
+}
+
 export function resolveNextStepAfter(fromStep: OnboardingStep, progress: OnboardingProgress): OnboardingStep {
+  let next: OnboardingStep | "proposal";
+
   if (fromStep === "goal") {
     const profileStep = resolveNextProfileStepAfterGoal(progress);
-    if (profileStep) return profileStep;
-    const lifestyleNext = getLifestyleChainNext("goal");
-    return lifestyleNext === "proposal" ? "proposal" : lifestyleNext;
-  }
-
-  if (isOnboardingLifestyleStep(fromStep)) {
+    if (profileStep) next = profileStep;
+    else {
+      const lifestyleNext = getLifestyleChainNext("goal");
+      next = lifestyleNext === "proposal" ? "proposal" : lifestyleNext;
+    }
+  } else if (isOnboardingLifestyleStep(fromStep)) {
     const lifestyleNext = getLifestyleChainNext(fromStep);
-    return lifestyleNext === "proposal" ? "proposal" : lifestyleNext;
+    next = lifestyleNext === "proposal" ? "proposal" : lifestyleNext;
+  } else {
+    const courseNext = getNextStepInCourse(fromStep, progress.flowData);
+    if (courseNext === "proposal") next = "proposal";
+    else if (ONBOARDING_PROFILE_STEPS.includes(courseNext) && isQuestionAnswered(progress, courseNext)) {
+      return resolveNextStepAfter(courseNext, progress);
+    } else {
+      next = courseNext;
+    }
   }
 
-  const next = getNextStepInCourse(fromStep, progress.flowData);
   if (next === "proposal") return "proposal";
-  if (ONBOARDING_PROFILE_STEPS.includes(next) && isQuestionAnswered(progress, next)) {
-    return resolveNextStepAfter(next, progress);
+  if (next === fromStep) {
+    const fallback = resolveForwardFromCourse(fromStep, progress);
+    return fallback === "proposal" ? "proposal" : fallback;
   }
   return next;
 }
