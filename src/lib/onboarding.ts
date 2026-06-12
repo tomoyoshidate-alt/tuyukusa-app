@@ -257,6 +257,10 @@ export function isOnboardingLifestyleStep(step: OnboardingStep): step is Onboard
   return step in ONBOARDING_LIFESTYLE_STEPS;
 }
 
+export function isLifestyleQuestionStep(step: OnboardingStep): step is Exclude<OnboardingLifestyleStep, "goal"> {
+  return step === "bedtime" || step === "wake" || step === "bath" || step === "sleep_duration";
+}
+
 export function getLifestyleChainNext(fromStep: OnboardingLifestyleStep): OnboardingStep | "proposal" {
   return ONBOARDING_LIFESTYLE_STEPS[fromStep].next;
 }

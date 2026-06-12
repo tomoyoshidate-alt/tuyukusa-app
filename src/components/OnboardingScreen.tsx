@@ -6,7 +6,9 @@ import { ChatMarkdown } from "@/src/components/ChatMarkdown";
 import { handleAiChatEnterSendKeyDown } from "@/src/lib/chatSubmitKeyboard";
 import {
   buildOnboardingProposalPrompt,
+  getOnboardingStepChoices,
   isOnboardingFreeInputChoice,
+  isLifestyleQuestionStep,
   isOnboardingLifestyleStep,
   ONBOARDING_LIFESTYLE_STEPS,
   parseOnboardingGoalChoice,
@@ -332,7 +334,7 @@ export function OnboardingScreen({ fetchProposal, onQuestionnaireDone, onDeferTo
       progressRef.current = { ...nextProgress, flowData: updated };
 
       if (nextStep === "proposal") {
-        persist(nextProgress, "sleep_duration", updated);
+        persist(nextProgress, currentStep, updated);
         await startProposalGeneration(answer, updated);
         return;
       }
@@ -398,11 +400,7 @@ export function OnboardingScreen({ fetchProposal, onQuestionnaireDone, onDeferTo
           currentStep = "goal";
         }
         const activeStep = resolveActiveQuestionStep(currentProgress);
-        if (
-          isOnboardingLifestyleStep(activeStep) &&
-          activeStep !== "goal" &&
-          !isQuestionAnswered(currentProgress, activeStep)
-        ) {
+        if (isLifestyleQuestionStep(activeStep) && !isQuestionAnswered(currentProgress, activeStep)) {
           currentStep = activeStep;
           stepRef.current = activeStep;
         }
@@ -477,17 +475,8 @@ export function OnboardingScreen({ fetchProposal, onQuestionnaireDone, onDeferTo
           advanceAfterAnswer("name", text, nextProgress, updated);
           return;
         }
-        if (
-          currentStep === "bedtime" ||
-          currentStep === "wake" ||
-          currentStep === "bath" ||
-          currentStep === "sleep_duration"
-        ) {
+        if (isLifestyleQuestionStep(currentStep)) {
           await handleLifestyleStepAnswer(text, currentStep);
-          return;
-        }
-        if (isStructuredOnboardingStep(currentStep)) {
-          await handleStructuredStepAnswer(text, currentStep);
           return;
         }
 
@@ -515,6 +504,7 @@ export function OnboardingScreen({ fetchProposal, onQuestionnaireDone, onDeferTo
           await handleStructuredStepAnswer(text, currentStep);
           return;
         }
+
         console.warn("[Onboarding] Unhandled step:", currentStep, "answer:", text);
       } catch (err) {
         console.error("[Onboarding] processAnswer failed:", err);
@@ -565,14 +555,16 @@ export function OnboardingScreen({ fetchProposal, onQuestionnaireDone, onDeferTo
     onQuestionnaireDone(currentFlow, reflection);
   }, [onQuestionnaireDone]);
 
-  const currentStepPrompt = getOnboardingStepPrompt(step, t);
+  const displayStep = stepRef.current;
+  const primaryChoices = getOnboardingStepChoices(displayStep);
+  const stepChoices = primaryChoices.length > 0 ? primaryChoices : getOnboardingStepPrompt(displayStep, t).choices;
   const lastMessage = messages[messages.length - 1];
   const showStepChoices =
     !isLoading &&
     !proposalReady &&
-    step !== "proposal" &&
-    !isQuestionAnswered(progress, step) &&
-    currentStepPrompt.choices.length > 0 &&
+    displayStep !== "proposal" &&
+    !isQuestionAnswered(progressRef.current, displayStep) &&
+    stepChoices.length > 0 &&
     lastMessage?.type !== "user";
 
   const footerButtonStyle = (enabled: boolean): CSSProperties => ({
@@ -619,7 +611,7 @@ export function OnboardingScreen({ fetchProposal, onQuestionnaireDone, onDeferTo
         ))}
         {showStepChoices && (
           <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginTop: 4 }}>
-            {currentStepPrompt.choices.map((c, j) => (
+            {stepChoices.map((c, j) => (
               <button
                 key={`step-choice-${j}`}
                 type="button"
