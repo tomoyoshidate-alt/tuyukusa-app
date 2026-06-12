@@ -100,6 +100,7 @@ export const ONBOARDING_BEDTIME_CHOICES = [
 ] as const;
 
 export const ONBOARDING_WAKE_CHOICES = [
+  "4:30",
   "5:00",
   "5:30",
   "6:00",
@@ -258,6 +259,30 @@ export function isOnboardingLifestyleStep(step: OnboardingStep): step is Onboard
 
 export function getLifestyleChainNext(fromStep: OnboardingLifestyleStep): OnboardingStep | "proposal" {
   return ONBOARDING_LIFESTYLE_STEPS[fromStep].next;
+}
+
+export function parseOnboardingClockChoice(value: string): number | null {
+  const trimmed = value.trim();
+  if (!/^\d{1,2}:\d{2}$/.test(trimmed)) return null;
+  const [hours, minutes] = trimmed.split(":").map(Number);
+  if (hours === 24 && minutes === 0) return 24 * 60;
+  if (hours < 0 || hours > 23 || minutes < 0 || minutes > 59) return null;
+  return hours * 60 + minutes;
+}
+
+export function formatOnboardingClockMinutes(totalMinutes: number): string {
+  const normalized = ((totalMinutes % (24 * 60)) + 24 * 60) % (24 * 60);
+  const hours = Math.floor(normalized / 60);
+  const minutes = normalized % 60;
+  return `${String(hours).padStart(2, "0")}:${String(minutes).padStart(2, "0")}`;
+}
+
+export function buildRecommendedBathWindow(bedtime: string | undefined): string | null {
+  const bedtimeMinutes = parseOnboardingClockChoice(bedtime ?? "");
+  if (bedtimeMinutes == null) return null;
+  const start = formatOnboardingClockMinutes(bedtimeMinutes - 120);
+  const end = formatOnboardingClockMinutes(bedtimeMinutes - 90);
+  return `${start}〜${end}`;
 }
 
 export function buildOnboardingProposalPrompt(data: OnboardingFlowData): string {

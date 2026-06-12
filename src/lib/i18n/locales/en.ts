@@ -279,6 +279,9 @@ const en: TranslationSchema = {
     empathyName: "Nice to meet you, {{name}}.\nLet's build your life rhythm together.",
     empathyNameSkipped: "Understood.\nLet's build your life rhythm together.",
     empathyLifestyleAnswer: "\"{{answer}}\" — got it.",
+    empathyBathTip:
+      "A 10–15 minute soak at about 40°C, 1.5–2 hours before bed, helps your core temperature rise and then fall for natural sleepiness.",
+    empathyBathBedtimeHint: "An ideal bath time is around {{range}}.",
     timeDetailLater: "We can decide the exact times together later.",
   },
   update: {

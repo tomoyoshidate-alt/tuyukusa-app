@@ -7,8 +7,11 @@ import { handleAiChatEnterSendKeyDown } from "@/src/lib/chatSubmitKeyboard";
 import {
   buildOnboardingProposalPrompt,
   isOnboardingFreeInputChoice,
+  isOnboardingLifestyleStep,
+  ONBOARDING_LIFESTYLE_STEPS,
   parseOnboardingGoalChoice,
   type OnboardingFlowData,
+  type OnboardingLifestyleStep,
   type OnboardingStep,
 } from "@/src/lib/onboarding";
 import {
@@ -309,6 +312,39 @@ export function OnboardingScreen({ fetchProposal, onQuestionnaireDone, onDeferTo
     [fetchProposal, pushAi, t],
   );
 
+  const handleLifestyleStepAnswer = useCallback(
+    async (answer: string, currentStep: OnboardingLifestyleStep) => {
+      const config = ONBOARDING_LIFESTYLE_STEPS[currentStep];
+      const currentProgress = progressRef.current;
+      const currentFlow = flowDataRef.current;
+      const patch = { [config.field]: answer } as Partial<OnboardingFlowData>;
+      const nextProgress = recordAnswer(currentProgress, currentStep, patch);
+      const updated = { ...currentFlow, ...patch };
+      const nextStep = resolveNextStepAfter(currentStep, nextProgress);
+
+      if (nextStep === currentStep) {
+        console.error("[Onboarding] Lifestyle step did not advance:", currentStep);
+        return;
+      }
+
+      setFlowData(updated);
+      flowDataRef.current = updated;
+      progressRef.current = { ...nextProgress, flowData: updated };
+
+      if (nextStep === "proposal") {
+        persist(nextProgress, "sleep_duration", updated);
+        await startProposalGeneration(answer, updated);
+        return;
+      }
+
+      persist(nextProgress, nextStep, updated);
+      setStep(nextStep);
+      stepRef.current = nextStep;
+      appendTransitionMessages(currentStep, answer, nextStep, updated, true);
+    },
+    [appendTransitionMessages, persist, startProposalGeneration],
+  );
+
   const handleStructuredStepAnswer = useCallback(
     async (answer: string, currentStep: OnboardingStep) => {
       const config = getStructuredStepConfig(currentStep);
@@ -360,6 +396,15 @@ export function OnboardingScreen({ fetchProposal, onQuestionnaireDone, onDeferTo
           }
         } else {
           currentStep = "goal";
+        }
+        const activeStep = resolveActiveQuestionStep(currentProgress);
+        if (
+          isOnboardingLifestyleStep(activeStep) &&
+          activeStep !== "goal" &&
+          !isQuestionAnswered(currentProgress, activeStep)
+        ) {
+          currentStep = activeStep;
+          stepRef.current = activeStep;
         }
         if (skipAnsweredProfileStep(currentStep, currentProgress, currentFlow)) return;
         if (currentStep === "goal") {
@@ -432,6 +477,15 @@ export function OnboardingScreen({ fetchProposal, onQuestionnaireDone, onDeferTo
           advanceAfterAnswer("name", text, nextProgress, updated);
           return;
         }
+        if (
+          currentStep === "bedtime" ||
+          currentStep === "wake" ||
+          currentStep === "bath" ||
+          currentStep === "sleep_duration"
+        ) {
+          await handleLifestyleStepAnswer(text, currentStep);
+          return;
+        }
         if (isStructuredOnboardingStep(currentStep)) {
           await handleStructuredStepAnswer(text, currentStep);
           return;
@@ -468,7 +522,7 @@ export function OnboardingScreen({ fetchProposal, onQuestionnaireDone, onDeferTo
         processingRef.current = false;
       }
     },
-    [advanceAfterAnswer, appendTransitionMessages, fetchProposal, handleStructuredStepAnswer, persist, pushAi, pushUser, skipAnsweredProfileStep, t],
+    [advanceAfterAnswer, appendTransitionMessages, fetchProposal, handleLifestyleStepAnswer, handleStructuredStepAnswer, persist, pushAi, pushUser, skipAnsweredProfileStep, t],
   );
 
   const handleChoice = useCallback(

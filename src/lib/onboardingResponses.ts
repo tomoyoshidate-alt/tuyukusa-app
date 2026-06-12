@@ -1,4 +1,5 @@
 import {
+  buildRecommendedBathWindow,
   GENDER_CHOICES,
   ONBOARDING_BIRTHDATE_CHOICES,
   ONBOARDING_GOAL_CHOICES,
@@ -81,9 +82,14 @@ export function buildOnboardingTransition(
       parts.push(name ? t("onboarding.empathyName", { name }) : t("onboarding.empathyNameSkipped"));
       break;
     }
+    case "bath": {
+      parts.push(t("onboarding.empathyBathTip"));
+      const bathWindow = buildRecommendedBathWindow(data.bedtime);
+      if (bathWindow) parts.push(t("onboarding.empathyBathBedtimeHint", { range: bathWindow }));
+      break;
+    }
     case "bedtime":
     case "wake":
-    case "bath":
     case "sleep_duration":
     case "weekday_wake":
     case "weekday_bedtime":

@@ -277,6 +277,9 @@ const ja = {
     empathyName: "{{name}}さん、よろしくお願いします。",
     empathyNameSkipped: "承知しました。",
     empathyLifestyleAnswer: "承知しました。",
+    empathyBathTip:
+      "40度のお湯に10〜15分、就寝の1時間半〜2時間前に入ると、深部体温が上がってから下がるタイミングで自然な眠気が訪れます。",
+    empathyBathBedtimeHint: "{{range}}頃の入浴が理想です。",
     timeDetailLater: "詳細な時刻は後ほど一緒に決めていきましょう。",
   },
   update: {
