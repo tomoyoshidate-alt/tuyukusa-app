@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState, type CSSProperties } from "react";
 import { useTranslation } from "react-i18next";
 import { ChatMarkdown } from "@/src/components/ChatMarkdown";
 import { handleAiChatEnterSendKeyDown } from "@/src/lib/chatSubmitKeyboard";
@@ -521,7 +521,7 @@ export function OnboardingScreen({ fetchProposal, onQuestionnaireDone, onDeferTo
     currentStepPrompt.choices.length > 0 &&
     lastMessage?.type !== "user";
 
-  const footerButtonStyle = (enabled: boolean) => ({
+  const footerButtonStyle = (enabled: boolean): CSSProperties => ({
     flex: 1,
     minWidth: 0,
     padding: "10px 8px",
