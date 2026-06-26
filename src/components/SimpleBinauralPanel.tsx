@@ -6,7 +6,7 @@ import {
   PRESETS,
   type AmbientId,
 } from "@/src/lib/simpleBinauralPresets";
-import { simpleBinauralEngine } from "@/src/lib/simpleBinauralEngine";
+import { simpleBinauralEngine, clampCrossfadeSec } from "@/src/lib/simpleBinauralEngine";
 
 export function SimpleBinauralPanel() {
   const [selectedId, setSelectedId] = useState("relax");
@@ -15,6 +15,7 @@ export function SimpleBinauralPanel() {
   const [binauralVol, setBinauralVol] = useState(0.5);
   const [ambientVol, setAmbientVol] = useState(0.35);
   const [rhythmVol, setRhythmVol] = useState(0.4);
+  const [crossfadeSec, setCrossfadeSec] = useState(3);
 
   useEffect(() => {
     return simpleBinauralEngine.subscribe(snapshot => {
@@ -31,15 +32,21 @@ export function SimpleBinauralPanel() {
     });
   }, [binauralVol, ambientVol, rhythmVol]);
 
-  const handlePresetSelect = useCallback(async (id: string) => {
-    setSelectedId(id);
-    await simpleBinauralEngine.setPreset(id);
-  }, []);
+  const handlePresetSelect = useCallback(
+    async (id: string) => {
+      setSelectedId(id);
+      simpleBinauralEngine.setPreset(id, crossfadeSec, isPlaying);
+    },
+    [crossfadeSec, isPlaying]
+  );
 
-  const handleAmbientChange = useCallback(async (id: AmbientId) => {
-    setAmbientId(id);
-    await simpleBinauralEngine.setAmbient(id);
-  }, []);
+  const handleAmbientChange = useCallback(
+    async (id: AmbientId) => {
+      setAmbientId(id);
+      await simpleBinauralEngine.setAmbient(id, crossfadeSec);
+    },
+    [crossfadeSec]
+  );
 
   const handleTogglePlay = useCallback(async () => {
     if (isPlaying) await simpleBinauralEngine.stop();
@@ -122,6 +129,42 @@ export function SimpleBinauralPanel() {
           再生中: {selected.name}
         </div>
       )}
+
+      <div style={{ marginBottom: 20 }}>
+        <label style={{ display: "block", fontSize: 13, fontWeight: "bold", marginBottom: 6 }}>
+          音の切り替え（クロスフェード）
+        </label>
+        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+          <input
+            type="number"
+            min={0}
+            max={3000}
+            step={1}
+            value={crossfadeSec}
+            onChange={e => {
+              const raw = e.target.value;
+              if (raw.trim() === "") {
+                setCrossfadeSec(0);
+                return;
+              }
+              setCrossfadeSec(clampCrossfadeSec(Number(raw)));
+            }}
+            style={{
+              flex: 1,
+              padding: "8px 10px",
+              borderRadius: 8,
+              border: "1px solid rgba(245,240,232,0.2)",
+              background: "rgba(0,0,0,0.25)",
+              color: "#f5f0e8",
+              fontSize: 14,
+            }}
+          />
+          <span style={{ fontSize: 13, opacity: 0.75, flexShrink: 0 }}>秒</span>
+        </div>
+        <p style={{ margin: "8px 0 0", fontSize: 11, opacity: 0.5, lineHeight: 1.5 }}>
+          0秒で瞬時に切替、長くするほどゆっくり混ざります（最大3000秒＝50分）
+        </p>
+      </div>
 
       <VolumeSlider label="バイノーラル" value={binauralVol} onChange={setBinauralVol} />
       <VolumeSlider label="環境音" value={ambientVol} onChange={setAmbientVol} />

@@ -10,6 +10,12 @@ const FADE_SEC = 1.5;
 const LOOKAHEAD_MS = 25;
 const SCHEDULE_AHEAD_SEC = 0.1;
 
+/** linearRampToValueAtTime を使用。厳密な音量維持には将来 equal-power（cos/sin）へ差し替え可。 */
+export function clampCrossfadeSec(value: number): number {
+  if (!Number.isFinite(value) || value < 0) return 0;
+  return Math.min(3000, value);
+}
+
 /** Short synth hit — swap this function later for one-shot samples. */
 export function playHitSound(
   ctx: AudioContext,
@@ -49,6 +55,13 @@ type LayerVolumes = {
   binaural: number;
   ambient: number;
   rhythm: number;
+};
+
+type MasterGraph = {
+  masterGain: GainNode;
+  binauralUserGain: GainNode;
+  rhythmUserGain: GainNode;
+  envUserGain: GainNode;
 };
 
 class RhythmScheduler {
@@ -100,14 +113,81 @@ class RhythmScheduler {
   }
 }
 
-type EngineNodes = {
-  leftOsc: OscillatorNode;
-  rightOsc: OscillatorNode;
-  binauralGain: GainNode;
-  ambientGain: GainNode;
-  rhythmGain: GainNode;
-  ambientAudio: HTMLAudioElement | null;
-  ambientSource: MediaElementAudioSourceNode | null;
+class Voice {
+  readonly preset: Preset;
+  readonly leftOsc: OscillatorNode;
+  readonly rightOsc: OscillatorNode;
+  readonly binauralXfadeGain: GainNode;
+  readonly rhythmXfadeGain: GainNode;
+  readonly scheduler = new RhythmScheduler();
+  private destroyed = false;
+
+  constructor(
+    ctx: AudioContext,
+    preset: Preset,
+    binauralUserGain: GainNode,
+    rhythmUserGain: GainNode,
+    xfadeInitial: number
+  ) {
+    this.preset = preset;
+
+    this.binauralXfadeGain = ctx.createGain();
+    this.binauralXfadeGain.gain.value = xfadeInitial;
+    this.rhythmXfadeGain = ctx.createGain();
+    this.rhythmXfadeGain.gain.value = xfadeInitial;
+
+    this.binauralXfadeGain.connect(binauralUserGain);
+    this.rhythmXfadeGain.connect(rhythmUserGain);
+
+    this.leftOsc = ctx.createOscillator();
+    this.leftOsc.type = "sine";
+    this.leftOsc.frequency.value = CARRIER;
+
+    this.rightOsc = ctx.createOscillator();
+    this.rightOsc.type = "sine";
+    this.rightOsc.frequency.value = CARRIER + preset.beatHz;
+
+    const leftPan = ctx.createStereoPanner();
+    leftPan.pan.value = -1;
+    const rightPan = ctx.createStereoPanner();
+    rightPan.pan.value = 1;
+
+    this.leftOsc.connect(leftPan);
+    leftPan.connect(this.binauralXfadeGain);
+    this.rightOsc.connect(rightPan);
+    rightPan.connect(this.binauralXfadeGain);
+  }
+
+  start(ctx: AudioContext, when: number): void {
+    if (this.destroyed) return;
+    this.leftOsc.start(when);
+    this.rightOsc.start(when);
+    this.scheduler.start(ctx, this.preset.poly, this.rhythmXfadeGain, when);
+  }
+
+  destroyNow(): void {
+    if (this.destroyed) return;
+    this.destroyed = true;
+    this.scheduler.stop();
+    try {
+      this.leftOsc.stop();
+      this.rightOsc.stop();
+    } catch {
+      /* ignore */
+    }
+    try {
+      this.binauralXfadeGain.disconnect();
+      this.rhythmXfadeGain.disconnect();
+    } catch {
+      /* ignore */
+    }
+  }
+}
+
+type AmbientLayer = {
+  envXfadeGain: GainNode;
+  audio: HTMLAudioElement | null;
+  source: MediaElementAudioSourceNode | null;
 };
 
 export type BinauralPlaybackSnapshot = {
@@ -116,14 +196,18 @@ export type BinauralPlaybackSnapshot = {
 };
 
 class SimpleBinauralEngine {
-  private nodes: EngineNodes | null = null;
-  private scheduler = new RhythmScheduler();
+  private master: MasterGraph | null = null;
+  private currentVoice: Voice | null = null;
+  private activeVoices = new Set<Voice>();
+  private currentAmbient: AmbientLayer | null = null;
   private isPlaying = false;
   private presetId = "relax";
   private ambientId: AmbientId = "none";
   private volumes: LayerVolumes = { binaural: 0.5, ambient: 0.35, rhythm: 0.4 };
+  private crossfadeSec = 3;
   private stopTimer: ReturnType<typeof setTimeout> | null = null;
-  private generation = 0;
+  private stopGeneration = 0;
+  private crossfadeGeneration = 0;
   private listeners = new Set<(snapshot: BinauralPlaybackSnapshot) => void>();
 
   get playing(): boolean {
@@ -132,6 +216,10 @@ class SimpleBinauralEngine {
 
   get currentPresetId(): string {
     return this.presetId;
+  }
+
+  getCrossfadeSec(): number {
+    return this.crossfadeSec;
   }
 
   getSnapshot(): BinauralPlaybackSnapshot {
@@ -151,82 +239,145 @@ class SimpleBinauralEngine {
 
   setVolumes(volumes: Partial<LayerVolumes>): void {
     this.volumes = { ...this.volumes, ...volumes };
-    if (!audioCtx || !this.nodes) return;
+    if (!audioCtx || !this.master) return;
     const t = audioCtx.currentTime;
-    this.nodes.binauralGain.gain.setTargetAtTime(this.volumes.binaural, t, 0.05);
-    this.nodes.ambientGain.gain.setTargetAtTime(this.volumes.ambient, t, 0.05);
-    this.nodes.rhythmGain.gain.setTargetAtTime(this.volumes.rhythm, t, 0.05);
+    this.master.binauralUserGain.gain.setTargetAtTime(this.volumes.binaural, t, 0.05);
+    this.master.rhythmUserGain.gain.setTargetAtTime(this.volumes.rhythm, t, 0.05);
+    this.master.envUserGain.gain.setTargetAtTime(this.volumes.ambient, t, 0.05);
   }
 
   getVolumes(): LayerVolumes {
     return { ...this.volumes };
   }
 
-  async setAmbient(id: AmbientId): Promise<void> {
-    this.ambientId = id;
-    if (!this.isPlaying) return;
-    await this.restartAmbient();
+  private buildMaster(ctx: AudioContext): MasterGraph {
+    const masterGain = ctx.createGain();
+    masterGain.gain.value = 1;
+    masterGain.connect(ctx.destination);
+
+    const binauralUserGain = ctx.createGain();
+    const rhythmUserGain = ctx.createGain();
+    const envUserGain = ctx.createGain();
+
+    binauralUserGain.connect(masterGain);
+    rhythmUserGain.connect(masterGain);
+    envUserGain.connect(masterGain);
+
+    return { masterGain, binauralUserGain, rhythmUserGain, envUserGain };
   }
 
-  async setPreset(id: string): Promise<void> {
+  private trackVoice(voice: Voice): void {
+    this.activeVoices.add(voice);
+  }
+
+  private buildVoice(ctx: AudioContext, preset: Preset, xfadeInitial: number): Voice {
+    const voice = new Voice(
+      ctx,
+      preset,
+      this.master!.binauralUserGain,
+      this.master!.rhythmUserGain,
+      xfadeInitial
+    );
+    this.trackVoice(voice);
+    return voice;
+  }
+
+  private destroyAllVoices(): void {
+    for (const voice of this.activeVoices) {
+      voice.destroyNow();
+    }
+    this.activeVoices.clear();
+    this.currentVoice = null;
+  }
+
+  private destroyAmbientLayer(layer: AmbientLayer): void {
+    if (layer.audio) {
+      try {
+        layer.audio.pause();
+        layer.audio.src = "";
+      } catch {
+        /* ignore */
+      }
+    }
+    if (layer.source) {
+      try {
+        layer.source.disconnect();
+      } catch {
+        /* ignore */
+      }
+    }
+    try {
+      layer.envXfadeGain.disconnect();
+    } catch {
+      /* ignore */
+    }
+  }
+
+  private rampXfadeGains(now: number, gains: AudioParam[], end: number, target: number): void {
+    for (const gain of gains) {
+      gain.cancelScheduledValues(now);
+      gain.setValueAtTime(gain.value, now);
+      gain.linearRampToValueAtTime(target, end);
+    }
+  }
+
+  /**
+   * プリセット切替。再生中かつ crossfadeSec > 0 なら新旧ボイスをクロスフェード。
+   */
+  setPreset(id: string, crossfadeSec: number, isPlaying = this.isPlaying): void {
+    this.crossfadeSec = clampCrossfadeSec(crossfadeSec);
     this.presetId = id;
     this.notify();
-    if (!this.isPlaying) return;
-    await this.stop();
-    await this.play();
-  }
 
-  /** Toggle playback for a preset — shared by chat and binaural tab. */
-  async playPreset(presetId: string): Promise<void> {
-    if (this.isPlaying && this.presetId === presetId) {
-      await this.stop();
+    if (!isPlaying || !audioCtx || !this.master) return;
+
+    const preset = getPresetById(id);
+    const ctx = audioCtx;
+    const now = ctx.currentTime;
+    const fade = this.crossfadeSec;
+
+    if (!isPlaying || fade <= 0 || !this.currentVoice) {
+      this.currentVoice?.destroyNow();
+      this.activeVoices.clear();
+      const voice = this.buildVoice(ctx, preset, 1);
+      if (isPlaying) voice.start(ctx, now);
+      this.currentVoice = voice;
       return;
     }
-    this.presetId = presetId;
-    if (this.isPlaying) await this.stop();
-    await this.play();
+
+    const oldVoice = this.currentVoice;
+    const newVoice = this.buildVoice(ctx, preset, 0);
+    newVoice.start(ctx, now);
+
+    const end = now + fade;
+    this.rampXfadeGains(now, [oldVoice.binauralXfadeGain.gain, oldVoice.rhythmXfadeGain.gain], end, 0);
+    this.rampXfadeGains(now, [newVoice.binauralXfadeGain.gain, newVoice.rhythmXfadeGain.gain], end, 1);
+
+    this.crossfadeGeneration++;
+    setTimeout(() => {
+      oldVoice.destroyNow();
+      this.activeVoices.delete(oldVoice);
+    }, fade * 1000 + 200);
+
+    this.currentVoice = newVoice;
   }
 
-  private async restartAmbient(): Promise<void> {
-    if (!audioCtx || !this.nodes) return;
-    this.cleanupAmbient();
-    await this.startAmbient(audioCtx, this.nodes.ambientGain);
+  async setAmbient(id: AmbientId, crossfadeSec?: number): Promise<void> {
+    this.ambientId = id;
+    const fade = clampCrossfadeSec(crossfadeSec ?? this.crossfadeSec);
+    if (!this.isPlaying || !audioCtx || !this.master) return;
+    await this.crossfadeAmbient(fade);
   }
 
-  private cleanupAmbient(): void {
-    if (!this.nodes) return;
-    const { ambientAudio, ambientSource } = this.nodes;
-    if (ambientAudio) {
-      try {
-        ambientAudio.pause();
-        ambientAudio.src = "";
-      } catch {
-        /* ignore */
-      }
-    }
-    if (ambientSource) {
-      try {
-        ambientSource.disconnect();
-      } catch {
-        /* ignore */
-      }
-    }
-    this.nodes.ambientAudio = null;
-    this.nodes.ambientSource = null;
-  }
-
-  private async startAmbient(ctx: AudioContext, ambientGain: GainNode): Promise<void> {
-    if (!this.nodes || this.ambientId === "none") return;
-
+  private async loadAmbientSource(ctx: AudioContext, ambientId: Exclude<AmbientId, "none">): Promise<AmbientLayer | null> {
     const fileMap: Record<Exclude<AmbientId, "none">, string> = {
       mizutama: "mizutama.mp3",
       uchu: "uchu.mp3",
       tori: "tori.mp3",
       umi: "umi.mp3",
     };
-    const fileName = fileMap[this.ambientId];
-    const url = getSupabaseAmbientUrl(fileName);
-    if (!url) return;
+    const url = getSupabaseAmbientUrl(fileMap[ambientId]);
+    if (!url) return null;
 
     try {
       const audio = new Audio();
@@ -250,135 +401,183 @@ class SimpleBinauralEngine {
         audio.addEventListener("error", onError);
       });
 
+      const envXfadeGain = ctx.createGain();
       const source = ctx.createMediaElementSource(audio);
-      source.connect(ambientGain);
+      source.connect(envXfadeGain);
       await audio.play();
 
-      this.nodes.ambientAudio = audio;
-      this.nodes.ambientSource = source;
+      return { envXfadeGain, audio, source };
     } catch {
-      /* 404 or missing — stay silent */
+      return null;
     }
   }
 
-  private startBinauralOscillators(ctx: AudioContext, preset: Preset, binauralGain: GainNode): {
-    leftOsc: OscillatorNode;
-    rightOsc: OscillatorNode;
-  } {
-    const leftOsc = ctx.createOscillator();
-    leftOsc.type = "sine";
-    leftOsc.frequency.value = CARRIER;
+  private async crossfadeAmbient(crossfadeSec: number): Promise<void> {
+    if (!audioCtx || !this.master) return;
+    const ctx = audioCtx;
+    const now = ctx.currentTime;
+    const oldAmbient = this.currentAmbient;
 
-    const rightOsc = ctx.createOscillator();
-    rightOsc.type = "sine";
-    rightOsc.frequency.value = CARRIER + preset.beatHz;
+    const fadeOutOld = (layer: AmbientLayer, onDone: () => void): void => {
+      if (crossfadeSec <= 0) {
+        this.destroyAmbientLayer(layer);
+        onDone();
+        return;
+      }
+      layer.envXfadeGain.gain.cancelScheduledValues(now);
+      layer.envXfadeGain.gain.setValueAtTime(layer.envXfadeGain.gain.value, now);
+      layer.envXfadeGain.gain.linearRampToValueAtTime(0, now + crossfadeSec);
+      setTimeout(onDone, crossfadeSec * 1000 + 200);
+    };
 
-    const leftPan = ctx.createStereoPanner();
-    leftPan.pan.value = -1;
-    const rightPan = ctx.createStereoPanner();
-    rightPan.pan.value = 1;
+    if (this.ambientId === "none") {
+      if (!oldAmbient) return;
+      this.currentAmbient = null;
+      fadeOutOld(oldAmbient, () => {});
+      return;
+    }
 
-    leftOsc.connect(leftPan);
-    leftPan.connect(binauralGain);
-    rightOsc.connect(rightPan);
-    rightPan.connect(binauralGain);
+    const newAmbient = await this.loadAmbientSource(ctx, this.ambientId);
+    if (!newAmbient) {
+      if (oldAmbient) {
+        fadeOutOld(oldAmbient, () => {
+          if (this.currentAmbient === oldAmbient) this.currentAmbient = null;
+        });
+      }
+      return;
+    }
 
-    const startAt = ctx.currentTime + FADE_SEC;
-    leftOsc.start(startAt);
-    rightOsc.start(startAt);
+    newAmbient.envXfadeGain.connect(this.master.envUserGain);
 
-    return { leftOsc, rightOsc };
+    if (!oldAmbient || crossfadeSec <= 0) {
+      if (oldAmbient) this.destroyAmbientLayer(oldAmbient);
+      newAmbient.envXfadeGain.gain.value = 1;
+      this.currentAmbient = newAmbient;
+      return;
+    }
+
+    newAmbient.envXfadeGain.gain.cancelScheduledValues(now);
+    newAmbient.envXfadeGain.gain.setValueAtTime(0, now);
+    oldAmbient.envXfadeGain.gain.cancelScheduledValues(now);
+    oldAmbient.envXfadeGain.gain.setValueAtTime(oldAmbient.envXfadeGain.gain.value, now);
+
+    const end = now + crossfadeSec;
+    oldAmbient.envXfadeGain.gain.linearRampToValueAtTime(0, end);
+    newAmbient.envXfadeGain.gain.linearRampToValueAtTime(1, end);
+
+    const oldRef = oldAmbient;
+    setTimeout(() => {
+      this.destroyAmbientLayer(oldRef);
+    }, crossfadeSec * 1000 + 200);
+
+    this.currentAmbient = newAmbient;
+  }
+
+  /** Toggle playback for a preset — shared by chat and binaural tab. */
+  async playPreset(presetId: string): Promise<void> {
+    if (this.isPlaying && this.presetId === presetId) {
+      await this.stop();
+      return;
+    }
+
+    if (this.isPlaying && this.presetId !== presetId) {
+      this.setPreset(presetId, this.crossfadeSec, true);
+      return;
+    }
+
+    this.presetId = presetId;
+    this.notify();
+    if (!this.isPlaying) await this.play();
   }
 
   async play(): Promise<void> {
     if (!audioCtx || this.isPlaying) return;
-    this.generation++;
+
     if (this.stopTimer) {
       clearTimeout(this.stopTimer);
       this.stopTimer = null;
     }
+    this.stopGeneration++;
+
     await resumeAudioCtx();
-
     const ctx = audioCtx;
-    const preset = getPresetById(this.presetId);
     const now = ctx.currentTime;
+    const preset = getPresetById(this.presetId);
 
-    const binauralGain = ctx.createGain();
-    const ambientGain = ctx.createGain();
-    const rhythmGain = ctx.createGain();
+    this.master = this.buildMaster(ctx);
 
-    binauralGain.gain.setValueAtTime(0, now);
-    ambientGain.gain.setValueAtTime(0, now);
-    rhythmGain.gain.setValueAtTime(0, now);
-
-    binauralGain.connect(ctx.destination);
-    ambientGain.connect(ctx.destination);
-    rhythmGain.connect(ctx.destination);
+    this.master.binauralUserGain.gain.setValueAtTime(0, now);
+    this.master.rhythmUserGain.gain.setValueAtTime(0, now);
+    this.master.envUserGain.gain.setValueAtTime(0, now);
 
     const fadeEnd = now + FADE_SEC;
-    binauralGain.gain.linearRampToValueAtTime(this.volumes.binaural, fadeEnd);
-    ambientGain.gain.linearRampToValueAtTime(this.volumes.ambient, fadeEnd);
-    rhythmGain.gain.linearRampToValueAtTime(this.volumes.rhythm, fadeEnd);
+    this.master.binauralUserGain.gain.linearRampToValueAtTime(this.volumes.binaural, fadeEnd);
+    this.master.rhythmUserGain.gain.linearRampToValueAtTime(this.volumes.rhythm, fadeEnd);
+    this.master.envUserGain.gain.linearRampToValueAtTime(this.volumes.ambient, fadeEnd);
 
-    const { leftOsc, rightOsc } = this.startBinauralOscillators(ctx, preset, binauralGain);
+    this.destroyAllVoices();
+    const voice = this.buildVoice(ctx, preset, 1);
+    voice.start(ctx, fadeEnd);
+    this.currentVoice = voice;
 
-    this.nodes = {
-      leftOsc,
-      rightOsc,
-      binauralGain,
-      ambientGain,
-      rhythmGain,
-      ambientAudio: null,
-      ambientSource: null,
-    };
+    if (this.ambientId !== "none") {
+      const ambient = await this.loadAmbientSource(ctx, this.ambientId);
+      if (ambient && this.master) {
+        ambient.envXfadeGain.gain.value = 1;
+        ambient.envXfadeGain.connect(this.master.envUserGain);
+        this.currentAmbient = ambient;
+      }
+    }
 
-    await this.startAmbient(ctx, ambientGain);
-    this.scheduler.start(ctx, preset.poly, rhythmGain, fadeEnd);
     this.isPlaying = true;
     this.notify();
   }
 
   async stop(): Promise<void> {
-    if (!audioCtx || !this.isPlaying || !this.nodes) return;
+    if (!audioCtx || !this.isPlaying || !this.master) return;
 
     const ctx = audioCtx;
-    const nodes = this.nodes;
+    const master = this.master;
     const now = ctx.currentTime;
     const fadeEnd = now + FADE_SEC;
 
-    this.scheduler.stop();
+    this.crossfadeGeneration++;
+
+    for (const voice of this.activeVoices) {
+      voice.scheduler.stop();
+    }
+
     this.isPlaying = false;
     this.notify();
 
-    nodes.binauralGain.gain.cancelScheduledValues(now);
-    nodes.ambientGain.gain.cancelScheduledValues(now);
-    nodes.rhythmGain.gain.cancelScheduledValues(now);
-    nodes.binauralGain.gain.setValueAtTime(nodes.binauralGain.gain.value, now);
-    nodes.ambientGain.gain.setValueAtTime(nodes.ambientGain.gain.value, now);
-    nodes.rhythmGain.gain.setValueAtTime(nodes.rhythmGain.gain.value, now);
-    nodes.binauralGain.gain.linearRampToValueAtTime(0, fadeEnd);
-    nodes.ambientGain.gain.linearRampToValueAtTime(0, fadeEnd);
-    nodes.rhythmGain.gain.linearRampToValueAtTime(0, fadeEnd);
+    master.binauralUserGain.gain.cancelScheduledValues(now);
+    master.rhythmUserGain.gain.cancelScheduledValues(now);
+    master.envUserGain.gain.cancelScheduledValues(now);
+    master.binauralUserGain.gain.setValueAtTime(master.binauralUserGain.gain.value, now);
+    master.rhythmUserGain.gain.setValueAtTime(master.rhythmUserGain.gain.value, now);
+    master.envUserGain.gain.setValueAtTime(master.envUserGain.gain.value, now);
+    master.binauralUserGain.gain.linearRampToValueAtTime(0, fadeEnd);
+    master.rhythmUserGain.gain.linearRampToValueAtTime(0, fadeEnd);
+    master.envUserGain.gain.linearRampToValueAtTime(0, fadeEnd);
 
     if (this.stopTimer) clearTimeout(this.stopTimer);
-    const gen = ++this.generation;
+    const gen = ++this.stopGeneration;
     this.stopTimer = setTimeout(() => {
-      if (gen !== this.generation) return;
+      if (gen !== this.stopGeneration) return;
+      this.destroyAllVoices();
+      if (this.currentAmbient) {
+        this.destroyAmbientLayer(this.currentAmbient);
+        this.currentAmbient = null;
+      }
       try {
-        nodes.leftOsc.stop();
-        nodes.rightOsc.stop();
+        master.binauralUserGain.disconnect();
+        master.rhythmUserGain.disconnect();
+        master.envUserGain.disconnect();
+        master.masterGain.disconnect();
       } catch {
         /* ignore */
       }
-      this.cleanupAmbient();
-      try {
-        nodes.binauralGain.disconnect();
-        nodes.ambientGain.disconnect();
-        nodes.rhythmGain.disconnect();
-      } catch {
-        /* ignore */
-      }
-      this.nodes = null;
+      this.master = null;
       this.stopTimer = null;
     }, FADE_SEC * 1000 + 50);
   }
