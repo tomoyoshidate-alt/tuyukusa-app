@@ -56,7 +56,7 @@ type Props = {
 
 const MAX_PENDING_IMAGES = 3;
 
-function BinauralPlayButton({ presetId }: { presetId: string }) {
+export function BinauralPlayButton({ presetId }: { presetId: string }) {
   const [playing, setPlaying] = useState(false);
   const [activePresetId, setActivePresetId] = useState("");
 

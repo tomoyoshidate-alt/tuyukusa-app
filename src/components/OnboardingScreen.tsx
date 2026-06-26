@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState, type CSSProperties } from "react";
 import { useTranslation } from "react-i18next";
 import { ChatMarkdown } from "@/src/components/ChatMarkdown";
+import { BinauralPlayButton } from "@/src/components/AiChatPanel";
 import { handleAiChatEnterSendKeyDown } from "@/src/lib/chatSubmitKeyboard";
 import {
   buildOnboardingProposalPrompt,
@@ -50,6 +51,7 @@ type OnboardingMessage = {
   type: "ai" | "user";
   text: string;
   scheduleReflection?: ScheduleReflection;
+  binauralPresetId?: string;
 };
 
 type Props = {
@@ -195,7 +197,7 @@ export function OnboardingScreen({ fetchProposal, onQuestionnaireDone, onDeferTo
     });
   }, []);
 
-  const pushAi = useCallback((text: string, extra?: Partial<Pick<OnboardingMessage, "scheduleReflection">>) => {
+  const pushAi = useCallback((text: string, extra?: Partial<Pick<OnboardingMessage, "scheduleReflection" | "binauralPresetId">>) => {
     setMessages(prev => {
       const next = [...prev, { type: "ai" as const, text, ...extra }];
       messagesRef.current = next;
@@ -211,11 +213,11 @@ export function OnboardingScreen({ fetchProposal, onQuestionnaireDone, onDeferTo
       data: OnboardingFlowData,
       includeUserMessage: boolean,
     ) => {
-      const { empathyText, questionText } = buildOnboardingTransition(fromStep, answer, toStep, data, t);
+      const { empathyText, questionText, binauralPresetId } = buildOnboardingTransition(fromStep, answer, toStep, data, t);
       setMessages(prev => {
         const next: OnboardingMessage[] = [...prev];
         if (includeUserMessage) next.push({ type: "user", text: answer });
-        if (empathyText) next.push({ type: "ai", text: empathyText });
+        if (empathyText) next.push({ type: "ai", text: empathyText, binauralPresetId });
         if (questionText) next.push({ type: "ai", text: questionText });
         else {
           const prompt = getOnboardingStepPrompt(toStep, t);
@@ -597,6 +599,11 @@ export function OnboardingScreen({ fetchProposal, onQuestionnaireDone, onDeferTo
                 {msg.type === "ai" ? <ChatMarkdown text={msg.text} variant="ai" /> : msg.text}
               </div>
             </div>
+            {msg.binauralPresetId && (
+              <div style={{ maxWidth: "88%" }}>
+                <BinauralPlayButton presetId={msg.binauralPresetId} />
+              </div>
+            )}
             {msg.scheduleReflection && (
               <div style={{ marginTop: 10, maxWidth: "88%" }}>
                 {msg.scheduleReflection.schedule.map((item, j) => (

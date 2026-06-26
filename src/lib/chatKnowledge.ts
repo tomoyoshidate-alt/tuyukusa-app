@@ -28,6 +28,7 @@ export type StoredChatMessage = {
   step?: string;
   showSchedule?: boolean;
   choices?: string[];
+  binauralPresetId?: string;
 };
 
 const MAX_GOALS = 8;
@@ -61,6 +62,19 @@ export function normalizeChatKnowledge(data: unknown): ChatKnowledge {
       : [],
     updatedAt: typeof d.updatedAt === "string" ? d.updatedAt : "",
   };
+}
+
+export function shouldResetChatToDayStart(stored: StoredChatMessage[]): boolean {
+  if (stored.length === 0) return false;
+  if (stored.some(m => m.step === "day_start" || m.text.includes("今日これからどんな1日"))) {
+    return false;
+  }
+  if (stored.some(m => m.text.includes("どんなライフスタイルにしたいですか"))) return true;
+  if (stored.some(m => m.choices?.some(c => c.includes("睡眠の質を上げたい")))) return true;
+  const first = stored[0];
+  if (first?.step === "intro") return true;
+  if (first?.choices?.includes("最近眠れない")) return true;
+  return false;
 }
 
 export function normalizeStoredChatMessages(data: unknown): StoredChatMessage[] {

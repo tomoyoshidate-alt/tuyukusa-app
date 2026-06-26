@@ -1,4 +1,9 @@
 import type { LifestyleKnowledge } from "./chatKnowledge";
+import {
+  CHAT_DAY_START_CHOICES,
+  CHAT_DAY_START_FREE_LABEL,
+  getChatDayStartChoiceLabels,
+} from "./chatDayStart";
 
 export const ONBOARDING_WELCOME_MESSAGE = `こんにちは。
 「つゆくさアプリ」です。
@@ -34,12 +39,16 @@ export const ONBOARDING_MEAL_VALUES_CHOICES = [
   ONBOARDING_GOAL_FREE_LABEL,
 ] as const;
 
-export const ONBOARDING_GOAL_CHOICES = [
+/** 旧版：初回問診 goal の4択（39f188c 以前）。現行は chatDayStart の5択を使用。 */
+export const ONBOARDING_GOAL_CHOICES_LEGACY = [
   "睡眠の質を上げたい",
   "集中力を高めたい",
   "心身を整えたい",
   ONBOARDING_GOAL_FREE_LABEL,
-];
+] as const;
+
+/** @deprecated 旧4択。新規コードは getChatDayStartChoiceLabels() を使うこと。 */
+export const ONBOARDING_GOAL_CHOICES = [...ONBOARDING_GOAL_CHOICES_LEGACY];
 
 export type OnboardingStep =
   | "welcome"
@@ -166,7 +175,7 @@ export function parseOnboardingGoalChoice(choice: string): string | null {
 export function getOnboardingStepChoices(step: OnboardingStep): string[] {
   switch (step) {
     case "goal":
-      return [...ONBOARDING_GOAL_CHOICES];
+      return getChatDayStartChoiceLabels();
     case "birthdate":
       return [...ONBOARDING_BIRTHDATE_CHOICES];
     case "gender":
@@ -223,7 +232,7 @@ export const ONBOARDING_LIFESTYLE_STEPS: Record<
 > = {
   goal: {
     question: "",
-    choices: [...ONBOARDING_GOAL_CHOICES],
+    choices: [...CHAT_DAY_START_CHOICES, CHAT_DAY_START_FREE_LABEL],
     field: "goal",
     next: "bedtime",
   },

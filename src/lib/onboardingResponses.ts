@@ -1,8 +1,14 @@
 import {
+  buildDayStartAssistantMessage,
+  CHAT_DAY_START_QUESTION,
+  getChatDayStartChoiceLabels,
+  isChatDayStartChoice,
+  resolvePresetIdForChoice,
+} from "./chatDayStart";
+import {
   buildRecommendedBathWindow,
   GENDER_CHOICES,
   ONBOARDING_BIRTHDATE_CHOICES,
-  ONBOARDING_GOAL_CHOICES,
   ONBOARDING_LIFESTYLE_STEPS,
   type OnboardingFlowData,
   type OnboardingStep,
@@ -18,6 +24,10 @@ type Translate = (key: string, options?: Record<string, unknown>) => string;
 
 function getGoalEmpathy(goal: string, t: Translate): string {
   const trimmed = goal.trim();
+  if (isChatDayStartChoice(trimmed)) {
+    const presetId = resolvePresetIdForChoice(trimmed);
+    if (presetId) return buildDayStartAssistantMessage(trimmed, presetId);
+  }
   if (trimmed.includes("睡眠")) return t("onboarding.empathyGoalSleep");
   if (trimmed.includes("集中")) return t("onboarding.empathyGoalFocus");
   if (trimmed.includes("心身")) return t("onboarding.empathyGoalBalance");
@@ -27,7 +37,7 @@ function getGoalEmpathy(goal: string, t: Translate): string {
 export function getOnboardingStepPrompt(step: OnboardingStep, t: Translate): { question: string; choices: string[] } {
   switch (step) {
     case "goal":
-      return { question: t("onboarding.goalQuestionShort"), choices: [...ONBOARDING_LIFESTYLE_STEPS.goal.choices] };
+      return { question: CHAT_DAY_START_QUESTION, choices: getChatDayStartChoiceLabels() };
     case "birthdate":
       return { question: t("onboarding.birthdateQuestion"), choices: [...ONBOARDING_BIRTHDATE_CHOICES] };
     case "gender":
@@ -60,7 +70,7 @@ export function buildOnboardingTransition(
   toStep: OnboardingStep,
   data: OnboardingFlowData,
   t: Translate,
-): { empathyText: string; questionText: string; choices: string[] } {
+): { empathyText: string; questionText: string; choices: string[]; binauralPresetId?: string } {
   const next = getOnboardingStepPrompt(toStep, t);
   const parts: string[] = [];
 
@@ -108,18 +118,24 @@ export function buildOnboardingTransition(
       break;
   }
 
+  const binauralPresetId =
+    fromStep === "goal" && isChatDayStartChoice(answer)
+      ? resolvePresetIdForChoice(answer) ?? undefined
+      : undefined;
+
   return {
     empathyText: parts.filter(Boolean).join("\n\n"),
     questionText: next.question,
     choices: next.choices,
+    binauralPresetId,
   };
 }
 
 export function buildWelcomeMessage(t: Translate): { intro: string; question: string; choices: string[] } {
   return {
     intro: t("onboarding.welcomeBody"),
-    question: t("onboarding.goalQuestionShort"),
-    choices: [...ONBOARDING_GOAL_CHOICES],
+    question: CHAT_DAY_START_QUESTION,
+    choices: getChatDayStartChoiceLabels(),
   };
 }
 
@@ -135,7 +151,7 @@ export function buildWelcomeMessageFromIntro(
 
   return {
     intro: introParts.join("\n\n"),
-    question: t("onboarding.goalQuestionShort"),
-    choices: [...ONBOARDING_GOAL_CHOICES],
+    question: CHAT_DAY_START_QUESTION,
+    choices: getChatDayStartChoiceLabels(),
   };
 }

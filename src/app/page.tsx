@@ -130,6 +130,7 @@ import {
   INITIAL_CHAT_KNOWLEDGE,
   normalizeChatKnowledge,
   normalizeStoredChatMessages,
+  shouldResetChatToDayStart,
   updateChatKnowledgeFromFlow,
   updateChatKnowledgeFromUserMessage,
   type ChatKnowledge,
@@ -885,12 +886,13 @@ const INITIAL_AI_SUGGESTIONS: Record<GoalPeriod, AiSuggestedGoal | null> = {
 };
 
 function toStoredChatMessages(messages: Message[]): StoredChatMessage[] {
-  return messages.map(({ type, text, step, showSchedule, choices, images }) => ({
+  return messages.map(({ type, text, step, showSchedule, choices, images, binauralPresetId }) => ({
     type,
     text: images?.length && !text.trim() ? "[画像]" : text,
     step,
     showSchedule,
     choices,
+    binauralPresetId,
   }));
 }
 
@@ -2404,8 +2406,12 @@ export default function TuyukusaApp() {
       const raw = localStorage.getItem("tuyukusa-chat-history");
       if (raw) {
         const parsed = normalizeStoredChatMessages(JSON.parse(raw));
-        setChatMessages(fromStoredChatMessages(parsed));
-        if (parsed.length > 0) setChatFlowStep("free");
+        if (shouldResetChatToDayStart(parsed)) {
+          localStorage.removeItem("tuyukusa-chat-history");
+        } else {
+          setChatMessages(fromStoredChatMessages(parsed));
+          if (parsed.length > 0) setChatFlowStep("free");
+        }
       }
     } catch {
       /* ignore */
