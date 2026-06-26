@@ -7,6 +7,9 @@ import { handleAiChatEnterSendKeyDown } from "@/src/lib/chatSubmitKeyboard";
 import { fileToChatImage, readClipboardImages, type ChatImagePayload } from "@/src/lib/chatImages";
 import type { ScheduleReflection } from "@/src/lib/scheduleReflection";
 
+import { getPresetById } from "@/src/lib/simpleBinauralPresets";
+import { simpleBinauralEngine } from "@/src/lib/simpleBinauralEngine";
+
 export type ScheduleSuggestion = {
   id: string;
   time: string;
@@ -30,6 +33,7 @@ export type AiChatPanelMessage = {
   scheduleSuggestions?: ScheduleSuggestion[];
   showSchedule?: boolean;
   addedScheduleIds?: string[];
+  binauralPresetId?: string;
 };
 
 type Props = {
@@ -51,6 +55,42 @@ type Props = {
 };
 
 const MAX_PENDING_IMAGES = 3;
+
+function BinauralPlayButton({ presetId }: { presetId: string }) {
+  const [playing, setPlaying] = useState(false);
+  const [activePresetId, setActivePresetId] = useState("");
+
+  useEffect(() => {
+    return simpleBinauralEngine.subscribe(snapshot => {
+      setPlaying(snapshot.playing);
+      setActivePresetId(snapshot.presetId);
+    });
+  }, []);
+
+  const presetName = getPresetById(presetId).name;
+  const isThisPlaying = playing && activePresetId === presetId;
+  const label = isThisPlaying ? `■ ${presetName}を停止` : `▶ ${presetName}を再生`;
+
+  return (
+    <button
+      type="button"
+      onClick={() => void simpleBinauralEngine.playPreset(presetId)}
+      style={{
+        marginTop: 8,
+        background: isThisPlaying ? "#c17f4a" : "#4a6741",
+        border: "none",
+        borderRadius: 12,
+        padding: "10px 16px",
+        fontSize: 13,
+        fontWeight: "bold",
+        cursor: "pointer",
+        color: "#fff",
+      }}
+    >
+      {label}
+    </button>
+  );
+}
 
 function toMessageImage(img: ChatImagePayload): ChatMessageImage {
   return { dataUrl: img.dataUrl, mediaType: img.mediaType, base64: img.base64 };
@@ -231,6 +271,11 @@ export function AiChatPanel({
                     {c}
                   </button>
                 ))}
+              </div>
+            )}
+            {msg.binauralPresetId && (
+              <div style={{ marginTop: 4 }}>
+                <BinauralPlayButton presetId={msg.binauralPresetId} />
               </div>
             )}
             {msg.scheduleReflection && (

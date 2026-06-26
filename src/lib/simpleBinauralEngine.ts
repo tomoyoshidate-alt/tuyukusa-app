@@ -110,6 +110,11 @@ type EngineNodes = {
   ambientSource: MediaElementAudioSourceNode | null;
 };
 
+export type BinauralPlaybackSnapshot = {
+  playing: boolean;
+  presetId: string;
+};
+
 class SimpleBinauralEngine {
   private nodes: EngineNodes | null = null;
   private scheduler = new RhythmScheduler();
@@ -119,6 +124,7 @@ class SimpleBinauralEngine {
   private volumes: LayerVolumes = { binaural: 0.5, ambient: 0.35, rhythm: 0.4 };
   private stopTimer: ReturnType<typeof setTimeout> | null = null;
   private generation = 0;
+  private listeners = new Set<(snapshot: BinauralPlaybackSnapshot) => void>();
 
   get playing(): boolean {
     return this.isPlaying;
@@ -126,6 +132,21 @@ class SimpleBinauralEngine {
 
   get currentPresetId(): string {
     return this.presetId;
+  }
+
+  getSnapshot(): BinauralPlaybackSnapshot {
+    return { playing: this.isPlaying, presetId: this.presetId };
+  }
+
+  subscribe(listener: (snapshot: BinauralPlaybackSnapshot) => void): () => void {
+    this.listeners.add(listener);
+    listener(this.getSnapshot());
+    return () => this.listeners.delete(listener);
+  }
+
+  private notify(): void {
+    const snapshot = this.getSnapshot();
+    this.listeners.forEach(listener => listener(snapshot));
   }
 
   setVolumes(volumes: Partial<LayerVolumes>): void {
@@ -149,8 +170,20 @@ class SimpleBinauralEngine {
 
   async setPreset(id: string): Promise<void> {
     this.presetId = id;
+    this.notify();
     if (!this.isPlaying) return;
     await this.stop();
+    await this.play();
+  }
+
+  /** Toggle playback for a preset — shared by chat and binaural tab. */
+  async playPreset(presetId: string): Promise<void> {
+    if (this.isPlaying && this.presetId === presetId) {
+      await this.stop();
+      return;
+    }
+    this.presetId = presetId;
+    if (this.isPlaying) await this.stop();
     await this.play();
   }
 
@@ -302,6 +335,7 @@ class SimpleBinauralEngine {
     await this.startAmbient(ctx, ambientGain);
     this.scheduler.start(ctx, preset.poly, rhythmGain, fadeEnd);
     this.isPlaying = true;
+    this.notify();
   }
 
   async stop(): Promise<void> {
@@ -314,6 +348,7 @@ class SimpleBinauralEngine {
 
     this.scheduler.stop();
     this.isPlaying = false;
+    this.notify();
 
     nodes.binauralGain.gain.cancelScheduledValues(now);
     nodes.ambientGain.gain.cancelScheduledValues(now);
@@ -351,6 +386,10 @@ class SimpleBinauralEngine {
   async toggle(): Promise<void> {
     if (this.isPlaying) await this.stop();
     else await this.play();
+  }
+
+  async toggleCurrentPreset(): Promise<void> {
+    await this.playPreset(this.presetId);
   }
 }
 

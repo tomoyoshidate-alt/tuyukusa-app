@@ -136,6 +136,14 @@ import {
   type StoredChatMessage,
 } from "@/src/lib/chatKnowledge";
 import {
+  buildDayStartAssistantMessage,
+  CHAT_DAY_START_FREE_LABEL,
+  CHAT_DAY_START_QUESTION,
+  getChatDayStartChoiceLabels,
+  isChatDayStartChoice,
+  resolvePresetIdForChoice,
+} from "@/src/lib/chatDayStart";
+import {
   getRegionById,
   INITIAL_LOCATION_SETTINGS,
   normalizeLocationSettings,
@@ -646,6 +654,7 @@ type Message = {
   scheduleReflection?: ScheduleReflection;
   reflected?: boolean;
   addedScheduleIds?: string[];
+  binauralPresetId?: string;
 };
 
 // Active tabs: chat + binaural. Legacy tab ids kept so hidden UI blocks still compile.
@@ -1216,6 +1225,18 @@ function buildResumeOnboardingPrompt(): { text: string; choices: string[] } {
   };
 }
 
+function buildChatDayStartMessages(welcomeText: string): Message[] {
+  return [
+    { type: "ai", text: welcomeText, step: "day_start" },
+    {
+      type: "ai",
+      text: CHAT_DAY_START_QUESTION,
+      choices: getChatDayStartChoiceLabels(),
+      step: "day_start",
+    },
+  ];
+}
+
 function buildChatOpeningMessage(weather: WeatherData | null): { text: string; choices: string[] } {
   const band = getChatTimeBand();
   const greetingByBand: Record<ChatTimeBand, string> = {
@@ -1246,7 +1267,7 @@ function buildChatOpeningMessage(weather: WeatherData | null): { text: string; c
   };
 }
 
-type ChatFlowStep = "intro" | "goal" | "return_home" | "dinner" | "bath" | "wake" | "proposal" | "free";
+type ChatFlowStep = "day_start" | "intro" | "goal" | "return_home" | "dinner" | "bath" | "wake" | "proposal" | "free";
 
 type ChatFlowData = {
   goal?: string;
@@ -1267,7 +1288,7 @@ const CHAT_GOAL_FROM_CHOICE: Record<string, string> = {
   "食事の時間を整えたい": "食事の時間を整えたい",
 };
 
-type FlowQuestionStep = Exclude<ChatFlowStep, "intro" | "goal" | "proposal" | "free">;
+type FlowQuestionStep = Exclude<ChatFlowStep, "day_start" | "intro" | "goal" | "proposal" | "free">;
 
 const FLOW_STEP_CONFIG: Record<
   FlowQuestionStep,
@@ -3146,30 +3167,15 @@ ${buildHealthSummary(healthForm)}`;
   useEffect(() => {
     if (tab !== "chat" || !chatHistoryLoadedRef.current) return;
 
-    const opening = buildChatOpeningMessage(weather);
-
     if (chatMessages.length === 0) {
       const timer = setTimeout(() => {
-        setChatMessages([
-          { type: "ai", text: opening.text, choices: opening.choices, step: "intro" },
-        ]);
-        setChatFlowStep("intro");
+        setChatMessages(buildChatDayStartMessages(t("onboarding.welcomeBody")));
+        setChatFlowStep("day_start");
         setChatFlowData({});
       }, 300);
       return () => clearTimeout(timer);
     }
-
-    if (
-      chatMessages.length === 1 &&
-      chatFlowStep === "intro" &&
-      chatMessages[0]?.step === "intro" &&
-      weather
-    ) {
-      setChatMessages([
-        { type: "ai", text: opening.text, choices: opening.choices, step: "intro" },
-      ]);
-    }
-  }, [tab, weather, chatMessages.length, chatFlowStep, chatMessages[0]?.step]);
+  }, [tab, chatMessages.length, t]);
 
   const startGoalFlow = (goal: string, userMessages: Message[]) => {
     recordChatKnowledge(goal, { goal });
@@ -3224,6 +3230,38 @@ ${buildHealthSummary(healthForm)}`;
     recordChatKnowledge(trimmed);
 
     const userMessages: Message[] = [...chatMessages, { type: "user", text: trimmed }];
+
+    if (fromStep === "day_start") {
+      if (trimmed === CHAT_DAY_START_FREE_LABEL || trimmed === "自由に相談する" || trimmed === "自分で入力する") {
+        setChatMessages([
+          ...userMessages,
+          {
+            type: "ai",
+            text: "どんなことでもお気軽にどうぞ。悩み・目標・願いをテキストまたは音声でお聞かせください。",
+            step: "free",
+          },
+        ]);
+        setChatFlowStep("free");
+        return;
+      }
+      if (isChatDayStartChoice(trimmed)) {
+        const presetId = resolvePresetIdForChoice(trimmed);
+        if (presetId) {
+          setChatMessages([
+            ...userMessages,
+            {
+              type: "ai",
+              text: buildDayStartAssistantMessage(trimmed, presetId),
+              binauralPresetId: presetId,
+              step: "free",
+            },
+          ]);
+          setChatFlowStep("free");
+          recordChatKnowledge(trimmed, { goal: trimmed });
+          return;
+        }
+      }
+    }
 
     if (fromStep === "intro") {
       if (trimmed === "自分で入力する") {
@@ -3502,14 +3540,8 @@ ${buildHealthSummary(healthForm)}`;
     markOnboardingCompleteInStorage();
     setChatKnowledge(prev => updateChatKnowledgeFromFlow(prev, data));
     clearOnboardingProgress();
-    setChatMessages([
-      {
-        type: "ai",
-        text: `${displayName}さん、セットアップが完了しました\n\nどんなライフスタイルにしたいですか？`,
-        step: "free",
-      },
-    ]);
-    setChatFlowStep("free");
+    setChatMessages(buildChatDayStartMessages(t("onboarding.welcomeBody")));
+    setChatFlowStep("day_start");
     setChatFlowData({
       goal: data.goal,
       bedtime: data.bedtime,
@@ -3564,7 +3596,7 @@ ${buildHealthSummary(healthForm)}`;
   );
 
   const latestAiChatLine =
-    [...chatMessages].reverse().find(m => m.type === "ai")?.text ?? "どんなライフスタイルにしたいですか？";
+    [...chatMessages].reverse().find(m => m.type === "ai")?.text ?? CHAT_DAY_START_QUESTION;
 
   const openChatFromHome = (initialText?: string) => {
     if (pendingReturnGreeting) {

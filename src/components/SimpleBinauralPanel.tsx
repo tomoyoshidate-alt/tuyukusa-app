@@ -17,6 +17,13 @@ export function SimpleBinauralPanel() {
   const [rhythmVol, setRhythmVol] = useState(0.4);
 
   useEffect(() => {
+    return simpleBinauralEngine.subscribe(snapshot => {
+      setIsPlaying(snapshot.playing);
+      setSelectedId(snapshot.presetId);
+    });
+  }, []);
+
+  useEffect(() => {
     simpleBinauralEngine.setVolumes({
       binaural: binauralVol,
       ambient: ambientVol,
@@ -24,14 +31,10 @@ export function SimpleBinauralPanel() {
     });
   }, [binauralVol, ambientVol, rhythmVol]);
 
-  const handlePresetSelect = useCallback(
-    async (id: string) => {
-      setSelectedId(id);
-      await simpleBinauralEngine.setPreset(id);
-      setIsPlaying(simpleBinauralEngine.playing);
-    },
-    []
-  );
+  const handlePresetSelect = useCallback(async (id: string) => {
+    setSelectedId(id);
+    await simpleBinauralEngine.setPreset(id);
+  }, []);
 
   const handleAmbientChange = useCallback(async (id: AmbientId) => {
     setAmbientId(id);
@@ -39,9 +42,9 @@ export function SimpleBinauralPanel() {
   }, []);
 
   const handleTogglePlay = useCallback(async () => {
-    await simpleBinauralEngine.toggle();
-    setIsPlaying(simpleBinauralEngine.playing);
-  }, []);
+    if (isPlaying) await simpleBinauralEngine.stop();
+    else await simpleBinauralEngine.playPreset(selectedId);
+  }, [isPlaying, selectedId]);
 
   const selected = PRESETS.find(p => p.id === selectedId) ?? PRESETS[0];
 
