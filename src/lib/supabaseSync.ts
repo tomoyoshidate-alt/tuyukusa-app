@@ -40,6 +40,33 @@ export function isSupabaseConfigured(settings: SupabaseSettings): boolean {
   return Boolean(settings.url && settings.anonKey && settings.syncId);
 }
 
+/** URL + anonKey があれば DB / Storage 操作可能（syncId 不要） */
+export function isSupabaseDbConfigured(settings: SupabaseSettings): boolean {
+  return Boolean(settings.url && settings.anonKey);
+}
+
+export function loadSupabaseSettingsFromStorage(): SupabaseSettings {
+  if (typeof window === "undefined") return { ...INITIAL_SUPABASE_SETTINGS };
+  try {
+    const raw = localStorage.getItem("tuyukusa-supabase");
+    if (raw) return normalizeSupabaseSettings(JSON.parse(raw));
+  } catch {
+    /* ignore */
+  }
+  return normalizeSupabaseSettings({
+    url: localStorage.getItem("supabaseUrl") ?? "",
+    anonKey: localStorage.getItem("supabaseAnonKey") ?? "",
+    syncId: localStorage.getItem("syncKey") ?? "",
+    enabled: localStorage.getItem("supabaseConnected") === "true",
+  });
+}
+
+export function getSupabaseClient(settings?: SupabaseSettings): SupabaseClient | null {
+  const resolved = settings ?? loadSupabaseSettingsFromStorage();
+  if (!isSupabaseDbConfigured(resolved)) return null;
+  return createClient(resolved.url, resolved.anonKey);
+}
+
 /** Persist Supabase credentials to localStorage (structured + flat keys). */
 export function applySupabaseConnection(url: string, anonKey: string, syncKey: string): SupabaseSettings {
   const settings: SupabaseSettings = {

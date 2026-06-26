@@ -12,6 +12,7 @@ import {
 import { ThemeProvider } from "@/src/components/ThemeProvider";
 import { FontSizeProvider } from "@/src/components/FontSizeProvider";
 import StudioPresetsLoader from "@/src/components/StudioPresetsLoader";
+import { DevRequestShell } from "@/src/components/DevRequestShell";
 
 export default function AppProviders({ children }: { children: React.ReactNode }) {
   useEffect(() => {
@@ -41,6 +42,7 @@ export default function AppProviders({ children }: { children: React.ReactNode }
         <FontSizeProvider>
           <StudioPresetsLoader />
           {children}
+          <DevRequestShell />
         </FontSizeProvider>
       </ThemeProvider>
     </I18nextProvider>
