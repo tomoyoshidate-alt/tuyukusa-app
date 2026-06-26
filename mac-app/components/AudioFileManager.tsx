@@ -4,6 +4,7 @@ import { useCallback, useRef, useState } from "react";
 import {
   audioFilesMatch,
   deleteAudioFromStorage,
+  studioEntryLabel,
   type StudioAudioEntry,
   uploadAudioToStorage,
 } from "@mac/lib/audioStorage";
@@ -49,7 +50,7 @@ function AudioFileListItem({
         </span>
         <span className="min-w-0">
           <div className={`text-xs truncate ${selected ? "text-green-400 font-medium" : "text-[#e8e8e8]"}`}>
-            {entry.name}
+            {studioEntryLabel(entry)}
           </div>
           <div className="text-[9px] text-[#666] truncate font-mono">{entry.url}</div>
         </span>
@@ -83,8 +84,13 @@ export function AudioFileManager({
       setUploading(true);
       try {
         for (const file of Array.from(files)) {
-          const { filename, publicUrl } = await uploadAudioToStorage(file);
-          const entry: StudioAudioEntry = { name: filename, url: publicUrl, source: "storage" };
+          const result = await uploadAudioToStorage(file);
+          const entry: StudioAudioEntry = {
+            name: result.storageKey,
+            label: result.displayName,
+            url: result.publicUrl,
+            source: "storage",
+          };
           onUploaded(entry);
         }
         await onRefresh();
@@ -200,7 +206,7 @@ export function AudioFileManager({
                     onClick={() => void handleDelete(entry)}
                     disabled={deleting === entry.url}
                     className="shrink-0 px-2 py-1 text-[10px] rounded bg-[#3a2020] text-red-300 hover:bg-[#502828] disabled:opacity-50"
-                    aria-label={`${entry.name} を削除`}
+                    aria-label={`${studioEntryLabel(entry)} を削除`}
                   >
                     {deleting === entry.url ? "…" : "削除"}
                   </button>

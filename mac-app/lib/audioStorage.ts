@@ -1,15 +1,29 @@
 import { getSupabase, isSupabaseConfigured } from "@mac/lib/supabaseClient";
 import { getMacBasePath, macApiUrl } from "@mac/lib/macBasePath";
+import {
+  displayNameFromStorageMetadata,
+  extractFileExtension,
+  uploadFileToStorage,
+  type StorageUploadResult,
+} from "../../src/lib/supabaseStorageUpload";
 
 export const AUDIO_BUCKET = "audio";
 
-const ALLOWED_EXT = /\.(mp3|wav)$/i;
+const ALLOWED_AUDIO_EXT = ["mp3", "wav"] as const;
 const MAX_BYTES = 50 * 1024 * 1024;
 
 export type StudioAudioEntry = {
+  /** Storage キーまたはローカルファイル名 */
   name: string;
+  /** UI 表示用（アップロード時の元ファイル名） */
+  label?: string;
   url: string;
   source: "storage" | "local";
+};
+
+export type AudioStorageUploadResult = StorageUploadResult & {
+  /** @deprecated storageKey を使用 */
+  filename: string;
 };
 
 export const STUDIO_AUDIO_STORAGE_SQL = `-- Supabase SQL Editor で実行（Storage バケット audio）
@@ -38,12 +52,8 @@ export function isHttpAudioUrl(value: string): boolean {
   return /^https?:\/\//i.test(value.trim());
 }
 
-export function sanitizeAudioFilename(name: string): string {
-  const base = name.replace(/^.*[/\\]/, "").trim();
-  if (!ALLOWED_EXT.test(base)) {
-    throw new Error("MP3 または WAV のみアップロードできます");
-  }
-  return base.replace(/[^a-zA-Z0-9._-]/g, "_");
+export function studioEntryLabel(entry: StudioAudioEntry): string {
+  return entry.label ?? entry.name.replace(/^uploads\//, "");
 }
 
 export function filenameFromStorageUrl(url: string): string | null {
@@ -65,11 +75,10 @@ export function filenameFromStorageUrl(url: string): string | null {
   return null;
 }
 
-export function getStoragePublicUrl(filename: string): string | null {
+export function getStoragePublicUrl(storageKey: string): string | null {
   const sb = getSupabase();
   if (!sb) return null;
-  const safe = sanitizeAudioFilename(filename);
-  const { data } = sb.storage.from(AUDIO_BUCKET).getPublicUrl(safe);
+  const { data } = sb.storage.from(AUDIO_BUCKET).getPublicUrl(storageKey);
   return data.publicUrl;
 }
 
@@ -113,23 +122,52 @@ export function audioFilesMatch(a: string | undefined, b: string | undefined): b
   }
 }
 
-export async function listStorageAudioEntries(): Promise<StudioAudioEntry[]> {
+function isAllowedAudioFile(file: File): boolean {
+  const ext = extractFileExtension(file.name, file.type);
+  return (ALLOWED_AUDIO_EXT as readonly string[]).includes(ext);
+}
+
+async function listStorageFolder(prefix: string): Promise<StudioAudioEntry[]> {
   const sb = getSupabase();
   if (!sb) throw new Error("Supabase is not configured");
-  const { data, error } = await sb.storage.from(AUDIO_BUCKET).list("", {
+
+  const { data, error } = await sb.storage.from(AUDIO_BUCKET).list(prefix, {
     limit: 1000,
     sortBy: { column: "name", order: "asc" },
   });
   if (error) throw new Error(error.message);
-  return (data ?? [])
-    .map(item => item.name)
-    .filter((name): name is string => Boolean(name && ALLOWED_EXT.test(name)))
-    .map(name => ({
-      name,
-      url: getStoragePublicUrl(name) ?? name,
-      source: "storage" as const,
-    }))
-    .sort((a, b) => a.name.localeCompare(b.name));
+
+  const entries: StudioAudioEntry[] = [];
+  for (const item of data ?? []) {
+    if (!item.name || item.name.endsWith("/")) continue;
+    const storageKey = prefix ? `${prefix}/${item.name}` : item.name;
+    const ext = extractFileExtension(item.name);
+    if (!(ALLOWED_AUDIO_EXT as readonly string[]).includes(ext)) continue;
+    const label = displayNameFromStorageMetadata(item.metadata, item.name);
+    entries.push({
+      name: storageKey,
+      label: label !== item.name ? label : undefined,
+      url: getStoragePublicUrl(storageKey) ?? storageKey,
+      source: "storage",
+    });
+  }
+  return entries;
+}
+
+export async function listStorageAudioEntries(): Promise<StudioAudioEntry[]> {
+  const [legacyRoot, uploads] = await Promise.all([
+    listStorageFolder("").catch(() => [] as StudioAudioEntry[]),
+    listStorageFolder("uploads").catch(() => [] as StudioAudioEntry[]),
+  ]);
+  const byKey = new Map<string, StudioAudioEntry>();
+  for (const entry of [...legacyRoot, ...uploads]) {
+    if (!entry.name.startsWith("uploads/")) {
+      const ext = extractFileExtension(entry.name);
+      if (!(ALLOWED_AUDIO_EXT as readonly string[]).includes(ext)) continue;
+    }
+    byKey.set(entry.name, entry);
+  }
+  return [...byKey.values()].sort((a, b) => studioEntryLabel(a).localeCompare(studioEntryLabel(b)));
 }
 
 export async function listStorageAudioFiles(): Promise<string[]> {
@@ -137,32 +175,25 @@ export async function listStorageAudioFiles(): Promise<string[]> {
   return entries.map(e => e.name);
 }
 
-export async function uploadAudioToStorage(file: File): Promise<{ filename: string; publicUrl: string }> {
+export async function uploadAudioToStorage(file: File): Promise<AudioStorageUploadResult> {
   const sb = getSupabase();
   if (!sb) throw new Error("Supabase is not configured");
-  if (!ALLOWED_EXT.test(file.name)) {
+  if (!isAllowedAudioFile(file)) {
     throw new Error("MP3 または WAV のみアップロードできます");
   }
-  if (file.size > MAX_BYTES) {
-    throw new Error("ファイルサイズは 50MB 以下にしてください");
-  }
-  const filename = sanitizeAudioFilename(file.name);
-  const contentType = file.name.toLowerCase().endsWith(".wav") ? "audio/wav" : "audio/mpeg";
-  const { error } = await sb.storage.from(AUDIO_BUCKET).upload(filename, file, {
-    upsert: true,
-    contentType,
+
+  const result = await uploadFileToStorage(sb, AUDIO_BUCKET, file, {
+    maxBytes: MAX_BYTES,
+    allowedExtensions: ALLOWED_AUDIO_EXT,
   });
-  if (error) throw new Error(error.message);
-  const publicUrl = getStoragePublicUrl(filename);
-  if (!publicUrl) throw new Error("公開 URL の取得に失敗しました");
-  return { filename, publicUrl };
+
+  return { ...result, filename: result.storageKey };
 }
 
-export async function deleteAudioFromStorage(filename: string): Promise<void> {
+export async function deleteAudioFromStorage(storageKey: string): Promise<void> {
   const sb = getSupabase();
   if (!sb) throw new Error("Supabase is not configured");
-  const safe = sanitizeAudioFilename(filename);
-  const { error } = await sb.storage.from(AUDIO_BUCKET).remove([safe]);
+  const { error } = await sb.storage.from(AUDIO_BUCKET).remove([storageKey]);
   if (error) throw new Error(error.message);
 }
 
@@ -173,7 +204,7 @@ export async function fetchStudioAudioCatalog(): Promise<StudioAudioEntry[]> {
   ).catch(() => null);
   const localJson = localRes?.ok ? ((await localRes.json()) as { files: string[] }) : { files: [] };
   const localEntries: StudioAudioEntry[] = (localJson.files ?? [])
-    .filter(f => ALLOWED_EXT.test(f))
+    .filter(f => /\.(mp3|wav)$/i.test(f))
     .map(name => ({
       name,
       url: typeof window !== "undefined" ? macApiUrl(`/api/audio/${encodeURIComponent(name)}`) : name,
@@ -189,7 +220,7 @@ export async function fetchStudioAudioCatalog(): Promise<StudioAudioEntry[]> {
     const byName = new Map<string, StudioAudioEntry>();
     for (const entry of localEntries) byName.set(entry.name, entry);
     for (const entry of remote) byName.set(entry.name, entry);
-    return [...byName.values()].sort((a, b) => a.name.localeCompare(b.name));
+    return [...byName.values()].sort((a, b) => studioEntryLabel(a).localeCompare(studioEntryLabel(b)));
   } catch {
     return localEntries.sort((a, b) => a.name.localeCompare(b.name));
   }
@@ -206,8 +237,8 @@ export async function listAllAudioFiles(localFiles: string[]): Promise<string[]>
   }
 }
 
-export async function fetchStorageAudioBuffer(filename: string): Promise<ArrayBuffer | null> {
-  const url = getStoragePublicUrl(filename);
+export async function fetchStorageAudioBuffer(storageKey: string): Promise<ArrayBuffer | null> {
+  const url = getStoragePublicUrl(storageKey);
   if (!url) return null;
   const res = await fetch(url, { cache: "no-store" });
   if (!res.ok) return null;
@@ -219,5 +250,14 @@ export function audioFileLabel(audioFile: string): string {
   if (isHttpAudioUrl(audioFile)) {
     return filenameFromStorageUrl(audioFile) ?? audioFile.split("/").pop() ?? audioFile;
   }
-  return audioFile.replace(/^audio\//, "");
+  return audioFile.replace(/^uploads\//, "").replace(/^audio\//, "");
+}
+
+/** @deprecated use studioEntryLabel / uploadFileToStorage */
+export function sanitizeAudioFilename(name: string): string {
+  const base = name.replace(/^.*[/\\]/, "").trim();
+  if (!/\.(mp3|wav)$/i.test(base)) {
+    throw new Error("MP3 または WAV のみアップロードできます");
+  }
+  return base.replace(/[^a-zA-Z0-9._-]/g, "_");
 }

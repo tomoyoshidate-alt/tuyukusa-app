@@ -1,6 +1,11 @@
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import { collectLocalStorageExport, importLocalStorageExport, type TuyukusaDataExport } from "./dataExport";
 import { clearIntegrationSkipped } from "./integrationSkipFlags";
+import {
+  uploadFileToStorage,
+  type FileUploadValidation,
+  type StorageUploadResult,
+} from "./supabaseStorageUpload";
 
 export type SupabaseSettings = {
   url: string;
@@ -144,3 +149,15 @@ create policy "Allow anon sync"
   on tuyukusa_sync for all
   using (true)
   with check (true);`;
+
+/** 添付ファイルを Storage にアップロード（キーは uploads/uuid.ext、表示名は metadata に保存） */
+export async function uploadAttachmentToStorage(
+  settings: SupabaseSettings,
+  bucket: string,
+  file: File,
+  validation?: FileUploadValidation
+): Promise<StorageUploadResult> {
+  if (!isSupabaseConfigured(settings)) throw new Error("Supabase is not configured");
+  const client = createSupabaseClient(settings);
+  return uploadFileToStorage(client, bucket, file, validation);
+}

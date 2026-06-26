@@ -104,8 +104,8 @@ export async function uploadAudioFile(file: File): Promise<{ ok: boolean; filena
     return { ok: false, message: "Supabase が未設定です" };
   }
   try {
-    const { filename, publicUrl } = await uploadAudioToStorage(file);
-    return { ok: true, filename, publicUrl, message: `${filename} をアップロードしました` };
+    const { storageKey, displayName, publicUrl } = await uploadAudioToStorage(file);
+    return { ok: true, filename: storageKey, publicUrl, message: `${displayName} をアップロードしました` };
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
     return { ok: false, message: msg };
