@@ -38,7 +38,7 @@ import { AppSidebar } from "@/src/components/AppSidebar";
 import { PwaInstallGuideModal } from "@/src/components/PwaInstallGuideModal";
 import { useDesktopLayout } from "@/src/hooks/useDesktopLayout";
 import { usePwaInstall } from "@/src/hooks/usePwaInstall";
-import BinauralGlobalAlarm from "@/src/components/BinauralGlobalAlarm";
+import { SimpleBinauralPanel } from "@/src/components/SimpleBinauralPanel";
 import LanguageSettingsPanel from "@/src/components/LanguageSettingsPanel";
 import RadioMiniPlayer from "@/src/components/RadioMiniPlayer";
 import ScreenSettingsTab from "@/src/components/ScreenSettingsTab";
@@ -648,7 +648,8 @@ type Message = {
   addedScheduleIds?: string[];
 };
 
-type Tab = "home" | "chat" | "history" | "sound" | "display" | "integrations" | "settings";
+// Active tabs: chat + binaural. Legacy tab ids kept so hidden UI blocks still compile.
+type Tab = "chat" | "binaural" | "home" | "history" | "sound" | "display" | "integrations" | "settings";
 type MoodKey = "anger" | "anxiety" | "sadness" | "fog" | "manic";
 type CountOption = number | "5回以上";
 type HealthFieldId =
@@ -2175,7 +2176,7 @@ export default function TuyukusaApp() {
   const { canPromptInstall, promptInstall } = usePwaInstall();
   const [showPwaGuide, setShowPwaGuide] = useState(false);
   const appLocale = (i18n.language?.slice(0, 2) ?? "ja") as AppLocale;
-  const [tab, setTab] = useState<Tab>("home");
+  const [tab, setTab] = useState<Tab>("chat");
   const [chatMessages, setChatMessages] = useState<Message[]>([]);
   const [chatInput, setChatInput] = useState("");
   const [isComposing, setIsComposing] = useState(false);
@@ -2459,9 +2460,8 @@ export default function TuyukusaApp() {
     });
   };
 
-  const openBinauralPanel = (mode: "beats" | "pomodoro" = "beats") => {
-    setSoundPanelMode(mode === "pomodoro" ? "pomodoro" : "mixer");
-    setTab("sound");
+  const openBinauralPanel = (_mode: "beats" | "pomodoro" = "beats") => {
+    setTab("binaural");
   };
 
   const fetchOnboardingProposal = async (prompt: string): Promise<ChatReply> => {
@@ -2991,7 +2991,7 @@ ${buildHealthSummary(healthForm)}`;
 
   useEffect(() => {
     const openTodayTasks = () => {
-      setTab("home");
+      setTab("chat");
       window.setTimeout(() => {
         document.getElementById("today-tasks")?.scrollIntoView({ behavior: "smooth", block: "start" });
       }, 100);
@@ -3519,7 +3519,7 @@ ${buildHealthSummary(healthForm)}`;
     });
     setPendingOnboarding(null);
     setOnboardingPhase("questionnaire");
-    setTab(options.openTab ?? "home");
+    setTab(options.openTab === "binaural" ? "binaural" : "chat");
   };
 
   const handleQuestionnaireDone = async (
@@ -4003,7 +4003,7 @@ ${buildHealthSummary(healthForm)}`;
     if (data.goal || data.bedtime || data.bath || data.wake || data.sleepDuration) {
       setChatKnowledge(prev => updateChatKnowledgeFromFlow(prev, data));
     }
-    setTab("home");
+    setTab("chat");
   };
 
   if (introVisible) {
@@ -4054,7 +4054,12 @@ ${buildHealthSummary(healthForm)}`;
         />
       )}
 
-      {isDesktop && <AppSidebar activeTab={tab} onTabChange={setTab} />}
+      {isDesktop && (
+        <AppSidebar
+          activeTab={tab === "binaural" ? "binaural" : "chat"}
+          onTabChange={setTab}
+        />
+      )}
 
       <div className="app-main-column">
       {/* ヘッダー */}
@@ -4079,8 +4084,8 @@ ${buildHealthSummary(healthForm)}`;
       {/* コンテンツ */}
       <div className={`app-main-scroll${isDesktop ? " app-content-desktop" : ""}`} style={{ flex: 1, overflowY: "auto", paddingBottom: isDesktop ? 0 : 20 }}>
         
-        {/* ホーム */}
-        {tab === "home" && (
+        {/* ホーム — hidden (legacy, restore later) */}
+        {false && tab === "home" && (
           <div>
             <HomeAiChatTeaser
               latestMessage={latestAiChatLine}
@@ -4139,7 +4144,7 @@ ${buildHealthSummary(healthForm)}`;
           </div>
         )}
 
-        {tab === "display" && (
+        {false && tab === "display" && (
           <ScreenSettingsTab
             userProfile={userProfile}
             onUserProfileChange={setUserProfile}
@@ -4152,7 +4157,7 @@ ${buildHealthSummary(healthForm)}`;
           />
         )}
 
-        {tab === "integrations" && (
+        {false && tab === "integrations" && (
           <IntegrationsTabPanel
             isDesktop={isDesktop}
             cardStyle={cardStyle}
@@ -4183,8 +4188,8 @@ ${buildHealthSummary(healthForm)}`;
           />
         )}
 
-        {/* 設定 */}
-        {tab === "settings" && (
+        {/* 設定 — hidden (legacy) */}
+        {false && tab === "settings" && (
           <div style={{ padding: isDesktop ? "8px 16px 24px" : 16 }}>
             <button
               type="button"
@@ -4513,8 +4518,8 @@ ${buildHealthSummary(healthForm)}`;
           </div>
         )}
 
-        {/* 履歴 */}
-        {tab === "history" && (
+        {/* 履歴 — hidden (legacy) */}
+        {false && tab === "history" && (
           <div style={{ padding: 16 }}>
             <div style={{ fontSize: 15, fontWeight: "bold", color: "#3d3228", marginBottom: 4 }}>今日の体調チェック</div>
             <div style={{ fontSize: 11, color: "#3d3228", opacity: 0.6, marginBottom: 16 }}>毎朝の記録が、あなたに合った生活リズムの土台になります</div>
@@ -4946,7 +4951,12 @@ ${buildHealthSummary(healthForm)}`;
           </div>
         )}
 
-        {tab === "sound" && (
+        {tab === "binaural" && (
+          <SimpleBinauralPanel />
+        )}
+
+        {/* Sound tab — hidden (legacy SoundSystemPanel) */}
+        {false && tab === "sound" && (
           <div style={{ background: "#1a1410", minHeight: "100%" }}>
             <SoundSystemPanel
               diagnosis={MOCK_SCHEDULE.diagnosis}
@@ -4978,7 +4988,7 @@ ${buildHealthSummary(healthForm)}`;
         />
       )}
 
-      {showBinauralPanel && (
+      {false && showBinauralPanel && (
         <BinauralBeatsPanel
           diagnosis={MOCK_SCHEDULE.diagnosis}
           initialPanelMode={binauralPanelMode}
@@ -5030,20 +5040,23 @@ ${buildHealthSummary(healthForm)}`;
 
       <PwaInstallGuideModal open={showPwaGuide} onClose={() => setShowPwaGuide(false)} />
 
-      <BinauralGlobalAlarm />
+      {/* <BinauralGlobalAlarm /> */}
 
-      <RadioMiniPlayer />
+      {/* <RadioMiniPlayer /> */}
 
-      {/* ボトムナビ（モバイル） */}
+      {/* ボトムナビ（モバイル）— chat + binaural only */}
       <div className="app-bottom-nav" style={themeNavStyle}>
         {[
-          { key: "home", icon: "🏠", labelKey: "tabs.home" },
           { key: "chat", icon: "💬", labelKey: "tabs.chat" },
+          { key: "binaural", icon: "🎧", labelKey: "tabs.binaural" },
+          /* legacy nav items — restore later:
+          { key: "home", icon: "🏠", labelKey: "tabs.home" },
           { key: "sound", icon: "🎵", labelKey: "tabs.sound" },
           { key: "history", icon: "📋", labelKey: "tabs.history" },
           { key: "display", icon: "", labelKey: "tabs.display" },
           { key: "integrations", icon: "🔗", labelKey: "tabs.integrations" },
           { key: "settings", icon: "⚙️", labelKey: "tabs.settings" },
+          */
         ].map(item => (
           <button key={item.key} onClick={() => setTab(item.key as Tab)} style={{
             flex: 1, display: "flex", flexDirection: "column", alignItems: "center", padding: "10px 0 12px", gap: 4, cursor: "pointer", border: "none", background: "none",

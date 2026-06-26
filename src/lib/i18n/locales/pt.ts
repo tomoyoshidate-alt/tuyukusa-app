@@ -21,6 +21,7 @@ const pt: TranslationSchema = {
     home: "Início",
     chat: "Chat IA",
     sound: "Som",
+    binaural: "Binaural",
     history: "Histórico",
     display: "Tela",
     integrations: "Integrações",

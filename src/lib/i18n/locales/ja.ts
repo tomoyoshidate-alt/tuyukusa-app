@@ -17,8 +17,9 @@ const ja = {
   },
   tabs: {
     home: "ホーム",
-    chat: "AI相談",
+    chat: "チャット",
     sound: "サウンド",
+    binaural: "バイノーラル",
     history: "履歴",
     display: "画面",
     integrations: "連携",

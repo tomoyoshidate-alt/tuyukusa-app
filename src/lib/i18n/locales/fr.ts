@@ -21,6 +21,7 @@ const fr: TranslationSchema = {
     home: "Accueil",
     chat: "Chat IA",
     sound: "Son",
+    binaural: "Binaural",
     history: "Historique",
     display: "Écran",
     integrations: "Intégrations",

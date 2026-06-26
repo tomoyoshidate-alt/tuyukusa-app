@@ -21,6 +21,7 @@ const zh: TranslationSchema = {
     home: "首页",
     chat: "AI咨询",
     sound: "声音",
+    binaural: "双耳节拍",
     history: "历史",
     display: "画面",
     integrations: "连携",

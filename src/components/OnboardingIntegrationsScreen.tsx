@@ -20,7 +20,7 @@ import type { GoogleCalendarSettings } from "@/src/lib/googleCalendar";
 import type { HealthData } from "@/src/lib/healthData";
 
 export type IntegrationFinishOptions = {
-  openTab?: "home" | "settings" | "sound" | "display";
+  openTab?: "home" | "chat" | "binaural" | "settings" | "sound" | "display";
   allDeferred: boolean;
 };
 
@@ -106,7 +106,7 @@ export function OnboardingIntegrationsScreen({
       if (allLater) {
         setPhase("reminder");
       } else {
-        onFinish({ allDeferred: false, openTab: "home" });
+        onFinish({ allDeferred: false, openTab: "chat" });
       }
       return;
     }
@@ -463,7 +463,7 @@ export function OnboardingIntegrationsScreen({
                 type="button"
                 onClick={() => {
                   markIntegrationSkipped("supabase");
-                  onFinish({ allDeferred: true, openTab: "home" });
+                  onFinish({ allDeferred: true, openTab: "chat" });
                 }}
                 style={{
                   padding: "14px",
@@ -489,7 +489,7 @@ export function OnboardingIntegrationsScreen({
           clearIntegrationSkipped("supabase");
           onSupabaseChange(applySupabaseConnection(url, anonKey, syncKey));
           if (phase === "reminder") {
-            onFinish({ allDeferred: true, openTab: "home" });
+            onFinish({ allDeferred: true, openTab: "chat" });
           } else if (currentId === "supabase") {
             completeSetup("supabase");
           }
