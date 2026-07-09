@@ -12,6 +12,8 @@ import {
   resolveModuleId,
 } from "./modules";
 import type { AppLocale } from "../i18n/detectLocale";
+import { appendMemoriesToSystemPrompt } from "../memory/prompt";
+import type { AiMemory } from "../memory/types";
 
 export { getActiveModules, getDefaultModule, getModuleById, buildModuleSystemPrompt, resolveModuleId };
 
@@ -73,4 +75,20 @@ export function loadModuleForChat(moduleId: string | undefined | null, locale: A
   const id = resolveModuleId(moduleId);
   const module = getModuleById(id) ?? getDefaultModule();
   return { module, systemPrompt: buildModuleSystemPrompt(module, locale) };
+}
+
+/** Layer 2 + learned memories block (max 30, updated_at desc). */
+export function loadModuleForChatWithMemories(
+  moduleId: string | undefined | null,
+  locale: AppLocale,
+  memories: AiMemory[] = []
+): {
+  module: AiModule;
+  systemPrompt: string;
+} {
+  const base = loadModuleForChat(moduleId, locale);
+  return {
+    module: base.module,
+    systemPrompt: appendMemoriesToSystemPrompt(base.systemPrompt, memories),
+  };
 }

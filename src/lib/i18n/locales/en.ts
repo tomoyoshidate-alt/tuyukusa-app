@@ -205,6 +205,14 @@ const en: TranslationSchema = {
     locationSearchFailed: "Location search failed",
     locationResetDefault: "Reset to Chofu (default)",
     locationSaved: "Location saved",
+    memoriesLinkTitle: "What Tomosensei learned",
+    memoriesLinkBody: "Review or delete facts learned from your conversations",
+    memoriesPageTitle: "What Tomosensei learned",
+    memoriesPageHint: "These carry over when you switch Tomosensei's specialty.",
+    memoriesEmpty: "Nothing learned yet. The more you chat, the better the advice becomes.",
+  },
+  memories: {
+    delete: "Delete this memory",
   },
   briefing: {
     label: "Today's briefing",

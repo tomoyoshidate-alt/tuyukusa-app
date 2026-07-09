@@ -28,6 +28,7 @@ export const EXPORTABLE_STORAGE_KEYS = [
   "tuyukusa-ai-module",
   "tuyukusa-user-traits",
   "tuyukusa-daily-briefing",
+  "tuyukusa-ai-memories",
 ] as const;
 
 export type ExportableStorageKey = (typeof EXPORTABLE_STORAGE_KEYS)[number];

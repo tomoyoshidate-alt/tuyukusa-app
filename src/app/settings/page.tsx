@@ -60,6 +60,29 @@ export default function SettingsPage() {
           </div>
         </Link>
 
+        <Link href="/settings/memories" style={{ textDecoration: "none", color: "inherit" }}>
+          <div
+            style={{
+              ...themeCardStyle,
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "space-between",
+              cursor: "pointer",
+              marginBottom: 12,
+            }}
+          >
+            <div>
+              <div style={{ fontSize: 15, fontWeight: "bold", color: "var(--t-text)", marginBottom: 4 }}>
+                {t("settings.memoriesLinkTitle")}
+              </div>
+              <div style={{ fontSize: 12, color: "var(--t-text-muted)", lineHeight: 1.5 }}>
+                {t("settings.memoriesLinkBody")}
+              </div>
+            </div>
+            <span style={{ fontSize: 18, opacity: 0.4, flexShrink: 0, marginLeft: 8 }}>›</span>
+          </div>
+        </Link>
+
         <div style={themeSectionTitleStyle}>{t("settings.locationSectionTitle")}</div>
         <LocationSettingsPanel />
       </main>

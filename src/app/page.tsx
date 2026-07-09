@@ -150,6 +150,7 @@ import {
   getSelectedModule,
   loadAiModuleSelection,
 } from "@/src/lib/ai/loader";
+import { loadMemoriesForPrompt, triggerMemoryExtraction } from "@/src/lib/memory/client";
 import type { AiModule } from "@/src/lib/ai/types";
 import {
   getRegionById,
@@ -1383,6 +1384,7 @@ async function fetchChatReply(
       healthContext,
       locale: locale ?? "ja",
       moduleId: resolvedModuleId,
+      memories: loadMemoriesForPrompt(),
     }),
   });
   if (!res.ok) throw new Error("Chat API request failed");
@@ -3673,7 +3675,11 @@ ${buildHealthSummary(healthForm)}`;
     setIsLoading(true);
     try {
       const reply = await fetchChatReply(updatedMessages, envContext, userKnowledgeContext, healthContext, appLocale);
-      setChatMessages(prev => [...prev, createAiChatMessage(reply.content, reply)]);
+      setChatMessages(prev => {
+        const next = [...prev, createAiChatMessage(reply.content, reply)];
+        triggerMemoryExtraction(next, loadAiModuleSelection().selectedModuleId, chatFlowStep);
+        return next;
+      });
     } catch {
       setChatMessages(prev => [
         ...prev,
@@ -3754,7 +3760,11 @@ ${buildHealthSummary(healthForm)}`;
     try {
       const reply = await fetchChatReply(updatedMessages, envContext, userKnowledgeContext, healthContext, appLocale);
       const aiMsg = createAiChatMessage(reply.content, reply);
-      setChatMessages(prev => [...prev, aiMsg]);
+      setChatMessages(prev => {
+        const next = [...prev, aiMsg];
+        triggerMemoryExtraction(next, loadAiModuleSelection().selectedModuleId, chatFlowStep);
+        return next;
+      });
       if (reply.scheduleReflection && isReflectIntent(text)) {
         openReflectionModal(reply.scheduleReflection, updatedMessages.length);
       }

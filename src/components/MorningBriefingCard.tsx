@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { buildClientBriefingContext, getClientModuleId } from "@/src/lib/briefing/clientContext";
+import { loadMemoriesForPrompt } from "@/src/lib/memory/client";
 import {
   getDayKey,
   isBriefingValidForToday,
@@ -48,6 +49,7 @@ export function MorningBriefingCard({ moduleId, displayName, active = true }: Pr
             dayKey,
             cached: cached ?? undefined,
             context: buildClientBriefingContext(displayName),
+            memories: loadMemoriesForPrompt(),
           }),
         });
 

@@ -94,4 +94,7 @@ export type TranslationSchema = {
     regenerating: string;
     error: string;
   };
+  memories: {
+    delete: string;
+  };
 };

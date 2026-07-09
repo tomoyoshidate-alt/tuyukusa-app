@@ -347,6 +347,9 @@ const fr: TranslationSchema = {
     regenerating: "Updating…",
     error: "Failed to load briefing",
   },
+  memories: {
+    delete: "Delete this memory",
+  },
   intro: {
     page1Title: "Welcome to Tuyukusa",
     page1Description: "An AI doctor blending Eastern and Western medicine supports your daily rhythm.",

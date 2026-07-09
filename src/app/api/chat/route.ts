@@ -1,7 +1,8 @@
 import Anthropic from '@anthropic-ai/sdk';
 import { NextRequest, NextResponse } from 'next/server';
-import { loadModuleForChat } from '@/src/lib/ai/loader';
+import { loadModuleForChatWithMemories } from '@/src/lib/ai/loader';
 import { isAppLocale } from '@/src/lib/i18n/detectLocale';
+import { MAX_MEMORIES_IN_PROMPT, type AiMemory } from '@/src/lib/memory/types';
 import { buildClaudeMessageContent } from '@/src/lib/claudeMultimodal';
 import {
   parseReflectScheduleFromText,
@@ -86,13 +87,21 @@ type IncomingMessage = {
 };
 
 export async function POST(request: NextRequest) {
-  const { messages, environmentContext, userKnowledgeContext, healthContext, locale, moduleId } =
+  const { messages, environmentContext, userKnowledgeContext, healthContext, locale, moduleId, memories } =
     await request.json();
   const appLocale = typeof locale === "string" && isAppLocale(locale) ? locale : "ja";
 
-  const { systemPrompt: moduleSystem } = loadModuleForChat(
+  const memoryList: AiMemory[] = Array.isArray(memories)
+    ? (memories as AiMemory[])
+        .filter(m => m && typeof m.content === "string")
+        .sort((a, b) => String(b.updatedAt).localeCompare(String(a.updatedAt)))
+        .slice(0, MAX_MEMORIES_IN_PROMPT)
+    : [];
+
+  const { systemPrompt: moduleSystem } = loadModuleForChatWithMemories(
     typeof moduleId === "string" ? moduleId : undefined,
-    appLocale
+    appLocale,
+    memoryList
   );
   let system = moduleSystem;
   if (userKnowledgeContext) {

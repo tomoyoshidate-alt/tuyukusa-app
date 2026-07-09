@@ -203,6 +203,14 @@ const ja = {
     locationSearchFailed: "地域の検索に失敗しました",
     locationResetDefault: "調布市（デフォルト）に戻す",
     locationSaved: "地域を保存しました",
+    memoriesLinkTitle: "ともせんせいが学んだこと",
+    memoriesLinkBody: "会話から学んだあなたのことを確認・削除できます",
+    memoriesPageTitle: "ともせんせいが学んだこと",
+    memoriesPageHint: "ここの内容は、ともせんせいの専門を切り替えても引き継がれます。",
+    memoriesEmpty: "まだ何も学んでいません。話すほど、あなたに合ったアドバイスができるようになります。",
+  },
+  memories: {
+    delete: "この記憶を削除",
   },
   briefing: {
     label: "今日のブリーフィング",

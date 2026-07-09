@@ -1,12 +1,13 @@
 import Anthropic from "@anthropic-ai/sdk";
 import { NextRequest, NextResponse } from "next/server";
-import { loadModuleForChat } from "@/src/lib/ai/loader";
+import { loadModuleForChatWithMemories } from "@/src/lib/ai/loader";
 import {
   BRIEFING_GENERATION_INSTRUCTION,
   buildBriefingDataContext,
   type BriefingClientContext,
 } from "@/src/lib/briefing/context";
 import { defaultEnvironmentProvider } from "@/src/lib/environment";
+import { MAX_MEMORIES_IN_PROMPT, type AiMemory } from "@/src/lib/memory/types";
 import { DEFAULT_CHOFU_LOCATION } from "@/src/lib/traits";
 
 const client = new Anthropic({
@@ -24,6 +25,7 @@ type BriefingRequestBody = {
     generatedAt: string;
   };
   context?: BriefingClientContext;
+  memories?: AiMemory[];
 };
 
 function todayKey(): string {
@@ -72,7 +74,16 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  const { systemPrompt } = loadModuleForChat(moduleId, "ja");
+  const { systemPrompt } = loadModuleForChatWithMemories(
+    moduleId,
+    "ja",
+    Array.isArray(body.memories)
+      ? body.memories
+          .filter(m => m && typeof m.content === "string")
+          .sort((a, b) => String(b.updatedAt).localeCompare(String(a.updatedAt)))
+          .slice(0, MAX_MEMORIES_IN_PROMPT)
+      : []
+  );
   const dataContext = buildBriefingDataContext(
     moduleId,
     ctx ?? { location: DEFAULT_CHOFU_LOCATION },
