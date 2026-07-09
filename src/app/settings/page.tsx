@@ -7,7 +7,9 @@ import {
   themeCardStyle,
   themeHeaderStyle,
   themeMutedTextStyle,
+  themeSectionTitleStyle,
 } from "@/src/lib/themeStyles";
+import { LocationSettingsPanel } from "@/src/components/LocationSettingsPanel";
 
 export default function SettingsPage() {
   const { t } = useTranslation();
@@ -57,6 +59,9 @@ export default function SettingsPage() {
             <span style={{ fontSize: 18, opacity: 0.4, flexShrink: 0, marginLeft: 8 }}>›</span>
           </div>
         </Link>
+
+        <div style={themeSectionTitleStyle}>{t("settings.locationSectionTitle")}</div>
+        <LocationSettingsPanel />
       </main>
     </div>
   );

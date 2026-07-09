@@ -17,6 +17,8 @@ export const TUYUKUSA_STORAGE_KEYS = [
   "tuyukusa-local-tasks",
   "tuyukusa-supabase",
   "tuyukusa-ai-module",
+  "tuyukusa-user-traits",
+  "tuyukusa-daily-briefing",
 ] as const;
 
 let migrationRan = false;
@@ -150,6 +152,16 @@ function isAiModuleStorageValid(data: unknown): boolean {
   return typeof d.selectedModuleId === "string";
 }
 
+function isUserTraitsStorageValid(data: unknown): boolean {
+  return !!data && typeof data === "object";
+}
+
+function isDailyBriefingStorageValid(data: unknown): boolean {
+  if (!data || typeof data !== "object") return false;
+  const d = data as Record<string, unknown>;
+  return typeof d.dayKey === "string" && typeof d.text === "string" && typeof d.moduleId === "string";
+}
+
 function isStoredDataValid(): boolean {
   const validators: Record<(typeof TUYUKUSA_STORAGE_KEYS)[number], (data: unknown) => boolean> = {
     "tuyukusa-goals": isGoalsStorageValid,
@@ -167,6 +179,8 @@ function isStoredDataValid(): boolean {
     "tuyukusa-local-tasks": isLocalTasksStorageValid,
     "tuyukusa-supabase": isSupabaseStorageValid,
     "tuyukusa-ai-module": isAiModuleStorageValid,
+    "tuyukusa-user-traits": isUserTraitsStorageValid,
+    "tuyukusa-daily-briefing": isDailyBriefingStorageValid,
   };
 
   for (const key of TUYUKUSA_STORAGE_KEYS) {

@@ -340,6 +340,13 @@ const fr: TranslationSchema = {
     safariPasteToast: "Paste the URL in Safari",
     later: "Later",
   },
+  briefing: {
+    label: "Today's briefing",
+    loading: "Preparing your briefing…",
+    regenerate: "Refresh today's advice",
+    regenerating: "Updating…",
+    error: "Failed to load briefing",
+  },
   intro: {
     page1Title: "Welcome to Tuyukusa",
     page1Description: "An AI doctor blending Eastern and Western medicine supports your daily rhythm.",

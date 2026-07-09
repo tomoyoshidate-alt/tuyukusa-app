@@ -87,4 +87,11 @@ export type TranslationSchema = {
   update: Record<string, string>;
   pwa: Record<string, string>;
   intro: Record<string, string>;
+  briefing: {
+    label: string;
+    loading: string;
+    regenerate: string;
+    regenerating: string;
+    error: string;
+  };
 };

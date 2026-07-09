@@ -57,6 +57,7 @@ import { IntegrationsTabPanel } from "@/src/components/IntegrationsTabPanel";
 import { isIntroCompleted, markIntroCompleted, clearIntroCompleted, introDraftToFlowData, loadIntroDraft } from "@/src/lib/introStorage";
 import { OnboardingIntegrationsScreen, type IntegrationFinishOptions } from "@/src/components/OnboardingIntegrationsScreen";
 import { AiChatPanel } from "@/src/components/AiChatPanel";
+import { MorningBriefingCard } from "@/src/components/MorningBriefingCard";
 import type { OnboardingFlowData } from "@/src/lib/onboarding";
 import {
   applyStoredProfileToProgress,
@@ -4188,6 +4189,11 @@ ${buildHealthSummary(healthForm)}`;
                 <span>{selectedAiModule.display_name}</span>
                 <span style={{ opacity: 0.5 }}>›</span>
               </Link>
+              <MorningBriefingCard
+                moduleId={selectedAiModule.id}
+                displayName={getDisplayName(userProfile)}
+                active={tab === "chat"}
+              />
               <button
                 type="button"
                 onClick={() => openBinauralPanel("beats")}
