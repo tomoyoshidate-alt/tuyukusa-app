@@ -1,6 +1,6 @@
 import Anthropic from '@anthropic-ai/sdk';
 import { NextRequest, NextResponse } from 'next/server';
-import { getChatSystemPrompt } from '@/src/lib/i18n/prompts';
+import { loadModuleForChat } from '@/src/lib/ai/loader';
 import { isAppLocale } from '@/src/lib/i18n/detectLocale';
 import { buildClaudeMessageContent } from '@/src/lib/claudeMultimodal';
 import {
@@ -86,10 +86,15 @@ type IncomingMessage = {
 };
 
 export async function POST(request: NextRequest) {
-  const { messages, environmentContext, userKnowledgeContext, healthContext, locale } = await request.json();
+  const { messages, environmentContext, userKnowledgeContext, healthContext, locale, moduleId } =
+    await request.json();
   const appLocale = typeof locale === "string" && isAppLocale(locale) ? locale : "ja";
 
-  let system = getChatSystemPrompt(appLocale);
+  const { systemPrompt: moduleSystem } = loadModuleForChat(
+    typeof moduleId === "string" ? moduleId : undefined,
+    appLocale
+  );
+  let system = moduleSystem;
   if (userKnowledgeContext) {
     system += `\n\n【ユーザーについて（過去の相談から把握している情報）】\n${userKnowledgeContext}\n\n上記を踏まえ、継続性のある提案・回答をしてください。`;
   }

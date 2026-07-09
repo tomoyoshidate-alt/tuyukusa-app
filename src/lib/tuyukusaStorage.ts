@@ -16,6 +16,7 @@ export const TUYUKUSA_STORAGE_KEYS = [
   "tuyukusa-health-data",
   "tuyukusa-local-tasks",
   "tuyukusa-supabase",
+  "tuyukusa-ai-module",
 ] as const;
 
 let migrationRan = false;
@@ -143,6 +144,12 @@ function isSupabaseStorageValid(data: unknown): boolean {
   return !!data && typeof data === "object";
 }
 
+function isAiModuleStorageValid(data: unknown): boolean {
+  if (!data || typeof data !== "object") return false;
+  const d = data as Record<string, unknown>;
+  return typeof d.selectedModuleId === "string";
+}
+
 function isStoredDataValid(): boolean {
   const validators: Record<(typeof TUYUKUSA_STORAGE_KEYS)[number], (data: unknown) => boolean> = {
     "tuyukusa-goals": isGoalsStorageValid,
@@ -159,6 +166,7 @@ function isStoredDataValid(): boolean {
     "tuyukusa-health-data": isHealthDataStorageValid,
     "tuyukusa-local-tasks": isLocalTasksStorageValid,
     "tuyukusa-supabase": isSupabaseStorageValid,
+    "tuyukusa-ai-module": isAiModuleStorageValid,
   };
 
   for (const key of TUYUKUSA_STORAGE_KEYS) {

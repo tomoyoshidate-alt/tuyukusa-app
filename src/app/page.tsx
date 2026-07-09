@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef, useCallback, useMemo, type CSSProperties, type ReactNode, type Dispatch, type SetStateAction } from "react";
 import { useTranslation } from "react-i18next";
 import dynamic from "next/dynamic";
+import Link from "next/link";
 import { runTuyukusaStorageMigration } from "@/src/lib/tuyukusaStorage";
 import {
   applyCalendarAdjustments,
@@ -144,6 +145,11 @@ import {
   isChatDayStartChoice,
   resolvePresetIdForChoice,
 } from "@/src/lib/chatDayStart";
+import {
+  getSelectedModule,
+  loadAiModuleSelection,
+} from "@/src/lib/ai/loader";
+import type { AiModule } from "@/src/lib/ai/types";
 import {
   getRegionById,
   INITIAL_LOCATION_SETTINGS,
@@ -1362,8 +1368,10 @@ async function fetchChatReply(
   environmentContext?: string,
   userKnowledgeContext?: string,
   healthContext?: string,
-  locale?: AppLocale
+  locale?: AppLocale,
+  moduleId?: string
 ): Promise<ChatReply> {
+  const resolvedModuleId = moduleId ?? loadAiModuleSelection().selectedModuleId;
   const res = await fetch("/api/chat", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -1373,6 +1381,7 @@ async function fetchChatReply(
       userKnowledgeContext,
       healthContext,
       locale: locale ?? "ja",
+      moduleId: resolvedModuleId,
     }),
   });
   if (!res.ok) throw new Error("Chat API request failed");
@@ -2284,6 +2293,7 @@ export default function TuyukusaApp() {
   const [calendarMessage, setCalendarMessage] = useState("");
   const [chatFlowStep, setChatFlowStep] = useState<ChatFlowStep>("intro");
   const [chatFlowData, setChatFlowData] = useState<ChatFlowData>({});
+  const [selectedAiModule, setSelectedAiModule] = useState<AiModule>(() => getSelectedModule());
   const chatHistoryLoadedRef = useRef(false);
   const [weather, setWeather] = useState<WeatherData | null>(null);
   const [weatherLoading, setWeatherLoading] = useState(true);
@@ -2398,6 +2408,17 @@ export default function TuyukusaApp() {
     } catch {
       /* ignore */
     }
+  }, []);
+
+  useEffect(() => {
+    const refreshModule = () => setSelectedAiModule(getSelectedModule());
+    refreshModule();
+    window.addEventListener("focus", refreshModule);
+    document.addEventListener("visibilitychange", refreshModule);
+    return () => {
+      window.removeEventListener("focus", refreshModule);
+      document.removeEventListener("visibilitychange", refreshModule);
+    };
   }, []);
 
   useEffect(() => {
@@ -4146,7 +4167,27 @@ ${buildHealthSummary(healthForm)}`;
         {/* AI相談 */}
         {tab === "chat" && (
           <div style={{ display: "flex", flexDirection: "column", height: isDesktop ? "calc(100vh - 100px)" : "calc(100vh - 120px)" }}>
-            <div style={{ margin: "12px 16px 0" }}>
+            <div style={{ margin: "12px 16px 0", display: "flex", flexDirection: "column", gap: 8 }}>
+              <Link
+                href="/settings/ai-module"
+                style={{
+                  display: "inline-flex",
+                  alignItems: "center",
+                  gap: 6,
+                  alignSelf: "flex-start",
+                  padding: "6px 12px",
+                  borderRadius: 16,
+                  background: "white",
+                  border: "1px solid rgba(60,40,20,0.1)",
+                  color: "#6b8f62",
+                  fontSize: 11,
+                  fontWeight: "bold",
+                  textDecoration: "none",
+                }}
+              >
+                <span>{selectedAiModule.display_name}</span>
+                <span style={{ opacity: 0.5 }}>›</span>
+              </Link>
               <button
                 type="button"
                 onClick={() => openBinauralPanel("beats")}
