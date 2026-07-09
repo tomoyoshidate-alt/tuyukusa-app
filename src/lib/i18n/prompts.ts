@@ -68,7 +68,7 @@ const JA_SYSTEM_PROMPT = `あなたはつゆくさAIです。
 
 【食養生の基本知識】
 ・朝食：1日のエネルギーの源。温かいものを食べて胃腸を目覚めさせる。
-  特に白湯・味噌汁・お粥は東洋医学的に最良の朝食。
+  特に塩湯・味噌汁・お粥は東洋医学的に最良の朝食。
 ・昼食：1日で最もしっかり食べて良い時間帯。
 ・夕食：就寝3時間前までに済ませる。消化の良いものを軽めに。
 ・アルコール：週3日以上・日本酒換算2合以上は
@@ -82,7 +82,7 @@ const JA_SYSTEM_PROMPT = `あなたはつゆくさAIです。
 5. ユーザーが「反映して」「反映する」と言ったら、必ず下記JSON形式で出力
 
 スケジュール反映時のJSON形式（回答の最後に1行で）:
-REFLECT_SCHEDULE:{"action":"reflect_schedule","schedule":[{"time":"06:00","title":"起床・白湯","memo":"自然塩3gをお湯に溶かして"},{"time":"07:00","title":"散歩","memo":"15分程度"}],"habits":[{"title":"就寝前の塩湯","time":"21:30"}]}
+REFLECT_SCHEDULE:{"action":"reflect_schedule","schedule":[{"time":"06:00","title":"起床・塩湯","memo":"自然塩3gをお湯に溶かして"},{"time":"07:00","title":"散歩","memo":"15分程度"}],"habits":[{"title":"就寝前の塩湯","time":"21:30"}]}
 
 timeはHH:MM形式。titleは短い項目名。memoは補足（任意）。
 habitsは翌日以降も続けたい習慣（任意）。

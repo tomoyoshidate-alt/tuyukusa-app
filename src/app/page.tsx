@@ -712,7 +712,7 @@ const MOCK_SCHEDULE = {
   mealTime1: "09:00",
   mealTime2: "16:00",
   saltMorning: "朝：自然塩3gをお湯に溶かして",
-  saltEvening: "就寝前：自然塩3gを白湯で",
+  saltEvening: "就寝前：自然塩3gをお湯に溶かして",
   advice: "朝のむくみと頭痛は水滞のサインです。今日は18時以降の糖質を控え、就寝前に塩湯をしっかり飲みましょう。",
   alerts: [
     { time: "06:00", message: "起床の時間です。朝の塩湯3gをどうぞ", type: "wake" },
@@ -913,7 +913,7 @@ const BASE_SCHEDULE_ITEMS: ScheduleItem[] = [
   { id: "meal1", time: "09:00", label: "朝食", sub: "糖質・お米中心で気を補う" },
   { id: "meal2", time: "16:00", label: "夕食", sub: "塩・タンパク質・海産物中心" },
   { id: "bath", time: "20:45", label: "入浴", sub: "38〜39度・30分以内" },
-  { id: "sleep", time: "22:30", label: "就寝", sub: "就寝前：自然塩3gを白湯で" },
+  { id: "sleep", time: "22:30", label: "就寝", sub: "就寝前：自然塩3gをお湯に溶かして" },
 ];
 
 type ScheduleTemplates = Record<number, ScheduleItem[]>;
