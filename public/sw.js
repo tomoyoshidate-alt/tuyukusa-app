@@ -157,3 +157,25 @@ self.addEventListener("notificationclick", event => {
     })
   );
 });
+
+// ===== Web Push (VAPID) =====
+// このリスナーは「購読済み かつ VAPID 鍵設定済み」で push が届いたときのみ発火する。
+// 未設定なら push は届かず、既存のアラーム/通知動作には一切影響しない。
+self.addEventListener("push", event => {
+  let payload = {};
+  try {
+    payload = event.data ? event.data.json() : {};
+  } catch {
+    payload = { body: event.data ? event.data.text() : "" };
+  }
+  const title = payload.title || "つゆくさ";
+  const options = {
+    body: payload.body || "",
+    icon: "/icons/icon-192.svg",
+    badge: "/icons/icon-192.svg",
+    tag: payload.tag || "tuyukusa-push",
+    renotify: true,
+    data: { url: payload.url || "/", push: true },
+  };
+  event.waitUntil(self.registration.showNotification(title, options));
+});

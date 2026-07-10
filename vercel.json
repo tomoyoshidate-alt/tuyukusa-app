@@ -3,5 +3,11 @@
   "framework": "nextjs",
   "env": {
     "NEXT_PUBLIC_MAC_BASE_PATH": "/mac"
-  }
+  },
+  "crons": [
+    {
+      "path": "/api/push/cron",
+      "schedule": "0 22 * * *"
+    }
+  ]
 }

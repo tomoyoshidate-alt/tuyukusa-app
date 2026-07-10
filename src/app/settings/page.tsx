@@ -10,6 +10,7 @@ import {
   themeSectionTitleStyle,
 } from "@/src/lib/themeStyles";
 import { LocationSettingsPanel } from "@/src/components/LocationSettingsPanel";
+import { PushNotificationToggle } from "@/src/components/PushNotificationToggle";
 
 export default function SettingsPage() {
   const { t } = useTranslation();
@@ -83,6 +84,7 @@ export default function SettingsPage() {
           </div>
         </Link>
 
+        <PushNotificationToggle />
         <div style={themeSectionTitleStyle}>{t("settings.locationSectionTitle")}</div>
         <LocationSettingsPanel />
       </main>
