@@ -354,7 +354,7 @@ export default function BinauralBeatsPanel({ diagnosis, onClose, initialPanelMod
           })}
         </div>
 
-        <SectionTitle>背景音（11種類）</SectionTitle>
+        <SectionTitle>背景音（{AMBIENT_SOUND_PRESETS.length}種類）</SectionTitle>
         <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginBottom: 16 }}>
           {AMBIENT_SOUND_PRESETS.map(preset => {
             const selected = selectedAmbient === preset.id;
@@ -379,9 +379,9 @@ export default function BinauralBeatsPanel({ diagnosis, onClose, initialPanelMod
           })}
         </div>
 
-        <SectionTitle>🎵 基音キー</SectionTitle>
+        <SectionTitle>🎵 基音キー（ピッチ）</SectionTitle>
         <div style={{ display: "flex", gap: 8, marginBottom: 6 }}>
-          {(["C", "Am"] as const).map(key => (
+          {(["A432", "C", "Am"] as const).map(key => (
             <button
               key={key}
               type="button"

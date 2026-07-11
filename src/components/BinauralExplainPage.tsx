@@ -93,6 +93,27 @@ export default function BinauralExplainPage({ onClose, onTryBB }: Props) {
             <Bullet>ベータ波（13-30Hz）：集中・思考・問題解決・活動</Bullet>
           </Section>
 
+          <Section title="【基音は432Hz】">
+            <p style={paragraphStyle}>
+              このアプリの基音（ピッチ）は、既定で432Hzです。左耳に432Hz、右耳に「432＋脳波Hz」を流し、その差の周波数で脳波をやさしく誘導します。
+            </p>
+            <p style={paragraphStyle}>
+              432Hzは自然で穏やかな響きとされる基音です。お好みで基音キーC・Amにも切り替えられます。
+            </p>
+          </Section>
+
+          <Section title="【プリセットと周波数】">
+            <p style={paragraphStyle}>
+              「落ち着き」「集中」「睡眠」「怒りを鎮める」など、目的別のプリセットを用意しています。各プリセットには脳波帯（例：アルファ波10Hz）と、その働きの短い説明が添えてあります。知りたい方は、プリセットを選ぶと左右の実際の周波数（L・R・差分）も確認できます。
+            </p>
+          </Section>
+
+          <Section title="【ポモドーロと生活スタイル】">
+            <p style={paragraphStyle}>
+              ポモドーロタイマーは、生活スタイル（集中・勉強・デスクワーク・肉体労働など）に合わせて、作業中と休憩中の脳波を自動で切り替えます。作業は集中の脳波、休憩は落ち着きの脳波へ、フェードしながら移り変わります。
+            </p>
+          </Section>
+
           <Section title="【漢方・養生との関連】">
             <Bullet>・朝のアルファ波は「気」の流れを整え、陽気を養う</Bullet>
             <Bullet>・睡眠前のデルタ波は「腎」を補い、深い回復を促す</Bullet>

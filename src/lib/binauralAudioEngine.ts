@@ -272,6 +272,87 @@ export function buildAmbient(
       drop();
       break;
     }
+    // 超音波：可聴域上端の高いシマー（実音源は後日UL予定のプレースホルダ合成）
+    case "ultrasonic": {
+      const shimmer = () => {
+        const osc = ctx.createOscillator();
+        const g = ctx.createGain();
+        osc.type = "sine";
+        const base = 8000 + Math.random() * 4000;
+        osc.frequency.setValueAtTime(base, ctx.currentTime);
+        osc.frequency.linearRampToValueAtTime(base * 1.05, ctx.currentTime + 1.2);
+        g.gain.setValueAtTime(0, ctx.currentTime);
+        g.gain.linearRampToValueAtTime(0.006, ctx.currentTime + 0.6);
+        g.gain.exponentialRampToValueAtTime(0.0005, ctx.currentTime + 2.4);
+        osc.connect(g);
+        g.connect(ambientGain);
+        osc.start();
+        osc.stop(ctx.currentTime + 2.5);
+      };
+      timers.push(setInterval(shimmer, 1400 + Math.random() * 1600));
+      shimmer();
+      break;
+    }
+    // アストラルレコーズ：ゆっくり移ろう倍音のパッド／ドローン（実音源は後日UL予定）
+    case "astral": {
+      const chord = [220, 277.18, 329.63, 440];
+      const voices = chord.map((freq, i) => {
+        const osc = ctx.createOscillator();
+        osc.type = "sine";
+        osc.frequency.value = freq;
+        const g = ctx.createGain();
+        g.gain.value = 0.02;
+        const lfo = ctx.createOscillator();
+        lfo.frequency.value = 0.03 + i * 0.017;
+        const lfoGain = ctx.createGain();
+        lfoGain.gain.value = 0.015;
+        lfo.connect(lfoGain);
+        lfoGain.connect(g.gain);
+        osc.connect(g);
+        g.connect(ambientGain);
+        osc.start();
+        lfo.start();
+        return () => {
+          try {
+            osc.stop();
+            lfo.stop();
+            osc.disconnect();
+            lfo.disconnect();
+            lfoGain.disconnect();
+            g.disconnect();
+          } catch {
+            /* ignore */
+          }
+        };
+      });
+      cleanups.push(() => voices.forEach(stop => stop()));
+      break;
+    }
+    // ポリリズム：左右で異なる拍子の柔らかなパルス（3:4）（実音源は後日UL予定）
+    case "polyrhythm": {
+      const pulse = (freq: number, pan: number, gainVal: number) => {
+        const osc = ctx.createOscillator();
+        const g = ctx.createGain();
+        const panner = ctx.createStereoPanner();
+        panner.pan.value = pan;
+        osc.type = "sine";
+        osc.frequency.value = freq;
+        g.gain.setValueAtTime(0, ctx.currentTime);
+        g.gain.linearRampToValueAtTime(gainVal, ctx.currentTime + 0.01);
+        g.gain.exponentialRampToValueAtTime(0.0008, ctx.currentTime + 0.32);
+        osc.connect(g);
+        g.connect(panner);
+        panner.connect(ambientGain);
+        osc.start();
+        osc.stop(ctx.currentTime + 0.35);
+      };
+      // 3拍（左・低）
+      timers.push(setInterval(() => pulse(196, -0.6, 0.05), 600));
+      // 4拍（右・高）
+      timers.push(setInterval(() => pulse(392, 0.6, 0.035), 450));
+      pulse(196, -0.6, 0.05);
+      break;
+    }
   }
 
   return {

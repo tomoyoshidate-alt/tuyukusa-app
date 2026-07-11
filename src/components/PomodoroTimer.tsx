@@ -10,14 +10,17 @@ import { BinauralAudioEngine } from "@/src/lib/binauralAudioEngine";
 import { getBeatPreset } from "@/src/lib/binauralBeats";
 import { readBinauralPlayerSettings, resolveBeatPreset } from "@/src/lib/binauralPlayerSettings";
 import {
+  DEFAULT_POMODORO_PURPOSE_ID,
   DEFAULT_POMODORO_SETTINGS,
-  POMODORO_BREAK_BEAT_ID,
-  POMODORO_WORK_BEAT_ID,
+  POMODORO_PURPOSES,
+  beatIdForPhase,
+  getPomodoroPurpose,
   phaseDurationSec,
   phaseLabel,
   type PomodoroPhase,
   type PomodoroSettings,
 } from "@/src/lib/pomodoro";
+import { getBeatPreset as getBeatPresetForLabel } from "@/src/lib/binauralBeats";
 import {
   ALARM_TRIGGER_EVENT,
   type AlarmTriggerDetail,
@@ -60,6 +63,9 @@ export default function PomodoroTimer({
   const [isRunning, setIsRunning] = useState(false);
   const [isAlarmRinging, setIsAlarmRinging] = useState(false);
   const [linkBinaural, setLinkBinaural] = useState(true);
+  const [purposeId, setPurposeId] = useState<string>(DEFAULT_POMODORO_PURPOSE_ID);
+  const purposeIdRef = useRef(purposeId);
+  purposeIdRef.current = purposeId;
 
   const endAtRef = useRef(0);
   const tickRef = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -104,7 +110,7 @@ export default function PomodoroTimer({
   const startBinauralForPhase = useCallback(
     async (targetPhase: PomodoroPhase) => {
       if (!linkBinaural) return;
-      const beatId = targetPhase === "work" ? POMODORO_WORK_BEAT_ID : POMODORO_BREAK_BEAT_ID;
+      const beatId = beatIdForPhase(purposeIdRef.current, targetPhase);
       const settings = readBinauralPlayerSettings();
       const preset = resolveBeatPreset(getBeatPreset(beatId), settings.baseKey);
       if (engineRef.current?.isPlaying()) {
@@ -352,10 +358,57 @@ export default function PomodoroTimer({
         <div style={{ fontSize: 11, color: "#4a6741", marginTop: 6 }}>
           {linkBinaural && (
             <>
-              {phase === "work" ? "ベータ波（集中）" : "アルファ波（リラックス）"} 自動切替
+              {getBeatPresetForLabel(beatIdForPhase(purposeId, phase)).waveLabel} 自動切替
             </>
           )}
         </div>
+      </div>
+
+      <div style={{ fontSize: 13, fontWeight: "bold", color: "#4a6741", marginBottom: 8 }}>
+        生活スタイル（脳波の切替）
+      </div>
+      <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginBottom: 6 }}>
+        {POMODORO_PURPOSES.map(p => {
+          const selected = purposeId === p.id;
+          return (
+            <button
+              key={p.id}
+              type="button"
+              disabled={isRunning}
+              onClick={() => {
+                setPurposeId(p.id);
+                if (!isRunning) {
+                  const nextWork = p.workMinutes;
+                  const nextBreak = p.shortBreakMinutes;
+                  if (nextWork || nextBreak) {
+                    setSettings(s => ({
+                      ...s,
+                      ...(nextWork ? { workMinutes: nextWork } : {}),
+                      ...(nextBreak ? { shortBreakMinutes: nextBreak } : {}),
+                    }));
+                    if (phase === "work" && nextWork) setRemainingSec(nextWork * 60);
+                  }
+                }
+              }}
+              style={{
+                padding: "8px 14px",
+                borderRadius: 20,
+                border: selected ? "2px solid #c17f4a" : "1.5px solid rgba(60,40,20,0.12)",
+                background: selected ? "#fdf0e4" : "white",
+                fontSize: 12,
+                cursor: isRunning ? "default" : "pointer",
+                color: "#3d3228",
+                opacity: isRunning && !selected ? 0.5 : 1,
+              }}
+            >
+              {p.label}
+            </button>
+          );
+        })}
+      </div>
+      <div style={{ fontSize: 10, color: "#9a8b7a", marginBottom: 16, lineHeight: 1.5 }}>
+        作業＝{getBeatPresetForLabel(getPomodoroPurpose(purposeId).workBeatId).label}／休憩＝
+        {getBeatPresetForLabel(getPomodoroPurpose(purposeId).breakBeatId).label} に自動で切り替わります。
       </div>
 
       <div style={{ fontSize: 13, fontWeight: "bold", color: "#4a6741", marginBottom: 8 }}>カスタム設定</div>
@@ -405,7 +458,7 @@ export default function PomodoroTimer({
           onChange={e => setLinkBinaural(e.target.checked)}
           disabled={isRunning}
         />
-        バイノーラルビートと連動（作業=ベータ波 / 休憩=アルファ波）
+        バイノーラルビートと連動（生活スタイルに合わせて作業・休憩の脳波を自動切替）
       </label>
 
       <AirplaneModeOption />
