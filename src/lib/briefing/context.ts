@@ -99,6 +99,16 @@ export function buildBriefingDataContext(
       }
       break;
 
+    case "date-anger-v1":
+      sections.push(`【生活リズム】\n${formatLifestyle(ctx.lifestyle)}`);
+      if (ctx.traits?.constitution) {
+        sections.push(`【体質メモ】${ctx.traits.constitution}`);
+      }
+      sections.push(
+        "【怒りの養生メモ】季節（五行）で出やすい感情が変わる（春=肝/怒、夏=心/焦り、秋=肺/憂い、冬=腎/不安）。今日の怒りの点数（0〜10）と、対象がはっきりしているか（こころ）／曖昧か（からだ＝肝の疲れ）をやさしく確認し、6秒ルール・丹田呼吸・怒りカレンダーなど具体策を1つ提案してください。"
+      );
+      break;
+
     default:
       sections.push(`【生活リズム】\n${formatLifestyle(ctx.lifestyle)}`);
       sections.push(`【本日のタスク】\n${formatTasks(ctx.todayTasks)}`);
