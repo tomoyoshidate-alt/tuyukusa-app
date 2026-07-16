@@ -18,6 +18,7 @@ import {
   getCourseChoiceLabels,
   getStructuredStepConfig,
 } from "./onboardingCourse";
+import { PSYCH_MODULE_CHOICES } from "./psychTests";
 import type { IntroDraft } from "./introStorage";
 
 type Translate = (key: string, options?: Record<string, unknown>) => string;
@@ -42,6 +43,15 @@ export function getOnboardingStepPrompt(step: OnboardingStep, t: Translate): { q
       return { question: t("onboarding.birthdateQuestion"), choices: [...ONBOARDING_BIRTHDATE_CHOICES] };
     case "gender":
       return { question: t("onboarding.genderQuestion"), choices: [...GENDER_CHOICES] };
+    case "ai_focus":
+      return {
+        question:
+          "どのテーマで整えたいですか？ 目的に合ったAIを選ぶと、この後あなた専用の心理テストと診断から始めます。（あとで切り替えられます）",
+        choices: PSYCH_MODULE_CHOICES.map(c => c.label),
+      };
+    case "psych":
+      // 心理テストは専用UI（PsychTestStep）で表示するため、通常の質問文は出さない
+      return { question: "", choices: [] };
     case "course":
       return { question: COURSE_SELECTION_MESSAGE, choices: getCourseChoiceLabels() };
     case "name":
@@ -83,6 +93,9 @@ export function buildOnboardingTransition(
       break;
     case "gender":
       parts.push(t("onboarding.empathyGender"));
+      break;
+    case "ai_focus":
+      parts.push("承知しました。では、あなたに合わせた簡単な心理テストから始めましょう。");
       break;
     case "course":
       parts.push(t("onboarding.empathyCourse"));

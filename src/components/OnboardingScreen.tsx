@@ -30,6 +30,9 @@ import {
   getOnboardingStepPrompt,
 } from "@/src/lib/onboardingResponses";
 import { loadIntroDraft } from "@/src/lib/introStorage";
+import PsychTestStep from "@/src/components/PsychTestStep";
+import { saveAiModuleSelection } from "@/src/lib/ai/loader";
+import { moduleIdFromPsychChoice, type PsychResult } from "@/src/lib/psychTests";
 import {
   applyStoredProfileToProgress,
   hasVoiceHintBeenShown,
@@ -60,15 +63,12 @@ type Props = {
   onDeferToHome: (data: OnboardingFlowData) => void;
 };
 
-function buildWelcomeMessages(t: (k: string) => string): OnboardingMessage[] {
+function buildWelcomeIntro(t: (k: string) => string): string {
   const introDraft = loadIntroDraft();
   const welcome = introDraft
     ? buildWelcomeMessageFromIntro(introDraft, t)
     : buildWelcomeMessage(t);
-  return [
-    { type: "ai", text: welcome.intro },
-    { type: "ai", text: welcome.question },
-  ];
+  return welcome.intro;
 }
 
 function buildInitialFlowState(): {
@@ -82,13 +82,13 @@ function buildInitialFlowState(): {
   return { step, progress, flowData: progress.flowData };
 }
 
-function shouldShowGoalWelcome(
+function shouldShowWelcomeIntro(
   progress: OnboardingProgress,
   existingMessages: OnboardingMessage[] = [],
 ): boolean {
-  if (isQuestionAnswered(progress, "goal")) return false;
-  if (progress.flowData.goal?.trim()) return false;
   if (existingMessages.some(message => message.type === "user")) return false;
+  // 最初のステップ（性別など）に到達しており、まだ何も進んでいないとき
+  if (isQuestionAnswered(progress, "gender")) return false;
   return true;
 }
 
@@ -98,14 +98,13 @@ function buildInitialMessages(
   progress: OnboardingProgress,
   existingMessages: OnboardingMessage[] = [],
 ): OnboardingMessage[] {
-  if (step === "goal") {
-    if (shouldShowGoalWelcome(progress, existingMessages)) return buildWelcomeMessages(t);
-    const prompt = getOnboardingStepPrompt("goal", t);
-    return prompt.question ? [{ type: "ai", text: prompt.question }] : [];
+  const messages: OnboardingMessage[] = [];
+  if (shouldShowWelcomeIntro(progress, existingMessages)) {
+    messages.push({ type: "ai", text: buildWelcomeIntro(t) });
   }
   const prompt = getOnboardingStepPrompt(step, t);
-  if (!prompt.question) return [];
-  return [{ type: "ai", text: prompt.question }];
+  if (prompt.question) messages.push({ type: "ai", text: prompt.question });
+  return messages;
 }
 
 export function OnboardingScreen({ fetchProposal, onQuestionnaireDone, onDeferToHome }: Props) {
@@ -164,7 +163,7 @@ export function OnboardingScreen({ fetchProposal, onQuestionnaireDone, onDeferTo
 
     if (!goalAnswered && !hasUserMessages) {
       const syncedStep = resolveActiveQuestionStep(synced);
-      if (syncedStep !== "goal" || !shouldShowGoalWelcome(synced, messagesRef.current)) {
+      if (syncedStep !== "gender" || !shouldShowWelcomeIntro(synced, messagesRef.current)) {
         setStep(syncedStep);
         stepRef.current = syncedStep;
         if (syncedStep !== initialStep) {
@@ -435,6 +434,20 @@ export function OnboardingScreen({ fetchProposal, onQuestionnaireDone, onDeferTo
           advanceAfterAnswer("gender", text, nextProgress, updated);
           return;
         }
+        if (currentStep === "ai_focus") {
+          const moduleId = moduleIdFromPsychChoice(text) ?? "date-general-v1";
+          saveAiModuleSelection(moduleId);
+          const updated = { ...currentFlow, selectedModuleId: moduleId };
+          const nextProgress = recordAnswer(currentProgress, "ai_focus", { selectedModuleId: moduleId });
+          setFlowData(updated);
+          flowDataRef.current = updated;
+          advanceAfterAnswer("ai_focus", text, nextProgress, updated);
+          return;
+        }
+        if (currentStep === "psych") {
+          // 心理テストは PsychTestStep コンポーネントで回答する。テキスト入力は無視。
+          return;
+        }
         if (currentStep === "birthdate") {
           if (isOnboardingFreeInputChoice(text) && awaitingFreeInputRef.current !== "birthdate") return;
           awaitingFreeInputRef.current = null;
@@ -515,6 +528,35 @@ export function OnboardingScreen({ fetchProposal, onQuestionnaireDone, onDeferTo
       }
     },
     [advanceAfterAnswer, appendTransitionMessages, fetchProposal, handleLifestyleStepAnswer, handleStructuredStepAnswer, persist, pushAi, pushUser, skipAnsweredProfileStep, t],
+  );
+
+  const handlePsychComplete = useCallback(
+    (result: PsychResult) => {
+      const currentProgress = progressRef.current;
+      const currentFlow = flowDataRef.current;
+      const patch = { psychResult: result.title } as Partial<OnboardingFlowData>;
+      const nextProgress = recordAnswer(currentProgress, "psych", patch);
+      const updated = { ...currentFlow, ...patch };
+      setFlowData(updated);
+      flowDataRef.current = updated;
+
+      const nextStep = resolveNextStepAfter("psych", nextProgress);
+      const targetStep = nextStep === "proposal" ? "goal" : nextStep;
+      persist(nextProgress, targetStep, updated);
+      setStep(targetStep);
+      stepRef.current = targetStep;
+
+      setMessages(prev => {
+        const next: OnboardingMessage[] = [...prev];
+        next.push({ type: "ai", text: `【あなたの診断】${result.title}\n\n${result.body}` });
+        if (result.bridge) next.push({ type: "ai", text: result.bridge });
+        const prompt = getOnboardingStepPrompt(targetStep, t);
+        if (prompt.question) next.push({ type: "ai", text: prompt.question });
+        messagesRef.current = next;
+        return next;
+      });
+    },
+    [persist, t],
   );
 
   const handleChoice = useCallback(
@@ -630,6 +672,9 @@ export function OnboardingScreen({ fetchProposal, onQuestionnaireDone, onDeferTo
               </button>
             ))}
           </div>
+        )}
+        {step === "psych" && !isQuestionAnswered(progress, "psych") && !isLoading && (
+          <PsychTestStep moduleId={flowData.selectedModuleId} onComplete={handlePsychComplete} />
         )}
         {isLoading && <div style={{ fontSize: 13, color: "#8b7355", padding: "8px 0" }}>{t("onboarding.generating")}</div>}
         <div ref={endRef} />

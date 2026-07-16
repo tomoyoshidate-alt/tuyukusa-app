@@ -4,6 +4,7 @@ import {
   CHAT_DAY_START_FREE_LABEL,
   getChatDayStartChoiceLabels,
 } from "./chatDayStart";
+import { PSYCH_MODULE_CHOICES } from "./psychTests";
 
 export const ONBOARDING_WELCOME_MESSAGE = `こんにちは。
 「つゆくさアプリ」です。
@@ -54,6 +55,8 @@ export type OnboardingStep =
   | "welcome"
   | "birthdate"
   | "gender"
+  | "ai_focus"
+  | "psych"
   | "goal"
   | "course"
   | "name"
@@ -81,6 +84,10 @@ export type OnboardingFlowData = LifestyleKnowledge & {
   gender?: string;
   name?: string;
   nickname?: string;
+  /** 初期に選んだ目的別AI（date-general-v1 / date-adhd-v1 / date-kafun-v1 / date-anger-v1） */
+  selectedModuleId?: string;
+  /** 心理テストの診断見出し（例：「肝の高ぶりタイプ」） */
+  psychResult?: string;
   questionnaireCourse?: QuestionnaireCourse;
   weekdayWake?: string;
   weekdayBedtime?: string;
@@ -180,6 +187,10 @@ export function getOnboardingStepChoices(step: OnboardingStep): string[] {
       return [...ONBOARDING_BIRTHDATE_CHOICES];
     case "gender":
       return [...GENDER_CHOICES];
+    case "ai_focus":
+      return PSYCH_MODULE_CHOICES.map(c => c.label);
+    case "psych":
+      return [];
     case "name":
       return [];
     case "bedtime":
@@ -305,6 +316,8 @@ export function buildOnboardingProposalPrompt(data: OnboardingFlowData): string 
     `・生年月日: ${data.birthDate ?? "未設定"}`,
     `・性別: ${data.gender ?? "未設定"}`,
     `・お名前: ${data.nickname ?? data.name ?? "未設定"}`,
+    `・選んだ目的別AI: ${data.selectedModuleId ?? "未設定"}`,
+    `・初期・心理テストの診断: ${data.psychResult ?? "未設定"}`,
     `・問診コース: ${data.questionnaireCourse ?? "未設定"}`,
     `・実現したい生活: ${data.goal ?? "未設定"}`,
     `・就寝時間: ${data.bedtime ?? data.weekdayBedtime ?? "未設定"}`,

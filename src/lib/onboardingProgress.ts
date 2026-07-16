@@ -10,11 +10,11 @@ import { getEffectiveCourse, getQuestionOrder, getNextStepInCourse, isStructured
 export const ONBOARDING_PROGRESS_KEY = "tuyukusa-onboarding-progress";
 export const ONBOARDING_PROFILE_STEPS: OnboardingStep[] = ["birthdate", "gender", "course", "name"];
 export const ONBOARDING_QUESTION_ORDER: OnboardingStep[] = [
-  "goal", "birthdate", "gender", "course", "name", "bedtime", "wake", "bath", "sleep_duration",
+  "gender", "name", "birthdate", "ai_focus", "psych", "goal", "course", "bedtime", "wake", "bath", "sleep_duration",
 ];
 
 const VALID_ONBOARDING_STEPS = new Set<OnboardingStep>([
-  "goal", "birthdate", "gender", "course", "name", "bedtime", "wake",
+  "goal", "birthdate", "gender", "ai_focus", "psych", "course", "name", "bedtime", "wake",
   "weekday_wake", "weekday_bedtime", "weekend_wake", "weekend_bedtime",
   "bath", "sleep_duration", "hobbies", "time_balance", "alcohol",
   "meal_breakfast", "meal_lunch", "meal_dinner", "meal_values", "proposal",
@@ -262,6 +262,8 @@ function fieldAnswered(data: OnboardingFlowData, step: OnboardingStep): boolean 
     case "goal": return !!data.goal?.trim();
     case "birthdate": return !!data.birthDate?.trim();
     case "gender": return !!data.gender?.trim();
+    case "ai_focus": return !!data.selectedModuleId?.trim();
+    case "psych": return !!data.psychResult?.trim();
     case "course": return !!data.questionnaireCourse;
     case "name": return !!(data.nickname?.trim() || data.name?.trim());
     case "bedtime": return !!data.bedtime?.trim();

@@ -68,7 +68,8 @@ export function getEffectiveCourse(flowData: OnboardingFlowData): QuestionnaireC
   return flowData.questionnaireCourse ?? loadQuestionnaireCourse();
 }
 
-const BASE_QUESTION_ORDER: OnboardingStep[] = ["goal", "birthdate", "gender", "course", "name"];
+// 統一フロー：性別・名前 → 目的別AI選択 → 心理テスト＋診断 → 目標(goal)・コース・生活設問
+const BASE_QUESTION_ORDER: OnboardingStep[] = ["gender", "name", "birthdate", "ai_focus", "psych", "goal", "course"];
 const SHORT_LIFESTYLE_STEPS: OnboardingStep[] = ["bedtime", "wake", "bath", "sleep_duration"];
 const EXTENDED_LIFESTYLE_STEPS: OnboardingStep[] = [
   "weekday_wake", "weekday_bedtime", "weekend_wake", "weekend_bedtime", "bath", "sleep_duration",
