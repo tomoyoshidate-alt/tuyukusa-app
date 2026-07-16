@@ -46,18 +46,19 @@ export function getOnboardingStepPrompt(step: OnboardingStep, t: Translate): { q
     case "ai_focus":
       return {
         question:
-          "どのテーマで整えたいですか？ 目的に合ったAIを選ぶと、この後あなた専用の心理テストと診断から始めます。（あとで切り替えられます）",
+          "どのアプリで整えていきますか？ 選んだアプリに合わせて、このあと簡単な心理テストと診断から始めます。（あとで設定からいつでも切り替えられます）",
         choices: PSYCH_MODULE_CHOICES.map(c => c.label),
       };
     case "psych":
-      // 心理テストは専用UI（PsychTestStep）で表示するため、通常の質問文は出さない
+    case "rhythm":
+      // 心理テスト・生活リズム設計は専用UIで表示するため、通常の質問文は出さない
       return { question: "", choices: [] };
     case "course":
       return { question: COURSE_SELECTION_MESSAGE, choices: getCourseChoiceLabels() };
     case "name":
       return {
         question: t("onboarding.nameQuestion"),
-        choices: [t("onboarding.defaultNicknameChoice"), t("onboarding.skip")],
+        choices: [t("onboarding.defaultNicknameChoice")],
       };
     case "bedtime":
     case "wake":

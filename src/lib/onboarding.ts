@@ -6,8 +6,8 @@ import {
 } from "./chatDayStart";
 import { PSYCH_MODULE_CHOICES } from "./psychTests";
 
-export const ONBOARDING_WELCOME_MESSAGE = `こんにちは。
-「つゆくさアプリ」です。
+export const ONBOARDING_WELCOME_MESSAGE = `つゆくさ医院院長の
+伊達伯欣医師です。
 このアプリは、あなたが
 実現したい生活リズムの
 サポートと健康相談が
@@ -75,6 +75,7 @@ export type OnboardingStep =
   | "meal_lunch"
   | "meal_dinner"
   | "meal_values"
+  | "rhythm"
   | "proposal";
 
 export type QuestionnaireCourse = "short" | "standard" | "detailed";
@@ -100,6 +101,8 @@ export type OnboardingFlowData = LifestyleKnowledge & {
   mealLunch?: string;
   mealDinner?: string;
   mealValues?: string;
+  /** 生活リズム設計（逆算プラン＋アラート設定）の完了サマリー */
+  rhythmPlanSummary?: string;
 };
 
 export const GENDER_CHOICES = ["男性", "女性", "回答しない"] as const;
@@ -330,6 +333,9 @@ export function buildOnboardingProposalPrompt(data: OnboardingFlowData): string 
   }
   if (data.weekendWake || data.weekendBedtime) {
     lines.push(`・休日 起床/就寝: ${data.weekendWake ?? "未設定"} / ${data.weekendBedtime ?? "未設定"}`);
+  }
+  if (data.rhythmPlanSummary) {
+    lines.push("", "・作成済みの生活リズム設計（逆算プラン。アラート設定済み。提案はこのプランと矛盾しないように）:", data.rhythmPlanSummary);
   }
   if (data.hobbies) lines.push(`・趣味・好きな過ごし方: ${data.hobbies}`);
   if (data.timeBalance) lines.push(`・一人/人との時間: ${data.timeBalance}`);

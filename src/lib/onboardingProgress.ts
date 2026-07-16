@@ -1,6 +1,5 @@
 import type { OnboardingFlowData, OnboardingStep } from "./onboarding";
 import {
-  getLifestyleChainNext,
   isOnboardingLifestyleStep,
   ONBOARDING_STEPS_AFTER_GOAL,
 } from "./onboarding";
@@ -10,14 +9,14 @@ import { getEffectiveCourse, getQuestionOrder, getNextStepInCourse, isStructured
 export const ONBOARDING_PROGRESS_KEY = "tuyukusa-onboarding-progress";
 export const ONBOARDING_PROFILE_STEPS: OnboardingStep[] = ["birthdate", "gender", "course", "name"];
 export const ONBOARDING_QUESTION_ORDER: OnboardingStep[] = [
-  "gender", "name", "birthdate", "ai_focus", "psych", "goal", "course", "bedtime", "wake", "bath", "sleep_duration",
+  "gender", "name", "ai_focus", "psych", "birthdate", "goal", "course", "bedtime", "wake", "bath", "sleep_duration", "rhythm",
 ];
 
 const VALID_ONBOARDING_STEPS = new Set<OnboardingStep>([
   "goal", "birthdate", "gender", "ai_focus", "psych", "course", "name", "bedtime", "wake",
   "weekday_wake", "weekday_bedtime", "weekend_wake", "weekend_bedtime",
   "bath", "sleep_duration", "hobbies", "time_balance", "alcohol",
-  "meal_breakfast", "meal_lunch", "meal_dinner", "meal_values", "proposal",
+  "meal_breakfast", "meal_lunch", "meal_dinner", "meal_values", "rhythm", "proposal",
 ]);
 
 /** Legacy steps from before hourly time-choice refactor */
@@ -200,13 +199,10 @@ export function resolveNextStepAfter(fromStep: OnboardingStep, progress: Onboard
   if (fromStep === "goal") {
     const profileStep = resolveNextProfileStepAfterGoal(progress);
     if (profileStep) next = profileStep;
-    else {
-      const lifestyleNext = getLifestyleChainNext("goal");
-      next = lifestyleNext === "proposal" ? "proposal" : lifestyleNext;
-    }
+    else next = resolveForwardFromCourse("goal", progress);
   } else if (isOnboardingLifestyleStep(fromStep)) {
-    const lifestyleNext = getLifestyleChainNext(fromStep);
-    next = lifestyleNext === "proposal" ? "proposal" : lifestyleNext;
+    // コース順で次の未回答ステップへ（短縮コースは従来チェーンと同順。rhythm も拾う）
+    next = resolveForwardFromCourse(fromStep, progress);
   } else {
     const courseNext = getNextStepInCourse(fromStep, progress.flowData);
     if (courseNext === "proposal") next = "proposal";
@@ -281,6 +277,7 @@ function fieldAnswered(data: OnboardingFlowData, step: OnboardingStep): boolean 
     case "meal_lunch": return !!data.mealLunch?.trim();
     case "meal_dinner": return !!data.mealDinner?.trim();
     case "meal_values": return !!data.mealValues?.trim();
+    case "rhythm": return !!data.rhythmPlanSummary?.trim();
     default: return false;
   }
 }

@@ -51,10 +51,22 @@ function topTag(tally: Record<string, number>, fallback: string): string {
 
 /** 選択画面のAIラベル → moduleId */
 export const PSYCH_MODULE_CHOICES: { moduleId: string; label: string }[] = [
-  { moduleId: "date-general-v1", label: "🌿 毎日の養生（総合）" },
-  { moduleId: "date-adhd-v1", label: "📝 つゆくさADHD（遅刻をなくす）" },
-  { moduleId: "date-kafun-v1", label: "🌸 つゆくさ花粉（花粉症を軽く）" },
-  { moduleId: "date-anger-v1", label: "🧘 つゆくさアンガー（怒りをしずめる）" },
+  {
+    moduleId: "date-adhd-v1",
+    label: "📝 ADHDアプリ\n遅刻・忘れ物をなくしたい方に。時間の見積もりと逆算アラートで「間に合う」を仕組みにします",
+  },
+  {
+    moduleId: "date-anger-v1",
+    label: "🧘 怒りアプリ\nイライラ・怒り・落ち込みが気になる方に。怒りのタイプを見立てて、こころとからだの両面からしずめます",
+  },
+  {
+    moduleId: "date-kafun-v1",
+    label: "🌸 花粉症アプリ\n鼻・目・肌の症状がつらい方に。体質（証）に合わせた養生と塩湯で花粉の季節を軽くします",
+  },
+  {
+    moduleId: "date-general-v1",
+    label: "🌿 漢方養生アプリ（総合）\n上の3つの要素も取り入れながら、漢方・食養生・睡眠で毎日を整えます",
+  },
 ];
 
 export function moduleIdFromPsychChoice(label: string): string | null {

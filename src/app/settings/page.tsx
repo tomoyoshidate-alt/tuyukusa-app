@@ -11,6 +11,7 @@ import {
 } from "@/src/lib/themeStyles";
 import { LocationSettingsPanel } from "@/src/components/LocationSettingsPanel";
 import { PushNotificationToggle } from "@/src/components/PushNotificationToggle";
+import QuickLaunchGuide from "@/src/components/QuickLaunchGuide";
 
 export default function SettingsPage() {
   const { t } = useTranslation();
@@ -87,6 +88,10 @@ export default function SettingsPage() {
         <PushNotificationToggle />
         <div style={themeSectionTitleStyle}>{t("settings.locationSectionTitle")}</div>
         <LocationSettingsPanel />
+        <div style={themeSectionTitleStyle}>すぐ起動（背面ダブルタップ・音声タスク追加）</div>
+        <div style={themeCardStyle}>
+          <QuickLaunchGuide />
+        </div>
       </main>
     </div>
   );

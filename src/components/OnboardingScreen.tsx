@@ -31,6 +31,7 @@ import {
 } from "@/src/lib/onboardingResponses";
 import { loadIntroDraft } from "@/src/lib/introStorage";
 import PsychTestStep from "@/src/components/PsychTestStep";
+import RhythmPlanStep from "@/src/components/RhythmPlanStep";
 import { saveAiModuleSelection } from "@/src/lib/ai/loader";
 import { moduleIdFromPsychChoice, type PsychResult } from "@/src/lib/psychTests";
 import {
@@ -391,19 +392,18 @@ export function OnboardingScreen({ fetchProposal, onQuestionnaireDone, onDeferTo
         const currentProgress = progressRef.current;
         const currentFlow = flowDataRef.current;
         let currentStep = stepRef.current;
-        if (isQuestionAnswered(currentProgress, "goal")) {
-          if (currentStep === "goal") {
-            currentStep = resolveActiveQuestionStep(currentProgress);
-            setStep(currentStep);
-            stepRef.current = currentStep;
+        if (currentStep !== "proposal") {
+          // 表示中ステップがすでに回答済み（別端末同期・再開など）の場合のみ、実際の未回答ステップへ補正する。
+          // ※以前は goal 未回答時に強制的に goal 扱いにしていたが、性別→名前→AI選択が先頭の現行フローでは
+          //   最初の回答が goal に誤記録されるため撤廃。
+          if (isQuestionAnswered(currentProgress, currentStep)) {
+            const activeStep = resolveActiveQuestionStep(currentProgress);
+            if (activeStep !== currentStep) {
+              currentStep = activeStep;
+              setStep(activeStep);
+              stepRef.current = activeStep;
+            }
           }
-        } else {
-          currentStep = "goal";
-        }
-        const activeStep = resolveActiveQuestionStep(currentProgress);
-        if (isLifestyleQuestionStep(activeStep) && !isQuestionAnswered(currentProgress, activeStep)) {
-          currentStep = activeStep;
-          stepRef.current = activeStep;
         }
         if (skipAnsweredProfileStep(currentStep, currentProgress, currentFlow)) return;
         if (currentStep === "goal") {
@@ -559,6 +559,48 @@ export function OnboardingScreen({ fetchProposal, onQuestionnaireDone, onDeferTo
     [persist, t],
   );
 
+  const handleRhythmComplete = useCallback(
+    (summary: string) => {
+      const currentProgress = progressRef.current;
+      const currentFlow = flowDataRef.current;
+      const patch = { rhythmPlanSummary: summary } as Partial<OnboardingFlowData>;
+      const nextProgress = recordAnswer(currentProgress, "rhythm", patch);
+      const updated = { ...currentFlow, ...patch };
+      setFlowData(updated);
+      flowDataRef.current = updated;
+
+      setMessages(prev => {
+        const next: OnboardingMessage[] = [
+          ...prev,
+          { type: "ai", text: `生活リズムの設計とアラート設定ができました。\n\n${summary}` },
+        ];
+        messagesRef.current = next;
+        return next;
+      });
+
+      const nextStep = resolveNextStepAfter("rhythm", nextProgress);
+      if (nextStep === "proposal") {
+        persist(nextProgress, "rhythm", updated);
+        void startProposalGeneration(summary, updated);
+        return;
+      }
+      persist(nextProgress, nextStep, updated);
+      setStep(nextStep);
+      stepRef.current = nextStep;
+      setMessages(prev => {
+        const prompt = getOnboardingStepPrompt(nextStep, t);
+        if (!prompt.question) {
+          messagesRef.current = prev;
+          return prev;
+        }
+        const next: OnboardingMessage[] = [...prev, { type: "ai", text: prompt.question }];
+        messagesRef.current = next;
+        return next;
+      });
+    },
+    [persist, startProposalGeneration, t],
+  );
+
   const handleChoice = useCallback(
     (choice: string) => {
       if (isOnboardingFreeInputChoice(choice)) {
@@ -675,6 +717,9 @@ export function OnboardingScreen({ fetchProposal, onQuestionnaireDone, onDeferTo
         )}
         {step === "psych" && !isQuestionAnswered(progress, "psych") && !isLoading && (
           <PsychTestStep moduleId={flowData.selectedModuleId} onComplete={handlePsychComplete} />
+        )}
+        {step === "rhythm" && !isQuestionAnswered(progress, "rhythm") && !isLoading && (
+          <RhythmPlanStep flowData={flowData} onComplete={handleRhythmComplete} />
         )}
         {isLoading && <div style={{ fontSize: 13, color: "#8b7355", padding: "8px 0" }}>{t("onboarding.generating")}</div>}
         <div ref={endRef} />

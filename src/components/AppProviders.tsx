@@ -12,6 +12,7 @@ import {
 import { ThemeProvider } from "@/src/components/ThemeProvider";
 import { FontSizeProvider } from "@/src/components/FontSizeProvider";
 import StudioPresetsLoader from "@/src/components/StudioPresetsLoader";
+import RhythmPlanDailyAlarms from "@/src/components/RhythmPlanDailyAlarms";
 import { DevRequestShell } from "@/src/components/DevRequestShell";
 
 export default function AppProviders({ children }: { children: React.ReactNode }) {
@@ -41,6 +42,7 @@ export default function AppProviders({ children }: { children: React.ReactNode }
       <ThemeProvider>
         <FontSizeProvider>
           <StudioPresetsLoader />
+          <RhythmPlanDailyAlarms />
           {children}
           <DevRequestShell />
         </FontSizeProvider>

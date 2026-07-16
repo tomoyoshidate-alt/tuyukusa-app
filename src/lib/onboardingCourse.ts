@@ -68,8 +68,8 @@ export function getEffectiveCourse(flowData: OnboardingFlowData): QuestionnaireC
   return flowData.questionnaireCourse ?? loadQuestionnaireCourse();
 }
 
-// 統一フロー：性別・名前 → 目的別AI選択 → 心理テスト＋診断 → 目標(goal)・コース・生活設問
-const BASE_QUESTION_ORDER: OnboardingStep[] = ["gender", "name", "birthdate", "ai_focus", "psych", "goal", "course"];
+// 統一フロー：性別 → 名前 → 目的別AI選択 → 心理テスト＋診断 → 生年月日 → 目標(goal)・コース・生活設問 → 生活リズム設計(rhythm)
+const BASE_QUESTION_ORDER: OnboardingStep[] = ["gender", "name", "ai_focus", "psych", "birthdate", "goal", "course"];
 const SHORT_LIFESTYLE_STEPS: OnboardingStep[] = ["bedtime", "wake", "bath", "sleep_duration"];
 const EXTENDED_LIFESTYLE_STEPS: OnboardingStep[] = [
   "weekday_wake", "weekday_bedtime", "weekend_wake", "weekend_bedtime", "bath", "sleep_duration",
@@ -77,8 +77,8 @@ const EXTENDED_LIFESTYLE_STEPS: OnboardingStep[] = [
 ];
 
 export function getQuestionOrder(course: QuestionnaireCourse | null | undefined): OnboardingStep[] {
-  if (!course || course === "short") return [...BASE_QUESTION_ORDER, ...SHORT_LIFESTYLE_STEPS];
-  return [...BASE_QUESTION_ORDER, ...EXTENDED_LIFESTYLE_STEPS];
+  if (!course || course === "short") return [...BASE_QUESTION_ORDER, ...SHORT_LIFESTYLE_STEPS, "rhythm"];
+  return [...BASE_QUESTION_ORDER, ...EXTENDED_LIFESTYLE_STEPS, "rhythm"];
 }
 
 export function getNextStepInCourse(fromStep: OnboardingStep, flowData: OnboardingFlowData): OnboardingStep | "proposal" {
