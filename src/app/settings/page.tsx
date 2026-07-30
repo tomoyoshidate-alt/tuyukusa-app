@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useTranslation } from "react-i18next";
 import {
   themeAppShellStyle,
+  themeBackLinkStyle,
   themeCardStyle,
   themeHeaderStyle,
   themeMutedTextStyle,
@@ -20,16 +21,12 @@ export default function SettingsPage() {
     <div style={themeAppShellStyle}>
       <header style={themeHeaderStyle}>
         <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-          <Link
-            href="/"
-            style={{ color: "inherit", textDecoration: "none", fontSize: 20, lineHeight: 1 }}
-            aria-label={t("common.close")}
-          >
+          <Link href="/" style={themeBackLinkStyle} aria-label={t("common.close")}>
             ←
           </Link>
           <div>
             <div style={{ fontSize: "var(--t-font-size-xl)", fontWeight: "bold" }}>{t("tabs.settings")}</div>
-            <div style={{ fontSize: 11, opacity: 0.75, marginTop: 2 }}>{t("common.appSubtitle")}</div>
+            <div style={{ fontSize: "var(--t-font-size-sm)", opacity: 0.75, marginTop: 2 }}>{t("common.appSubtitle")}</div>
           </div>
         </div>
       </header>

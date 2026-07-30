@@ -90,12 +90,13 @@ export default function QuickLaunchGuide() {
             type="button"
             onClick={() => setSelected(k)}
             style={{
-              padding: "6px 12px",
+              minHeight: 44,
+              padding: "10px 14px",
               borderRadius: 16,
-              fontSize: 12,
+              fontSize: "var(--t-font-size-base)",
               cursor: "pointer",
-              border: show === k ? "1.5px solid #4a6741" : "1.5px solid rgba(60,40,20,0.15)",
-              background: show === k ? "rgba(74,103,65,0.12)" : "transparent",
+              border: show === k ? "1.5px solid #4a6741" : "1.5px solid var(--t-border-strong)",
+              background: show === k ? "var(--t-accent-bg)" : "transparent",
               color: "var(--t-text, #3d3228)",
             }}
           >
@@ -115,7 +116,7 @@ export default function QuickLaunchGuide() {
           <button
             type="button"
             onClick={() => void copyUrl()}
-            style={{ padding: "6px 12px", borderRadius: 8, border: "1.5px solid rgba(60,40,20,0.15)", background: "transparent", fontSize: 12, cursor: "pointer", color: "var(--t-text, #3d3228)", flexShrink: 0 }}
+            style={{ minHeight: 44, padding: "10px 14px", borderRadius: 8, border: "1.5px solid var(--t-border-strong)", background: "transparent", fontSize: "var(--t-font-size-base)", cursor: "pointer", color: "var(--t-text, #3d3228)", flexShrink: 0 }}
           >
             {copied ? "コピー済み" : "コピー"}
           </button>

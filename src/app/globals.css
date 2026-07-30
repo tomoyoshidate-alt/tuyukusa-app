@@ -10,25 +10,33 @@
   --ink: #3d3429;
   --ink-muted: #6b5f52;
 
-  /* Theme tokens (defaults = natural light) */
+  /* Theme tokens (defaults = natural light, Liquid Glass 質感)
+     JS 側の applyTheme → toGlassVars が各テーマモードで同等の値を再生成する。
+     ここは初回描画（JS 適用前）のちらつき防止用のデフォルト。 */
   --t-bg: #faf8f4;
   --t-bg-gradient-start: #faf8f4;
   --t-bg-gradient-end: #faf8f4;
-  --t-bg-gradient: #faf8f4;
-  --t-card-bg: #ffffff;
+  --t-bg-gradient:
+    radial-gradient(1100px 780px at 10% -8%, rgba(122, 158, 126, 0.13), transparent 62%),
+    radial-gradient(900px 680px at 108% 14%, rgba(122, 158, 126, 0.09), transparent 62%),
+    radial-gradient(1000px 760px at 50% 118%, rgba(122, 158, 126, 0.09), transparent 60%),
+    #faf8f4;
+  --t-card-bg: color-mix(in srgb, #ffffff 88%, transparent);
   --t-text: #2c2016;
   --t-text-muted: #6b5d4f;
   --t-text-inverse: #faf8f4;
   --t-primary: #7a9e7e;
   --t-primary-light: #96b69a;
-  --t-primary-bg: #f5f1eb;
+  /* 文字色用の濃い主役色（--t-primary は小さい文字だと 2.97:1 で基準を割る） */
+  --t-primary-text: #4a6741;
+  --t-primary-bg: color-mix(in srgb, #f5f1eb 88%, transparent);
   --t-accent: #7a9e7e;
   --t-accent-bg: #eef4ef;
-  --t-border: #e8e0d4;
+  --t-border: color-mix(in srgb, #e8e0d4 80%, transparent);
   --t-border-strong: #e8e0d4;
-  --t-header-bg: #f0ebe3;
+  --t-header-bg: color-mix(in srgb, #f0ebe3 70%, transparent);
   --t-header-text: #2c2016;
-  --t-nav-bg: #f0ebe3;
+  --t-nav-bg: color-mix(in srgb, #f0ebe3 70%, transparent);
   --t-nav-text: #2c2016;
   --t-nav-active: #7a9e7e;
   --t-nav-inactive: #6b5d4f;
@@ -36,10 +44,11 @@
   --t-success: #7a9e7e;
   --t-notion-bg: #eef4fb;
   --t-notion-border: rgba(126, 200, 227, 0.35);
-  --t-radius-sm: 8px;
-  --t-radius-md: 12px;
-  --t-radius-lg: 14px;
-  --t-shadow: 0 2px 8px rgba(44, 32, 22, 0.06);
+  --t-radius-sm: 12px;
+  --t-radius-md: 16px;
+  --t-radius-lg: 20px;
+  --t-shadow: 0 10px 28px rgba(44, 32, 22, 0.10), 0 2px 8px rgba(44, 32, 22, 0.05),
+    inset 0 1px 0 rgba(255, 255, 255, 0.55), inset 0 0 0 0.5px rgba(255, 255, 255, 0.30);
   --t-font-family: var(--font-noto-sans), "Hiragino Sans", "Yu Gothic", sans-serif;
   --t-font-size-sm: 11px;
   --t-font-size-base: 13px;
@@ -49,9 +58,48 @@
   --t-font-size-heading: 15px;
   --t-font-weight-bold: 700;
   --t-checkbox-accent: #7a9e7e;
-  --t-input-bg: #f5f1eb;
+  --t-input-bg: color-mix(in srgb, #f5f1eb 90%, transparent);
   --t-diagnosis-bg: linear-gradient(160deg, #f0ebe3, #e8e0d4);
   --t-diagnosis-text: #2c2016;
+}
+
+/* ── Liquid Glass（Apple 風ガラス質感） ──
+   面トークン（--t-card-bg 等）はインラインスタイルで参照されるため、
+   style 属性セレクタで「その面を使っている要素」に backdrop-filter をかける。
+   半透明化そのものはテーマトークン側（glass.ts / 上記デフォルト値）で行う。
+
+   HIG は画面を2層に分ける：
+   ・機能層（ヘッダー・ナビ・サイドバー）＝しっかり透けてぼかしも強い
+   ・コンテンツ層（本文カード・入力欄）＝読みやすさ優先で控えめ
+   ぼかしを強めると背景の細部が消えるので、可読性は「上がる」方向に働く。 */
+
+/* 機能層：Apple の Regular 変種の推奨（blur 20〜40px）に合わせる */
+[style*="var(--t-header-bg)"],
+[style*="var(--t-nav-bg)"],
+.app-sidebar {
+  -webkit-backdrop-filter: blur(24px) saturate(180%);
+  backdrop-filter: blur(24px) saturate(180%);
+}
+
+/* コンテンツ層：面はほぼ不透明なので、質感づけの軽いぼかしだけ */
+[style*="var(--t-card-bg)"],
+[style*="var(--t-input-bg)"],
+[style*="var(--t-primary-bg)"] {
+  -webkit-backdrop-filter: blur(12px) saturate(130%);
+  backdrop-filter: blur(12px) saturate(130%);
+}
+
+/* 透明を減らす設定（アクセシビリティ）のときはぼかしを切り、面をほぼ不透明に */
+@media (prefers-reduced-transparency: reduce) {
+  [style*="var(--t-card-bg)"],
+  [style*="var(--t-header-bg)"],
+  [style*="var(--t-nav-bg)"],
+  [style*="var(--t-input-bg)"],
+  [style*="var(--t-primary-bg)"],
+  .app-sidebar {
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
+  }
 }
 
 html.tuyukusa-theme-transition {

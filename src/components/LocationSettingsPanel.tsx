@@ -15,6 +15,7 @@ import {
   themeFieldLabelStyle,
   themeInputStyle,
   themeMutedTextStyle,
+  themeTextButtonStyle,
 } from "@/src/lib/themeStyles";
 
 export function LocationSettingsPanel() {
@@ -67,7 +68,7 @@ export function LocationSettingsPanel() {
         {t("settings.locationHint")}
       </div>
 
-      <div style={{ fontSize: 12, color: "var(--t-text-muted)", marginBottom: 8 }}>
+      <div style={{ fontSize: "var(--t-font-size-base)", color: "var(--t-text-muted)", marginBottom: 8 }}>
         {t("settings.locationCurrent")}: {selected.city}（{selected.lat.toFixed(4)}, {selected.lon.toFixed(4)}）
       </div>
 
@@ -88,12 +89,13 @@ export function LocationSettingsPanel() {
           disabled={searching || !cityQuery.trim()}
           style={{
             flexShrink: 0,
+            minHeight: 44,
             padding: "10px 14px",
             borderRadius: "var(--t-radius-sm)",
             border: "none",
             background: "#4a6741",
             color: "#fff",
-            fontSize: 12,
+            fontSize: "var(--t-font-size-btn)",
             fontWeight: "bold",
             cursor: searching ? "default" : "pointer",
             opacity: searching ? 0.6 : 1,
@@ -104,7 +106,9 @@ export function LocationSettingsPanel() {
         </button>
       </div>
 
-      {error && <div style={{ fontSize: 11, color: "#c44a4a", marginBottom: 8 }}>{error}</div>}
+      {error && (
+        <div style={{ fontSize: "var(--t-font-size-sm)", color: "var(--t-error)", marginBottom: 8 }}>{error}</div>
+      )}
 
       {results.length > 0 && (
         <div style={{ display: "flex", flexDirection: "column", gap: 6, marginBottom: 10 }}>
@@ -121,12 +125,14 @@ export function LocationSettingsPanel() {
               }
               style={{
                 textAlign: "left",
+                minHeight: 44,
                 padding: "10px 12px",
-                borderRadius: 10,
+                borderRadius: "var(--t-radius-sm)",
                 border: "1px solid var(--t-border)",
-                background: "#f5f0e8",
+                // ハードコードの明るい背景だとダークテーマで文字が見えなくなるためトークンに
+                background: "var(--t-input-bg)",
                 cursor: "pointer",
-                fontSize: 12,
+                fontSize: "var(--t-font-size-base)",
                 fontFamily: "inherit",
                 color: "var(--t-text)",
               }}
@@ -137,26 +143,14 @@ export function LocationSettingsPanel() {
         </div>
       )}
 
-      <button
-        type="button"
-        onClick={resetDefault}
-        style={{
-          background: "transparent",
-          border: "none",
-          padding: 0,
-          fontSize: 11,
-          color: "#9a8b7a",
-          cursor: "pointer",
-          fontFamily: "inherit",
-          textDecoration: "underline",
-          textUnderlineOffset: 3,
-        }}
-      >
+      <button type="button" onClick={resetDefault} style={themeTextButtonStyle}>
         {t("settings.locationResetDefault")}
       </button>
 
       {saved && (
-        <div style={{ fontSize: 11, color: "#4a6741", marginTop: 8 }}>{t("settings.locationSaved")}</div>
+        <div style={{ fontSize: "var(--t-font-size-sm)", color: "var(--t-success)", marginTop: 8 }}>
+          {t("settings.locationSaved")}
+        </div>
       )}
     </div>
   );

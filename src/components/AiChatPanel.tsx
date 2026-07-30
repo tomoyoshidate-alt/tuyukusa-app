@@ -81,7 +81,8 @@ export function BinauralPlayButton({ presetId }: { presetId: string }) {
         border: "none",
         borderRadius: 12,
         padding: "10px 16px",
-        fontSize: 13,
+        minHeight: 44,
+        fontSize: "var(--t-font-size-btn)",
         fontWeight: "bold",
         cursor: "pointer",
         color: "#fff",
@@ -212,7 +213,7 @@ export function AiChatPanel({
                   maxWidth: "85%",
                   padding: "10px 14px",
                   borderRadius: 18,
-                  fontSize: compact ? 12 : 13,
+                  fontSize: compact ? "var(--t-font-size-sm)" : "var(--t-font-size-base)",
                   lineHeight: 1.7,
                   background: msg.type === "user" ? "#1a1410" : "white",
                   color: msg.type === "user" ? "#f5f0e8" : "#1a1410",
@@ -308,7 +309,8 @@ export function AiChatPanel({
                     border: `1.5px solid ${msg.reflected ? "#6b8f62" : "#1a1410"}`,
                     borderRadius: 12,
                     padding: "12px 16px",
-                    fontSize: 13,
+                    minHeight: 44,
+                    fontSize: "var(--t-font-size-btn)",
                     fontWeight: "bold",
                     cursor: msg.reflected ? "default" : "pointer",
                     color: msg.reflected ? "#4a6741" : "#f5f0e8",
@@ -333,7 +335,8 @@ export function AiChatPanel({
                       border: `1.5px solid ${msg.scheduleSuggestions.every(s => msg.addedScheduleIds?.includes(s.id)) ? "#6b8f62" : "#1a1410"}`,
                       borderRadius: 12,
                       padding: "12px 16px",
-                      fontSize: 13,
+                      minHeight: 44,
+                      fontSize: "var(--t-font-size-btn)",
                       fontWeight: "bold",
                       cursor: msg.scheduleSuggestions.every(s => msg.addedScheduleIds?.includes(s.id))
                         ? "default"
@@ -386,8 +389,8 @@ export function AiChatPanel({
         {isLoading && (
           <div
             style={{
-              background: "white",
-              border: "1px solid rgba(60,40,20,0.1)",
+              background: "var(--t-card-bg)",
+              border: "1px solid var(--t-border)",
               borderRadius: 18,
               padding: "12px 14px",
               width: 60,
@@ -408,8 +411,8 @@ export function AiChatPanel({
       <div
         style={{
           padding: compact ? "8px 10px" : "10px 16px",
-          background: "#f5f0e8",
-          borderTop: "1px solid rgba(60,40,20,0.1)",
+          background: "var(--t-nav-bg)",
+          borderTop: "1px solid var(--t-border)",
         }}
       >
         {pendingImages.length > 0 && (
@@ -453,7 +456,9 @@ export function AiChatPanel({
           </div>
         )}
         {attachError && (
-          <div style={{ fontSize: 11, color: "#c44a4a", marginBottom: 6 }}>{attachError}</div>
+          <div style={{ fontSize: "var(--t-font-size-sm)", color: "var(--t-error)", marginBottom: 6 }}>
+            {attachError}
+          </div>
         )}
         <div style={{ display: "flex", gap: 8, alignItems: "flex-end" }}>
           <input
@@ -471,10 +476,11 @@ export function AiChatPanel({
             aria-label="画像を添付"
             style={{
               padding: "10px 12px",
-              minHeight: 42,
+              minWidth: 44,
+              minHeight: 44,
               borderRadius: 22,
-              background: "white",
-              border: "1.5px solid rgba(60,40,20,0.12)",
+              background: "var(--t-input-bg)",
+              border: "1.5px solid var(--t-border-strong)",
               cursor: isLoading || pendingImages.length >= MAX_PENDING_IMAGES ? "default" : "pointer",
               fontSize: 18,
               lineHeight: 1,
@@ -487,16 +493,17 @@ export function AiChatPanel({
           <textarea
             style={{
               flex: 1,
-              background: "white",
-              border: "1.5px solid rgba(60,40,20,0.12)",
+              background: "var(--t-input-bg)",
+              color: "var(--t-text)",
+              border: "1.5px solid var(--t-border-strong)",
               borderRadius: 22,
               padding: "10px 16px",
-              fontSize: 13,
+              fontSize: "var(--t-font-size-base)",
               outline: "none",
               resize: "none",
-              minHeight: 42,
+              minHeight: 44,
               maxHeight: 100,
-              fontFamily: "sans-serif",
+              fontFamily: "var(--t-font-family)",
               lineHeight: 1.5,
             }}
             placeholder={placeholder ?? t("chat.placeholder")}
@@ -514,13 +521,13 @@ export function AiChatPanel({
             disabled={!canSend}
             style={{
               padding: "10px 14px",
-              minHeight: 42,
+              minHeight: 44,
               borderRadius: 22,
               background: canSend ? "#1a1410" : "#9a8b7a",
               border: "none",
               cursor: canSend ? "pointer" : "default",
               color: "white",
-              fontSize: 12,
+              fontSize: "var(--t-font-size-btn)",
               fontWeight: "bold",
               flexShrink: 0,
               whiteSpace: "nowrap",

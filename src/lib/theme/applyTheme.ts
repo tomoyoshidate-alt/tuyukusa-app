@@ -1,4 +1,5 @@
 import { applyFontSizeToDocument, readStoredFontSizeId } from "@/src/lib/fontSizeSettings";
+import { toGlassVars } from "./glass";
 import { getThemeModeVars } from "./modes";
 import { getTimePeriod } from "./timeTheme";
 import type { ThemeMode, ThemeSettings } from "./types";
@@ -20,7 +21,7 @@ export function normalizeThemeSettings(data: unknown): ThemeSettings {
 }
 
 export function buildThemeCssVars(settings: ThemeSettings, date = new Date()): Record<string, string> {
-  return getThemeModeVars(settings.themeMode, date);
+  return toGlassVars(getThemeModeVars(settings.themeMode, date));
 }
 
 export function applyThemeToDocument(settings: ThemeSettings, date = new Date()): void {

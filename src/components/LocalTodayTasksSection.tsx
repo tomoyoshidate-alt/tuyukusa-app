@@ -4,6 +4,7 @@ import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import type { LocalTask } from "@/src/lib/localTasks";
 import { LOCAL_TASK_CATEGORIES } from "@/src/lib/localTasks";
+import { themeIconButtonStyle } from "@/src/lib/themeStyles";
 
 type Props = {
   tasks: LocalTask[];
@@ -54,7 +55,9 @@ export function LocalTodayTasksSection({ tasks, onToggle, onAdd, onRemove }: Pro
             borderRadius: 8,
             border: "1px solid var(--t-border)",
             fontSize: "var(--t-font-size-base)",
-            background: "white",
+            background: "var(--t-input-bg)",
+            color: "var(--t-text)",
+            minHeight: 44,
           }}
         />
         <select
@@ -64,8 +67,10 @@ export function LocalTodayTasksSection({ tasks, onToggle, onAdd, onRemove }: Pro
             padding: "8px 6px",
             borderRadius: 8,
             border: "1px solid var(--t-border)",
-            fontSize: 11,
-            background: "white",
+            fontSize: "var(--t-font-size-sm)",
+            background: "var(--t-input-bg)",
+            color: "var(--t-text)",
+            minHeight: 44,
           }}
         >
           {LOCAL_TASK_CATEGORIES.map(c => (
@@ -79,10 +84,11 @@ export function LocalTodayTasksSection({ tasks, onToggle, onAdd, onRemove }: Pro
           onClick={handleAdd}
           style={{
             padding: "8px 12px",
+            minHeight: 44,
             borderRadius: 8,
             border: "none",
             background: "var(--t-primary)",
-            color: "#f5f0e8",
+            color: "var(--t-text-inverse)",
             fontSize: "var(--t-font-size-base)",
             fontWeight: "bold",
             cursor: "pointer",
@@ -106,9 +112,10 @@ export function LocalTodayTasksSection({ tasks, onToggle, onAdd, onRemove }: Pro
               gap: 8,
               padding: "8px 10px",
               marginBottom: 6,
-              background: task.status === "done" ? "#ede5d4" : "#e8f0e4",
+              // ダークテーマでも文字が読めるようトークンから作る
+              background: task.status === "done" ? "var(--t-primary-bg)" : "var(--t-accent-bg)",
               borderRadius: 8,
-              border: "1px solid rgba(74,103,65,0.2)",
+              border: "1px solid var(--t-border)",
               opacity: task.status === "done" ? 0.75 : 1,
             }}
           >
@@ -116,14 +123,14 @@ export function LocalTodayTasksSection({ tasks, onToggle, onAdd, onRemove }: Pro
               type="checkbox"
               checked={task.status === "done"}
               onChange={() => onToggle(task)}
-              style={{ width: 16, height: 16, accentColor: "#4a6741", flexShrink: 0 }}
+              style={{ width: 22, height: 22, accentColor: "var(--t-checkbox-accent)", flexShrink: 0 }}
             />
             <div style={{ flex: 1, minWidth: 0 }}>
               <span
                 style={{
-                  fontSize: 9,
-                  color: "#4a6741",
-                  background: "rgba(74,103,65,0.12)",
+                  fontSize: "var(--t-font-size-sm)",
+                  color: "var(--t-primary-text, var(--t-primary))",
+                  background: "var(--t-accent-bg)",
                   borderRadius: 8,
                   padding: "1px 6px",
                   marginRight: 4,
@@ -133,15 +140,17 @@ export function LocalTodayTasksSection({ tasks, onToggle, onAdd, onRemove }: Pro
               </span>
               <span
                 style={{
-                  fontSize: 13,
-                  color: "#3d3228",
+                  fontSize: "var(--t-font-size-base)",
+                  color: "var(--t-text)",
                   textDecoration: task.status === "done" ? "line-through" : "none",
                 }}
               >
                 {task.text}
               </span>
               {task.time && (
-                <span style={{ fontSize: 10, color: "#9a8b7a", marginLeft: 6 }}>{task.time}</span>
+                <span style={{ fontSize: "var(--t-font-size-sm)", color: "var(--t-text-muted)", marginLeft: 6 }}>
+                  {task.time}
+                </span>
               )}
             </div>
             <button
@@ -149,12 +158,9 @@ export function LocalTodayTasksSection({ tasks, onToggle, onAdd, onRemove }: Pro
               onClick={() => onRemove(task.id)}
               aria-label={t("common.delete")}
               style={{
-                border: "none",
-                background: "none",
-                color: "#9a8b7a",
-                fontSize: 14,
-                cursor: "pointer",
-                padding: 4,
+                ...themeIconButtonStyle,
+                color: "var(--t-text-muted)",
+                fontSize: "var(--t-font-size-lg)",
               }}
             >
               ×

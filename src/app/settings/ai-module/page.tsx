@@ -12,6 +12,7 @@ import {
 import type { AiModule } from "@/src/lib/ai/types";
 import {
   themeAppShellStyle,
+  themeBackLinkStyle,
   themeCardStyle,
   themeHeaderStyle,
   themeMutedTextStyle,
@@ -213,11 +214,7 @@ export default function AiModuleSettingsPage() {
     <div style={themeAppShellStyle}>
       <header style={themeHeaderStyle}>
         <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-          <Link
-            href="/settings"
-            style={{ color: "inherit", textDecoration: "none", fontSize: 20, lineHeight: 1 }}
-            aria-label={t("common.close")}
-          >
+          <Link href="/settings" style={themeBackLinkStyle} aria-label={t("common.close")}>
             ←
           </Link>
           <div>

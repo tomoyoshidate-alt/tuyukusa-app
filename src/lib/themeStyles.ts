@@ -25,8 +25,72 @@ export const themeInputStyle: CSSProperties = {
 export const themeFieldLabelStyle: CSSProperties = {
   fontSize: "var(--t-font-size-sm)",
   fontWeight: "var(--t-font-weight-bold)" as CSSProperties["fontWeight"],
-  color: "var(--t-primary)",
+  // --t-primary（薄い緑）は小さい文字だとコントラスト 2.94:1 で
+  // Apple HIG / WCAG AA の 4.5:1 を割るため、文字用の濃い色を使う（6.2:1）
+  color: "var(--t-primary-text, var(--t-primary))",
   marginBottom: 10,
+};
+
+/**
+ * Apple HIG のタップ領域基準（モバイル既定 44×44px）を満たす最小サイズ。
+ * アイコンだけのボタン・戻る矢印・閉じるボタンに使う。
+ */
+export const themeTapTargetStyle: CSSProperties = {
+  minWidth: 44,
+  minHeight: 44,
+  display: "inline-flex",
+  alignItems: "center",
+  justifyContent: "center",
+};
+
+/** ヘッダーの戻る／閉じるリンク（44×44 の当たり判定つき） */
+export const themeBackLinkStyle: CSSProperties = {
+  ...themeTapTargetStyle,
+  color: "inherit",
+  textDecoration: "none",
+  fontSize: "var(--t-font-size-xl)",
+  lineHeight: 1,
+  marginLeft: -10,
+};
+
+/**
+ * アイコン・記号だけのボタン（× や ✕ など）。
+ *
+ * 見た目の大きさを変えずにタップ領域だけ広げたいので、
+ * padding で 44×44 を確保し、同量の負のマージンで周囲の余白を元に戻す。
+ * Apple も同じ考え方で「見た目より広い当たり判定」を持たせている。
+ */
+export const themeIconButtonStyle: CSSProperties = {
+  minWidth: 44,
+  minHeight: 44,
+  display: "inline-flex",
+  alignItems: "center",
+  justifyContent: "center",
+  padding: 12,
+  margin: -12,
+  border: "none",
+  background: "transparent",
+  cursor: "pointer",
+  fontFamily: "var(--t-font-family)",
+  flexShrink: 0,
+};
+
+/**
+ * テキストリンク風のボタン。
+ * padding: 0 で作るとタップ領域が文字の高さ（十数px）しか無くなるため、
+ * 上下に padding を持たせて 44px を確保する。
+ */
+export const themeTextButtonStyle: CSSProperties = {
+  background: "transparent",
+  border: "none",
+  padding: "12px 4px",
+  minHeight: 44,
+  fontSize: "var(--t-font-size-sm)",
+  color: "var(--t-text-muted)",
+  cursor: "pointer",
+  fontFamily: "var(--t-font-family)",
+  textDecoration: "underline",
+  textUnderlineOffset: 3,
 };
 
 export const themeHomeActionBtnStyle: CSSProperties = {
